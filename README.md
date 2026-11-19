@@ -78,6 +78,18 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - The PDF gets one picture per page; device and connection tables list the page each item is on.
 - Diagrams saved by v0.2 open as a single "Network" page.
 
+## Layers, status and data colors
+
+The **View** menu works like Visio's layers and data graphics:
+
+- **Color devices by** status, location, model or layer, and **cables by** type or VLAN. A legend appears on the
+  canvas and on each PDF diagram page.
+- Every device has a **status** (Active, Planned, Offline, Retired). Planned devices are drawn dashed (handy for
+  proposals), retired ones faded.
+- **Layers** group devices and cables (e.g. Cameras, Wi-Fi, Power, Planned work). Create them in the View menu, put
+  the selection on a layer (or set it in the properties panel), and tick a layer off to hide everything on it, on the
+  canvas and in picture/PDF exports. Tables in the PDF/CSV still list everything.
+
 ## Spreadsheet data (Excel / CSV)
 
 The **Data** menu links devices to a spreadsheet, like Visio's *Link Data to Shapes*:

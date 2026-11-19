@@ -72,6 +72,9 @@ export interface DeviceData extends Record<string, unknown> {
   assetTag?: string;
   /** Typical power draw in watts, for rack power totals. */
   powerW?: number;
+  status?: DeviceStatus;
+  /** Layer id (see Project.layers). */
+  layer?: string;
   ports?: Record<string, PortData>;
 }
 
@@ -106,6 +109,31 @@ export interface CableData extends Record<string, unknown> {
   cable: CableType;
   label?: string;
   vlan?: string;
+  layer?: string;
+}
+
+export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';
+export const DEVICE_STATUSES: { value: DeviceStatus; label: string; color: string }[] = [
+  { value: 'active', label: 'Active', color: '#16a34a' },
+  { value: 'planned', label: 'Planned', color: '#2563eb' },
+  { value: 'offline', label: 'Offline', color: '#dc2626' },
+  { value: 'retired', label: 'Retired', color: '#6b7280' },
+];
+
+/** Like Visio layers: named groups of devices/cables that can be shown or hidden together. */
+export interface Layer {
+  id: string;
+  name: string;
+  visible: boolean;
+}
+
+export type DeviceColorBy = 'none' | 'status' | 'location' | 'model' | 'layer';
+export type CableColorBy = 'type' | 'vlan';
+
+export interface DisplaySettings {
+  deviceColor: DeviceColorBy;
+  cableColor: CableColorBy;
+  showLegend: boolean;
 }
 
 export type CableEdge = Edge<CableData, 'cable'>;
@@ -171,6 +199,8 @@ export interface Project {
   racks?: Rack[];
   /** The spreadsheet last imported, so it can be re-applied with Refresh. */
   dataLink?: DataLink;
+  layers?: Layer[];
+  display?: DisplaySettings;
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */
   nodes?: AppNode[];
   edges?: CableEdge[];

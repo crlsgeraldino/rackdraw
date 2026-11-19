@@ -5,6 +5,7 @@ import { memo, useMemo } from 'react';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import type { BackdropNode, DeviceNode, NoteNode, PortDef, StencilDef, ZoneNode } from '@/lib/types';
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { useDisplay } from './useDisplay';
 
 const SIDE: Record<PortDef['side'], Position> = {
   top: Position.Top,
@@ -59,6 +60,7 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
   const stencil = useStencil(data.stencilId);
   const states = usePortStates(id);
   const snapshot = useDiagram((s) => s.snapshot);
+  const display = useDisplay();
   if (!stencil) {
     return (
       <div className="w-48 rounded border border-red-400 bg-red-50 p-2 text-xs text-red-800">
@@ -86,6 +88,14 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
     />
   );
 
+  // Data colors: a colored outline; planned devices dashed, retired ones faded.
+  const tint = display.device({ id, data } as DeviceNode);
+  const status = data.status ?? 'active';
+  const outline: React.CSSProperties = tint
+    ? { outline: `3px ${status === 'planned' ? 'dashed' : 'solid'} ${tint}`, outlineOffset: 4, borderRadius: 4 }
+    : status === 'planned' ? { outline: '2px dashed #2563eb', outlineOffset: 4, borderRadius: 4 } : {};
+  const fade: React.CSSProperties = status === 'retired' ? { opacity: 0.45, filter: 'grayscale(1)' } : status === 'planned' ? { opacity: 0.75 } : {};
+
   const handles = stencil.ports.map((p) => {
     const custom = data.ports?.[p.id];
     const title = [custom?.label || p.label, p.role, custom?.description, custom?.vlan && `VLAN ${custom.vlan}`].filter(Boolean).join(' · ');
@@ -106,7 +116,7 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
     return (
       <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }}>
         {resizer}
-        <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k }}>
+        <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
         </div>
@@ -121,9 +131,11 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
   return (
     <div className={`relative ${selected ? 'nc-selected-panel' : ''}`}>
       {resizer}
-      {stencil.style === 'image'
-        ? <ImageArt stencil={stencil} portStates={states} k={k} />
-        : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
+      <div style={{ ...(selected ? {} : outline), ...fade }}>
+        {stencil.style === 'image'
+          ? <ImageArt stencil={stencil} portStates={states} k={k} />
+          : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
+      </div>
       {handles}
       <div className="pointer-events-none absolute left-0 top-full mt-1 flex gap-2 whitespace-nowrap text-[11px] text-gray-800">
         <span className="font-semibold">{data.name}</span>

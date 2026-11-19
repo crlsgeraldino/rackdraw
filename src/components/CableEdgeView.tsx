@@ -2,12 +2,13 @@
 
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
 import { memo } from 'react';
-import { CABLE_STYLES, type CableEdge } from '@/lib/types';
+import type { CableEdge } from '@/lib/types';
+import { useDisplay } from './useDisplay';
 
 function CableEdgeView(props: EdgeProps<CableEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
   const [path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8, offset: 16 });
-  const style = CABLE_STYLES[data?.cable ?? 'Cat6'];
+  const style = useDisplay().cable(data);
   const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`].filter(Boolean).join(' · ');
 
   return (

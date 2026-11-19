@@ -4,7 +4,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, type BackdropNode, type CableData, type CableType, type DeviceNode } from '@/lib/types';
+import { CABLE_STYLES, DEVICE_STATUSES, type BackdropNode, type CableData, type CableType, type DeviceNode } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
@@ -49,6 +49,15 @@ function DeviceProps({ node }: { node: DeviceNode }) {
     <>
       <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">{stencil?.name}</div>
       <Field label="Name / hostname" value={d.name} onChange={set('name')} />
+      <div className="flex gap-2">
+        <label className="mb-2 block flex-1">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Status</span>
+          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.status ?? 'active'} onChange={(e) => { snapshot(); update(node.id, { status: e.target.value }); }}>
+            {DEVICE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </label>
+        <LayerSelect value={d.layer} onChange={(layer) => { snapshot(); update(node.id, { layer }); }} />
+      </div>
       <Field label="Model" value={d.model} onChange={set('model')} />
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono />
       <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />
@@ -123,6 +132,20 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   );
 }
 
+/** Layer picker; layers are created in the View menu. */
+function LayerSelect({ value, onChange }: { value?: string; onChange: (layer: string | undefined) => void }) {
+  const layers = useCurrentProject().layers ?? [];
+  return (
+    <label className="mb-2 block flex-1">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Layer</span>
+      <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)} title={layers.length ? '' : 'Create layers in the View menu'}>
+        <option value="">None</option>
+        {layers.map((l) => <option key={l.id} value={l.id}>{l.name}{l.visible ? '' : ' (hidden)'}</option>)}
+      </select>
+    </label>
+  );
+}
+
 function CableProps({ id, data }: { id: string; data: CableData }) {
   const update = useDiagram((s) => s.updateEdgeData);
   const snapshot = useDiagram((s) => s.snapshot);
@@ -146,6 +169,7 @@ function CableProps({ id, data }: { id: string; data: CableData }) {
       </label>
       <Field label="Label" value={data.label} onChange={(v) => update(id, { label: v })} />
       <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono />
+      <LayerSelect value={data.layer} onChange={(layer) => { snapshot(); update(id, { layer }); }} />
     </>
   );
 }

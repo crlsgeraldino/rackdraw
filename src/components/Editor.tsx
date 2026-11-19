@@ -6,12 +6,13 @@ import {
   ConnectionMode,
   Controls,
   MiniMap,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/style.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { allNodes } from '@/lib/project';
 import type { AppNode, CableEdge } from '@/lib/types';
@@ -21,6 +22,8 @@ import { nodeTypes } from './nodes';
 import { DND_TYPE, Palette } from './Palette';
 import { PropertiesPanel } from './PropertiesPanel';
 import { DataMenu } from './DataMenu';
+import { useDisplay } from './useDisplay';
+import { Legend, ViewMenu } from './ViewMenu';
 import { PageTabs } from './PageTabs';
 import { RackView } from './RackView';
 
@@ -176,6 +179,7 @@ function Toolbar() {
       <Btn onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">↷ Redo</Btn>
 
       <div className="ml-auto" />
+      <ViewMenu />
       <DataMenu />
       <div className="relative">
         <button
@@ -202,6 +206,16 @@ function Canvas() {
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
   const page = useCurrentPage();
+  const display = useDisplay();
+  // Items on hidden layers are hidden on the canvas (and so in picture exports).
+  const nodes = useMemo(
+    () => page.nodes.map((n) => (n.type === 'device' && n.data.layer && display.hidden.has(n.data.layer) ? { ...n, hidden: true } : n)),
+    [page.nodes, display.hidden],
+  );
+  const edges = useMemo(
+    () => page.edges.map((e) => (e.data?.layer && display.hidden.has(e.data.layer) ? { ...e, hidden: true } : e)),
+    [page.edges, display.hidden],
+  );
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -232,8 +246,8 @@ function Canvas() {
     <div className="relative flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
       <ReactFlow<AppNode, CableEdge>
         key={page.id}
-        nodes={page.nodes}
-        edges={page.edges}
+        nodes={nodes}
+        edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
@@ -253,6 +267,7 @@ function Canvas() {
         proOptions={{ hideAttribution: false }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
+        <Panel position="top-left"><Legend /></Panel>
         <Controls />
         <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />
       </ReactFlow>

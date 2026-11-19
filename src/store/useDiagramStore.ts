@@ -5,10 +5,11 @@ import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { ImportPlan } from '@/lib/dataImport';
+import { DEFAULT_DISPLAY } from '@/lib/display';
 import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
 import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, Page, PageKind, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -69,6 +70,15 @@ interface DiagramState {
    * (stencil picked from the row's Type when it names one, else `defaultStencilId`). Returns counts.
    */
   applyImport: (plan: ImportPlan, defaultStencilId: string, link: DataLink) => { updated: number; created: number };
+
+  // layers and data colors (current project)
+  addLayer: (name: string) => string;
+  renameLayer: (id: string, name: string) => void;
+  deleteLayer: (id: string) => void;
+  toggleLayer: (id: string) => void;
+  /** Puts the selected devices/cables on the active page onto a layer (null = no layer). Returns how many moved. */
+  assignSelectionToLayer: (layerId: string | null) => number;
+  setDisplay: (patch: Partial<DisplaySettings>) => void;
 
   // pages (current project)
   setActivePage: (id: string) => void;
@@ -320,6 +330,46 @@ export const useDiagram = create<DiagramState>()(
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, dataLink: link } } });
           return { updated: plan.updates.length, created: created.length };
+        },
+
+        addLayer: (name) => {
+          const layer: Layer = { id: `l-${uid()}`, name, visible: true };
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, layers: [...(p.layers ?? []), layer], updatedAt: Date.now() } } });
+          return layer.id;
+        },
+        renameLayer: (id, name) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => (l.id === id ? { ...l, name } : l)) } } });
+        },
+        deleteLayer: (id) => {
+          get().snapshot();
+          // Items on the deleted layer stay, with no layer.
+          const strip = <T extends { data?: Record<string, unknown> }>(x: T): T => (x.data?.layer === id ? { ...x, data: { ...x.data, layer: undefined } } : x);
+          const pages = cur().pages.map((pg) => ({ ...pg, nodes: pg.nodes.map((n) => strip(n) as AppNode), edges: pg.edges.map((e) => strip(e) as CableEdge) }));
+          commit({ pages });
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).filter((l) => l.id !== id) } } });
+        },
+        toggleLayer: (id) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)) } } });
+        },
+        assignSelectionToLayer: (layerId) => {
+          const pg = page();
+          const n = pg.nodes.filter((x) => x.selected && x.type === 'device').length + pg.edges.filter((e) => e.selected).length;
+          if (!n) return 0;
+          get().snapshot();
+          const layer = layerId ?? undefined;
+          commit({
+            nodes: pg.nodes.map((x) => (x.selected && x.type === 'device' ? { ...x, data: { ...x.data, layer } } : x)),
+            edges: pg.edges.map((e) => (e.selected ? { ...e, data: { ...(e.data as CableData), layer } } : e)),
+          });
+          return n;
+        },
+        setDisplay: (patch) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, display: { ...DEFAULT_DISPLAY, ...p.display, ...patch } } } });
         },
 
         setActivePage: (id) => {

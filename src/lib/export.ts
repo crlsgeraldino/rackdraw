@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { RackElevation, rackSize } from '@/components/RackElevation';
 import { getStencil } from '@/store/useDiagramStore';
 import { deviceListRows } from './dataImport';
+import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices, migrateProject } from './project';
 import { rackLabel } from './rack';
 import type { AppNode, CableData, Page, Project, Rack, StencilDef, StencilLibraryFile } from './types';
@@ -223,9 +224,39 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     doc.addImage(img.url, 'PNG', m, top, img.width * ratio, img.height * ratio, undefined, 'FAST');
   };
 
+  // Legend for data colors, drawn in the top-right corner of each diagram page.
+  const colors = displayColors(p);
+  const settings = p.display ?? DEFAULT_DISPLAY;
+  const legendGroups = [
+    { title: colors.deviceTitle, items: colors.deviceLegend },
+    { title: colors.cableTitle, items: settings.cableColor === 'vlan' ? colors.cableLegend : [] },
+  ].filter((g) => g.title && g.items.length);
+  const legend = () => {
+    if (!settings.showLegend || !legendGroups.length) return;
+    let x = W - m;
+    for (const g of [...legendGroups].reverse()) {
+      const width = Math.max(doc.getTextWidth(g.title.toUpperCase()), ...g.items.map((i) => doc.getTextWidth(i.label) + 12)) + 10;
+      x -= width;
+      doc.setFontSize(7);
+      doc.setTextColor(110);
+      doc.text(g.title.toUpperCase(), x, m - 4);
+      g.items.forEach((it, i) => {
+        const y = m + 4 + i * 9;
+        doc.setDrawColor(it.color);
+        doc.setFillColor(it.color);
+        doc.rect(x, y - 5, 6, 6, it.dashed ? 'S' : 'F');
+        doc.setTextColor(40);
+        doc.text(it.label, x + 9, y);
+      });
+    }
+    doc.setTextColor(0);
+  };
+
   for (const pg of p.pages) {
     const img = await renderPage(pg);
-    if (img) picture(p.pages.length > 1 ? `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` : 'Network diagram', img);
+    if (!img) continue;
+    picture(p.pages.length > 1 ? `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` : 'Network diagram', img);
+    legend();
   }
   for (const rack of p.racks ?? []) {
     picture(['Rack elevation', rack.name, rack.location].filter(Boolean).join(': '), await renderRack(p, rack));
