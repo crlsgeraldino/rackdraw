@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { libraryOf } from '@/lib/libraries';
 import { STENCIL_CATEGORIES, type PortDef, type PortKind, type PortSide, type StencilCategory, type StencilDef } from '@/lib/types';
+import { LibraryPicker } from './LibraryPicker';
 
 const KINDS: { value: PortKind; label: string }[] = [
   { value: 'rj45', label: 'RJ45' },
@@ -32,7 +34,7 @@ function nextLabel(ports: PortDef[]) {
 }
 
 export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: StencilDef; isNew: boolean; onSave: (s: StencilDef) => void; onCancel: () => void }) {
-  const [s, setS] = useState<StencilDef>(initial);
+  const [s, setS] = useState<StencilDef>(() => ({ ...initial, library: libraryOf(initial) }));
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const surface = useRef<HTMLDivElement>(null);
@@ -158,6 +160,10 @@ export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: S
               <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Name</span>
               <input className="w-full rounded border border-gray-300 px-2 py-1 outline-none focus:border-blue-500" value={s.name} onChange={(e) => setS({ ...s, name: e.target.value })} placeholder="e.g. Meraki MX68" />
             </label>
+            <div>
+              <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Library (palette folder)</span>
+              <LibraryPicker value={s.library ?? ''} onChange={(library) => setS({ ...s, library })} />
+            </div>
             <div className="flex gap-2">
               <label className="block flex-1">
                 <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Vendor</span>
@@ -245,7 +251,7 @@ export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: S
           <button
             disabled={!valid}
             className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            onClick={() => onSave({ ...s, name: s.name.trim() })}
+            onClick={() => onSave({ ...s, name: s.name.trim(), library: libraryOf(s) })}
           >
             Save stencil
           </button>

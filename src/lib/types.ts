@@ -42,6 +42,8 @@ export interface StencilDef {
   image?: string;
   /** True for stencils the user imported (stored with their data, not in the app). */
   custom?: boolean;
+  /** Library (palette folder) a custom stencil belongs to, e.g. the Visio file it came from. Missing = "My stencils". */
+  library?: string;
   /** Height in rack units when mounted; undefined = not rack-mount (sits on a shelf, 1U by default). */
   rackUnits?: number;
   defaults?: Partial<DeviceData>;
@@ -51,6 +53,8 @@ export interface StencilDef {
 export interface StencilLibraryFile {
   format: 'netcraft-stencils';
   version: 1;
+  /** Library name when the file holds one library; each stencil also carries its own `library`. */
+  name?: string;
   stencils: StencilDef[];
 }
 

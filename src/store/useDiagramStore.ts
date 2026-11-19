@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { ImportPlan } from '@/lib/dataImport';
 import { DEFAULT_DISPLAY } from '@/lib/display';
+import { DEFAULT_LIBRARY, libraryOf, resolveLibrary, sameLibrary } from '@/lib/libraries';
 import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
 import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
@@ -117,8 +118,15 @@ interface DiagramState {
   // custom stencils
   saveCustomStencil: (s: StencilDef) => void;
   deleteCustomStencil: (id: string) => void;
-  /** Adds stencils from a library or project file; returns how many were new. */
-  importStencils: (list: StencilDef[]) => number;
+  /**
+   * Adds stencils from a library or project file; returns how many were new.
+   * Stencils without their own library go into `library` (default "My stencils").
+   */
+  importStencils: (list: StencilDef[], library?: string) => number;
+  /** Renames a stencil library; renaming onto an existing library merges the two. */
+  renameLibrary: (from: string, to: string) => void;
+  /** Deletes every stencil in a library. */
+  deleteLibrary: (name: string) => void;
 }
 
 /** Looks up a built-in or user-imported stencil. */
@@ -623,29 +631,47 @@ export const useDiagram = create<DiagramState>()(
             return edges.length === pg.edges.length ? pg : { ...pg, edges };
           };
           const projects = Object.fromEntries(Object.entries(get().projects).map(([id, p]) => [id, { ...p, pages: p.pages.map(prunePage) }]));
-          set({ projects, customStencils: { ...get().customStencils, [s.id]: { ...s, custom: true, style: 'image' } } });
+          const custom = get().customStencils;
+          const library = resolveLibrary(libraryOf(s), Object.values(custom).map(libraryOf));
+          set({ projects, customStencils: { ...custom, [s.id]: { ...s, library, custom: true, style: 'image' } } });
         },
         deleteCustomStencil: (id) => {
           const rest = { ...get().customStencils };
           delete rest[id];
           set({ customStencils: rest });
         },
-        importStencils: (list) => {
+        importStencils: (list, library) => {
           const next = { ...get().customStencils };
+          const names = new Set(Object.values(next).map(libraryOf));
           let added = 0;
           for (const s of list) {
             if (!s?.id || STENCIL_MAP[s.id] || s.style !== 'image' || !s.image) continue;
             if (!next[s.id]) added++;
-            next[s.id] = { ...s, custom: true };
+            const lib = resolveLibrary(s.library?.trim() || library || DEFAULT_LIBRARY, names);
+            names.add(lib);
+            next[s.id] = { ...s, library: lib, custom: true };
           }
           set({ customStencils: next });
           return added;
+        },
+        renameLibrary: (from, to) => {
+          const custom = get().customStencils;
+          const others = Object.values(custom).map(libraryOf).filter((n) => !sameLibrary(n, from));
+          const target = resolveLibrary(to, others);
+          set({
+            customStencils: Object.fromEntries(
+              Object.entries(custom).map(([id, s]) => [id, sameLibrary(libraryOf(s), from) ? { ...s, library: target } : s]),
+            ),
+          });
+        },
+        deleteLibrary: (name) => {
+          set({ customStencils: Object.fromEntries(Object.entries(get().customStencils).filter(([, s]) => !sameLibrary(libraryOf(s), name))) });
         },
       };
     },
     {
       name: 'netcraft',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => idbStorage),
       partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
@@ -654,6 +680,12 @@ export const useDiagram = create<DiagramState>()(
         // v3: projects hold pages instead of a single diagram.
         if (version < 3 && state.projects) {
           state.projects = Object.fromEntries(Object.entries(state.projects).map(([id, p]) => [id, migrateProject(p)]));
+        }
+        // v4: custom stencils belong to a library (palette folder); older ones go to "My stencils".
+        if (version < 4 && state.customStencils) {
+          state.customStencils = Object.fromEntries(
+            Object.entries(state.customStencils).map(([id, s]) => [id, { ...s, library: libraryOf(s) }]),
+          );
         }
         return state as DiagramState;
       },

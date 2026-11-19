@@ -131,13 +131,20 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 
 ## Your own stencils (no code needed)
 
-**My stencils → + Import image as device** takes an SVG, PNG, JPG or WebP — a vendor product photo, a datasheet
+**+ Import image as device** (top of the shapes palette) takes an SVG, PNG, JPG or WebP — a vendor product photo, a datasheet
 drawing, or a Visio shape exported as SVG (in Visio: select the shape → **File → Save As → SVG**). Then drag a box over
 each port; every box becomes a connection point with a label, type (RJ45, SFP, console, power…), cable direction and
 optional role (WAN, LAN, MGMT). Set how wide it should appear on the diagram and save.
 
-- Hover a stencil in the palette to **✎ edit** its ports or **✕ delete** it.
-- **Export library** saves all your stencils to one `.netcraft-stencils.json` file; techs load it with **Import library**.
+- Hover a stencil in the palette to **✎ edit** its ports, library or **✕ delete** it.
+- Imported stencils are organized into **libraries**, shown as folders under **My libraries** in the palette, apart
+  from the built-in categories. Each Visio file becomes its own library; images go to **My stencils** unless you
+  pick another library (or type a new one) in the stencil editor. Folders remember whether you left them open, and
+  search looks inside every library.
+- Hover a library folder to **✎ rename** it (renaming onto an existing name merges the two), **⤓ export** just that
+  library, or **✕ delete** it (you're told how many devices in your diagrams use it).
+- Library files (`.netcraft-stencils.json`) keep library names; **Import library** creates the library, or merges into
+  one with the same name. **Export all** saves every library to one file.
 - Saved project files embed the custom stencils they use, so a diagram opens correctly on any computer.
 - Large photos are resized to 2000 px and re-encoded as WebP; SVGs containing scripts are refused.
 - Stencils and diagrams are stored in the browser's IndexedDB (diagrams saved by v0.1 move over automatically).
@@ -146,8 +153,9 @@ Vendor artwork keeps its own license: import it for your own documentation, but 
 
 ### Visio stencils (.vssx)
 
-**My stencils → + Import Visio stencil (.vssx)** opens a vendor stencil (Dell, Ubiquiti, HPE, Cisco…), lists its
-shapes with a live preview, and imports the ones you tick into a category you choose.
+**+ Import Visio stencil (.vssx)** opens a vendor stencil (Dell, Ubiquiti, HPE, Cisco…), lists its shapes with a live
+preview, and imports the ones you tick into a library named after the file (e.g. `Dell-PowerEdge-RackServers-Classic.vssx`
+→ "Dell PowerEdge Rack Servers Classic"). Change the name, or pick an existing library to add to it, before importing.
 
 - Works without Visio, entirely in the browser. Also reads the masters inside `.vsdx` drawings and `.vstx` templates.
 - Draws Visio geometry (lines, arcs, elliptical arcs, Béziers, ellipses), groups, rotation/flips, line and fill

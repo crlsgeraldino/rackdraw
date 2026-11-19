@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { groupLibraries, libraryNameFromFile, resolveLibrary } from '@/lib/libraries';
 import { STENCIL_CATEGORIES, type StencilCategory, type StencilDef } from '@/lib/types';
 import { VisioPackage, canvasDibEncoder, type VisioMasterInfo } from '@/lib/visio/vssx';
 import { useDiagram } from '@/store/useDiagramStore';
+import { LibraryPicker } from './LibraryPicker';
 
 const MAX_SIDE = 2000;
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -64,6 +66,8 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
   const [withPorts, setWithPorts] = useState(true);
   const [progress, setProgress] = useState<string | null>(null);
   const vendor = file.name.replace(/\.(vssx|vsdx|vstx)$/i, '').replace(/[-_]+/g, ' ');
+  const [library, setLibrary] = useState(() => libraryNameFromFile(file.name));
+  const custom = useDiagram((s) => s.customStencils);
 
   useEffect(() => {
     VisioPackage.open(file).then(
@@ -91,6 +95,7 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
     if (!pkg) return;
     const chosen = pkg.masters.filter((m) => picked.has(m.id));
     const { saveCustomStencil } = useDiagram.getState();
+    const target = resolveLibrary(library, groupLibraries(Object.values(custom)).map((l) => l.name));
     const warnings = new Set<string>();
     let done = 0, failed = 0;
     for (const m of chosen) {
@@ -104,6 +109,7 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
           id: `custom-${uid()}`,
           name: m.name,
           vendor,
+          library: target,
           category,
           style: 'image',
           custom: true,
@@ -121,7 +127,7 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
     }
     setProgress(null);
     alert(
-      `Imported ${done} stencil${done === 1 ? '' : 's'} into My stencils.` +
+      `Imported ${done} stencil${done === 1 ? '' : 's'} into the library "${target}".` +
       (failed ? `\n${failed} could not be converted.` : '') +
       (warnings.size ? `\n\nNotes:\n• ${[...warnings].join('\n• ')}` : '') +
       '\n\nHover a stencil and click ✎ to name its ports.',
@@ -166,14 +172,14 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col p-4">
-              <div className="flex flex-1 items-center justify-center rounded border border-gray-200 bg-[repeating-conic-gradient(#f3f4f6_0_25%,#fff_0_50%)] bg-[length:16px_16px] p-4">
+              <div className="relative flex min-h-0 flex-1 items-center justify-center rounded border border-gray-200 bg-[repeating-conic-gradient(#f3f4f6_0_25%,#fff_0_50%)] bg-[length:16px_16px] p-4">
                 {!focus ? null : !preview ? (
                   <span className="text-sm text-gray-500">Converting preview…</span>
                 ) : 'error' in preview ? (
                   <span className="text-sm text-red-600">{preview.error}</span>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element -- converted artwork as a data URL
-                  <img src={preview.image} alt={focus.name} className="max-h-full max-w-full object-contain" />
+                  <span className="absolute inset-4 flex items-center justify-center"><img src={preview.image} alt={focus.name} className="max-h-full max-w-full object-contain" /></span>
                 )}
               </div>
               {focus && preview && !('error' in preview) && (
@@ -185,6 +191,10 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
                 </p>
               )}
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                <div className="flex min-w-[300px] flex-1 items-center gap-1.5" title="The palette shows each library as its own folder. Pick an existing one to add these shapes to it.">
+                  Library
+                  <LibraryPicker className="flex-1" value={library} onChange={setLibrary} />
+                </div>
                 <label className="flex items-center gap-1.5">
                   Category
                   <select className="rounded border border-gray-300 px-1.5 py-1" value={category} onChange={(e) => setCategory(e.target.value as StencilCategory)}>

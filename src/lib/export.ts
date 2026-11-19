@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { RackElevation, rackSize } from '@/components/RackElevation';
 import { getStencil } from '@/store/useDiagramStore';
+import { libraryNameFromFile } from './libraries';
 import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices, migrateProject } from './project';
@@ -351,7 +352,7 @@ export function saveProjectFile(p: Project) {
 
 export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[] }> {
   const json = JSON.parse(await file.text());
-  if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" under My stencils.');
+  if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" in the shapes palette.');
   const p = json?.project ?? json;
   const valid = p && (Array.isArray(p.pages) || (Array.isArray(p.nodes) && Array.isArray(p.edges)));
   if (!valid) throw new Error('Not a NetCraft diagram file.');
@@ -364,15 +365,21 @@ export async function readProjectFile(file: File): Promise<{ project: Project; s
 
 /* ---------- stencil libraries ---------- */
 
-export function saveStencilLibrary(stencils: StencilDef[], name = 'my-stencils') {
-  const file: StencilLibraryFile = { format: 'netcraft-stencils', version: 1, stencils };
+export function saveStencilLibrary(stencils: StencilDef[], name = 'my-stencils', library?: string) {
+  const file: StencilLibraryFile = { format: 'netcraft-stencils', version: 1, ...(library ? { name: library } : {}), stencils };
   downloadBlob(`${safeName(name)}.netcraft-stencils.json`, new Blob([JSON.stringify(file)], { type: 'application/json' }));
 }
 
-export async function readStencilLibrary(file: File): Promise<StencilDef[]> {
+/**
+ * Reads a library or project file. `library` is where stencils without their own library name go:
+ * the file's library name, else a name made from the file name (project files: undefined → "My stencils").
+ */
+export async function readStencilLibrary(file: File): Promise<{ stencils: StencilDef[]; library?: string }> {
   const json = JSON.parse(await file.text());
   // A project file also carries the custom stencils it uses, so accept either.
   const list = json?.stencils;
   if (!Array.isArray(list)) throw new Error('No stencils found in this file.');
-  return list;
+  if (json?.format !== 'netcraft-stencils') return { stencils: list };
+  const named = typeof json.name === 'string' && json.name.trim() ? json.name.trim() : undefined;
+  return { stencils: list, library: named ?? libraryNameFromFile(file.name) };
 }
