@@ -1,10 +1,24 @@
 'use client';
 
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
+import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { STENCIL_MAP } from '@/lib/stencils';
-import type { AppNode, CableData, CableEdge, DeviceData, PortData, Project } from '@/lib/types';
+import type { AppNode, CableData, CableEdge, DeviceData, PortData, Project, StencilDef } from '@/lib/types';
+
+/**
+ * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
+ * Reads fall back to localStorage once so data saved by earlier versions carries over.
+ */
+const idbStorage: StateStorage = {
+  getItem: async (name) => (await idbGet<string>(name)) ?? localStorage.getItem(name),
+  setItem: async (name, value) => {
+    await idbSet(name, value);
+    localStorage.removeItem(name);
+  },
+  removeItem: (name) => del(name),
+};
 
 interface Snapshot {
   nodes: AppNode[];
@@ -14,6 +28,7 @@ interface Snapshot {
 interface DiagramState {
   projects: Record<string, Project>;
   currentId: string;
+  customStencils: Record<string, StencilDef>;
   past: Snapshot[];
   future: Snapshot[];
 
@@ -40,7 +55,18 @@ interface DiagramState {
   openProject: (id: string) => void;
   updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes'>>) => void;
   deleteProject: (id: string) => void;
-  importProject: (p: Project) => void;
+  importProject: (p: Project, stencils?: StencilDef[]) => void;
+
+  // custom stencils
+  saveCustomStencil: (s: StencilDef) => void;
+  deleteCustomStencil: (id: string) => void;
+  /** Adds stencils from a library or project file; returns how many were new. */
+  importStencils: (list: StencilDef[]) => number;
+}
+
+/** Looks up a built-in or user-imported stencil. */
+export function findStencil(id: string, custom: Record<string, StencilDef>): StencilDef | undefined {
+  return STENCIL_MAP[id] ?? custom[id];
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -67,6 +93,7 @@ export const useDiagram = create<DiagramState>()(
       return {
         projects: { [first.id]: first },
         currentId: first.id,
+        customStencils: {},
         past: [],
         future: [],
 
@@ -117,7 +144,7 @@ export const useDiagram = create<DiagramState>()(
         },
 
         addStencil: (stencilId, position) => {
-          const s = STENCIL_MAP[stencilId];
+          const s = findStencil(stencilId, get().customStencils);
           if (!s) return;
           get().snapshot();
           const count = cur().nodes.filter((n) => n.type === 'device' && n.data.stencilId === stencilId).length;
@@ -201,19 +228,62 @@ export const useDiagram = create<DiagramState>()(
           const currentId = id === get().currentId ? Object.values(rest).sort((a, b) => b.updatedAt - a.updatedAt)[0].id : get().currentId;
           set({ projects: rest, currentId, past: [], future: [] });
         },
-        importProject: (p) => {
+        importProject: (p, stencils) => {
+          if (stencils?.length) get().importStencils(stencils);
           const copy: Project = { ...p, id: uid(), updatedAt: Date.now() };
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
+        },
+
+        saveCustomStencil: (s) => {
+          // Cables plugged into ports that were removed from the stencil have nothing to attach to; drop them.
+          const portIds = new Set(s.ports.map((p) => p.id));
+          const projects = Object.fromEntries(
+            Object.entries(get().projects).map(([id, p]) => {
+              const users = new Set(p.nodes.filter((n) => n.type === 'device' && n.data.stencilId === s.id).map((n) => n.id));
+              if (!users.size) return [id, p];
+              const dangling = (node: string, handle?: string | null) => users.has(node) && !!handle && !portIds.has(handle);
+              const edges = p.edges.filter((e) => !dangling(e.source, e.sourceHandle) && !dangling(e.target, e.targetHandle));
+              return [id, edges.length === p.edges.length ? p : { ...p, edges }];
+            }),
+          );
+          set({ projects, customStencils: { ...get().customStencils, [s.id]: { ...s, custom: true, style: 'image' } } });
+        },
+        deleteCustomStencil: (id) => {
+          const rest = { ...get().customStencils };
+          delete rest[id];
+          set({ customStencils: rest });
+        },
+        importStencils: (list) => {
+          const next = { ...get().customStencils };
+          let added = 0;
+          for (const s of list) {
+            if (!s?.id || STENCIL_MAP[s.id] || s.style !== 'image' || !s.image) continue;
+            if (!next[s.id]) added++;
+            next[s.id] = { ...s, custom: true };
+          }
+          set({ customStencils: next });
+          return added;
         },
       };
     },
     {
       name: 'netcraft',
-      version: 1,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ projects: s.projects, currentId: s.currentId }),
+      version: 2,
+      storage: createJSONStorage(() => idbStorage),
+      partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils }),
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<DiagramState>;
+        if (version < 2) state.customStencils = {};
+        return state as DiagramState;
+      },
     },
   ),
 );
 
 export const useCurrentProject = () => useDiagram((s) => s.projects[s.currentId]);
+
+/** Built-in or custom stencil by id, reactive to library changes. */
+export const useStencil = (id: string) => useDiagram((s) => findStencil(id, s.customStencils));
+
+/** Non-reactive lookup for event handlers and exports. */
+export const getStencil = (id: string) => findStencil(id, useDiagram.getState().customStencils);

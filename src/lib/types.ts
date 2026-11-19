@@ -18,7 +18,9 @@ export interface PortDef {
   role?: string;
 }
 
-export type StencilCategory = 'Firewalls' | 'Switching' | 'Wireless' | 'Servers' | 'Endpoints' | 'WAN' | 'Layout';
+export type StencilCategory = 'Firewalls' | 'Switching' | 'Wireless' | 'Servers' | 'Endpoints' | 'WAN' | 'Layout' | 'Custom';
+
+export const STENCIL_CATEGORIES: StencilCategory[] = ['Firewalls', 'Switching', 'WAN', 'Wireless', 'Servers', 'Endpoints', 'Custom'];
 
 export interface StencilDef {
   id: string;
@@ -31,9 +33,23 @@ export interface StencilDef {
   /** Native units → canvas pixels. */
   scale: number;
   ports: PortDef[];
-  /** 'panel' = front-panel art with ports drawn on it; 'icon' = symbol with a caption. */
-  style: 'panel' | 'icon';
+  /**
+   * 'panel' = built-in front-panel art with ports drawn on it; 'icon' = symbol with a caption;
+   * 'image' = user-imported SVG/PNG/JPG with ports marked on top of it.
+   */
+  style: 'panel' | 'icon' | 'image';
+  /** Data URL of the artwork, for 'image' stencils. */
+  image?: string;
+  /** True for stencils the user imported (stored with their data, not in the app). */
+  custom?: boolean;
   defaults?: Partial<DeviceData>;
+}
+
+/** Shareable stencil library file. */
+export interface StencilLibraryFile {
+  format: 'netcraft-stencils';
+  version: 1;
+  stencils: StencilDef[];
 }
 
 export interface PortData {

@@ -1,8 +1,7 @@
 'use client';
 
-import { STENCIL_MAP } from '@/lib/stencils';
 import { CABLE_STYLES, type CableData, type CableType, type DeviceNode } from '@/lib/types';
-import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
 function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
   const snapshot = useDiagram((s) => s.snapshot);
@@ -24,7 +23,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   const update = useDiagram((s) => s.updateNodeData);
   const updatePort = useDiagram((s) => s.updatePort);
   const snapshot = useDiagram((s) => s.snapshot);
-  const stencil = STENCIL_MAP[node.data.stencilId];
+  const stencil = useStencil(node.data.stencilId);
   const d = node.data;
   const set = (k: string) => (v: string) => update(node.id, { [k]: v });
 

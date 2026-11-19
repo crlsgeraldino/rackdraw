@@ -2,9 +2,9 @@
 
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
-import { IconArt, PanelArt, STENCIL_MAP, type PortState } from '@/lib/stencils';
-import type { DeviceNode, NoteNode, PortDef, ZoneNode } from '@/lib/types';
-import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
+import type { DeviceNode, NoteNode, PortDef, StencilDef, ZoneNode } from '@/lib/types';
+import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
 const SIDE: Record<PortDef['side'], Position> = {
   top: Position.Top,
@@ -28,10 +28,38 @@ function usePortStates(nodeId: string) {
   }, [edges, nodeId]);
 }
 
+/** Imported artwork with a highlight drawn over each connected or selected port. */
+function ImageArt({ stencil, portStates }: { stencil: StencilDef; portStates: Record<string, PortState> }) {
+  const w = stencil.width * stencil.scale;
+  const h = stencil.height * stencil.scale;
+  return (
+    <div className="relative" style={{ width: w, height: h }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- data URL artwork, not an optimizable asset */}
+      <img src={stencil.image} alt={stencil.name} width={w} height={h} draggable={false} style={{ display: 'block', width: w, height: h }} />
+      <svg className="pointer-events-none absolute inset-0" viewBox={`0 0 ${stencil.width} ${stencil.height}`} width={w} height={h}>
+        {stencil.ports.map((p) => {
+          const st = portStates[p.id];
+          if (!st || st === 'idle') return null;
+          const color = st === 'selected' ? '#3b82f6' : '#22c55e';
+          const pad = 2 / stencil.scale;
+          return <rect key={p.id} x={p.x - pad} y={p.y - pad} width={p.w + pad * 2} height={p.h + pad * 2} rx={pad} fill={`${color}33`} stroke={color} strokeWidth={2 / stencil.scale} />;
+        })}
+      </svg>
+    </div>
+  );
+}
+
 function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
-  const stencil = STENCIL_MAP[data.stencilId];
+  const stencil = useStencil(data.stencilId);
   const states = usePortStates(id);
-  if (!stencil) return <div className="rounded border border-red-400 bg-red-50 p-2 text-xs">Unknown stencil: {data.stencilId}</div>;
+  if (!stencil) {
+    return (
+      <div className="w-48 rounded border border-red-400 bg-red-50 p-2 text-xs text-red-800">
+        <div className="font-semibold">{data.name}</div>
+        Its stencil is missing from this computer&apos;s library. Import the stencil library or the project file that contains it.
+      </div>
+    );
+  }
   const k = stencil.scale;
 
   const handles = stencil.ports.map((p) => {
@@ -67,7 +95,7 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
 
   return (
     <div className={`relative ${selected ? 'nc-selected-panel' : ''}`}>
-      <PanelArt stencil={stencil} portStates={states} />
+      {stencil.style === 'image' ? <ImageArt stencil={stencil} portStates={states} /> : <PanelArt stencil={stencil} portStates={states} />}
       {handles}
       <div className="pointer-events-none absolute left-0 top-full mt-1 flex gap-2 whitespace-nowrap text-[11px] text-gray-800">
         <span className="font-semibold">{data.name}</span>

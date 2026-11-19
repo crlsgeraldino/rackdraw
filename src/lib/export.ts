@@ -1,7 +1,7 @@
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
-import { STENCIL_MAP } from './stencils';
-import type { AppNode, CableData, Project } from './types';
+import { getStencil } from '@/store/useDiagramStore';
+import type { AppNode, CableData, Project, StencilDef, StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
 
@@ -31,7 +31,7 @@ function nodeName(n: AppNode | undefined) {
 
 function portName(n: AppNode | undefined, portId?: string | null) {
   if (!n || n.type !== 'device' || !portId) return portId ?? '';
-  const def = STENCIL_MAP[n.data.stencilId]?.ports.find((p) => p.id === portId);
+  const def = getStencil(n.data.stencilId)?.ports.find((p) => p.id === portId);
   return n.data.ports?.[portId]?.label || def?.label || portId;
 }
 
@@ -62,7 +62,7 @@ export function connectionRows(p: Project): ConnectionRow[] {
 export function deviceRows(p: Project) {
   return p.nodes.flatMap((n) => (n.type === 'device' ? [n] : [])).map((n) => ({
     name: n.data.name,
-    type: STENCIL_MAP[n.data.stencilId]?.name ?? n.data.stencilId,
+    type: getStencil(n.data.stencilId)?.name ?? n.data.stencilId,
     model: n.data.model ?? '',
     ip: n.data.ip ?? '',
     serial: n.data.serial ?? '',
@@ -178,23 +178,46 @@ export function exportCsv(p: Project) {
     ...conns.map((c) => [c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]),
   ];
   // BOM so Excel reads UTF-8 correctly.
-  downloadBlob(`${safeName(p.name)}.csv`, new Blob(['﻿' + csv(lines)], { type: 'text/csv;charset=utf-8' }));
+  downloadBlob(`${safeName(p.name)}.csv`, new Blob(['\ufeff' + csv(lines)], { type: 'text/csv;charset=utf-8' }));
 }
 
 /* ---------- project files ---------- */
 
+/** Saves a project; custom stencils it uses are embedded so the file opens on any computer. */
 export function saveProjectFile(p: Project) {
   const clean = {
     ...p,
     nodes: p.nodes.map((n) => ({ ...n, selected: false })),
     edges: p.edges.map((e) => ({ ...e, selected: false })),
   };
-  downloadBlob(`${safeName(p.name)}.netcraft.json`, new Blob([JSON.stringify({ format: 'netcraft', version: 1, project: clean }, null, 2)], { type: 'application/json' }));
+  const used = new Set(p.nodes.flatMap((n) => (n.type === 'device' ? [n.data.stencilId] : [])));
+  const stencils = [...used].map(getStencil).filter((s): s is StencilDef => !!s?.custom);
+  const body = JSON.stringify({ format: 'netcraft', version: 2, project: clean, stencils }, null, 2);
+  downloadBlob(`${safeName(p.name)}.netcraft.json`, new Blob([body], { type: 'application/json' }));
 }
 
-export async function readProjectFile(file: File): Promise<Project> {
+export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[] }> {
   const json = JSON.parse(await file.text());
+  if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" under My stencils.');
   const p = json?.project ?? json;
   if (!p || !Array.isArray(p.nodes) || !Array.isArray(p.edges)) throw new Error('Not a NetCraft diagram file.');
-  return { name: file.name.replace(/\.netcraft\.json$|\.json$/i, ''), createdAt: Date.now(), ...p };
+  return {
+    project: { name: file.name.replace(/\.netcraft\.json$|\.json$/i, ''), createdAt: Date.now(), ...p },
+    stencils: Array.isArray(json.stencils) ? json.stencils : [],
+  };
+}
+
+/* ---------- stencil libraries ---------- */
+
+export function saveStencilLibrary(stencils: StencilDef[], name = 'my-stencils') {
+  const file: StencilLibraryFile = { format: 'netcraft-stencils', version: 1, stencils };
+  downloadBlob(`${safeName(name)}.netcraft-stencils.json`, new Blob([JSON.stringify(file)], { type: 'application/json' }));
+}
+
+export async function readStencilLibrary(file: File): Promise<StencilDef[]> {
+  const json = JSON.parse(await file.text());
+  // A project file also carries the custom stencils it uses, so accept either.
+  const list = json?.stencils;
+  if (!Array.isArray(list)) throw new Error('No stencils found in this file.');
+  return list;
 }

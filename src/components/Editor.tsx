@@ -13,9 +13,8 @@ import {
 import '@xyflow/react/style.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { exportCsv, exportImage, exportPdf, readProjectFile, saveProjectFile } from '@/lib/export';
-import { STENCIL_MAP } from '@/lib/stencils';
 import type { AppNode, CableEdge } from '@/lib/types';
-import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
 import { DND_TYPE, Palette } from './Palette';
@@ -64,7 +63,8 @@ function Toolbar() {
   const onOpen = async (f?: File) => {
     if (!f) return;
     try {
-      importProject(await readProjectFile(f));
+      const { project: p, stencils } = await readProjectFile(f);
+      importProject(p, stencils);
       setTimeout(() => rf.fitView({ padding: 0.2 }), 50);
     } catch (e) {
       alert((e as Error).message);
@@ -173,7 +173,7 @@ function Canvas() {
     const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     if (id === '__zone') return addZone(pos);
     if (id === '__note') return addNote(pos);
-    const s = STENCIL_MAP[id];
+    const s = getStencil(id);
     if (!s) return;
     addStencil(id, { x: pos.x - (s.width * s.scale) / 2, y: pos.y - (s.height * s.scale) / 2 });
   }, [rf, addStencil, addZone, addNote]);
@@ -233,6 +233,16 @@ function Canvas() {
 }
 
 export default function Editor() {
+  // Saved diagrams load asynchronously from IndexedDB; wait so edits aren't made to the placeholder project.
+  const [hydrated, setHydrated] = useState(() => useDiagram.persist.hasHydrated());
+  useEffect(() => {
+    if (hydrated) return;
+    const unsub = useDiagram.persist.onFinishHydration(() => setHydrated(true));
+    if (useDiagram.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, [hydrated]);
+  if (!hydrated) return <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading your diagrams…</div>;
+
   return (
     <ReactFlowProvider>
       <div className="flex h-screen flex-col bg-gray-50 text-gray-900">

@@ -299,6 +299,11 @@ export function IconArt({ id, size = 64 }: { id: string; size?: number }) {
 /** Small thumbnail for the stencil palette. */
 export function StencilThumb({ stencil }: { stencil: StencilDef }) {
   if (stencil.style === 'icon') return <IconArt id={stencil.id} size={40} />;
+  if (stencil.style === 'image') {
+    const w = Math.min(120, stencil.width * stencil.scale);
+    // eslint-disable-next-line @next/next/no-img-element -- user artwork as a data URL
+    return <img src={stencil.image} alt="" width={w} height={(w * stencil.height) / stencil.width} draggable={false} style={{ display: 'block' }} />;
+  }
   return (
     <svg viewBox={`0 0 ${stencil.width} ${stencil.height}`} width={120} height={(120 * stencil.height) / stencil.width} style={{ display: 'block' }}>
       <rect width={stencil.width} height={stencil.height} rx={3} fill={stencil.id.startsWith('patch') ? '#3b3b3e' : '#2a2a2c'} />

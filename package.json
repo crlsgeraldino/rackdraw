@@ -21,10 +21,25 @@
     "appId": "com.crlsgeraldino.netcraft",
     "productName": "NetCraft",
     "copyright": "MIT License",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["electron/**", "out/**", "build/icon.png", "package.json"],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "out/**",
+      "build/icon.png",
+      "package.json"
+    ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.png"
     },
     "nsis": {
@@ -50,6 +65,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
     "html-to-image": "^1.11.13",
+    "idb-keyval": "^6.3.0",
     "jspdf": "^4.2.1",
     "next": "15.5.29",
     "react": "19.1.0",

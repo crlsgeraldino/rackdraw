@@ -65,9 +65,24 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
-## Adding a stencil
+## Your own stencils (no code needed)
 
-Stencils live in `src/lib/stencils.tsx`. A panel stencil is a native-size artwork plus a list of ports
+**My stencils → + Import image as device** takes an SVG, PNG, JPG or WebP — a vendor product photo, a datasheet
+drawing, or a Visio shape exported as SVG (in Visio: select the shape → **File → Save As → SVG**). Then drag a box over
+each port; every box becomes a connection point with a label, type (RJ45, SFP, console, power…), cable direction and
+optional role (WAN, LAN, MGMT). Set how wide it should appear on the diagram and save.
+
+- Hover a stencil in the palette to **✎ edit** its ports or **✕ delete** it.
+- **Export library** saves all your stencils to one `.netcraft-stencils.json` file; techs load it with **Import library**.
+- Saved project files embed the custom stencils they use, so a diagram opens correctly on any computer.
+- Large photos are resized to 2000 px and re-encoded as WebP; SVGs containing scripts are refused.
+- Stencils and diagrams are stored in the browser's IndexedDB (diagrams saved by v0.1 move over automatically).
+
+Vendor artwork keeps its own license: import it for your own documentation, but don't bundle it in this repository.
+
+## Adding a built-in stencil
+
+Built-in stencils live in `src/lib/stencils.tsx`. A panel stencil is a native-size artwork plus a list of ports
 (`id`, `label`, `kind`, `x`, `y`, `w`, `h`, `side`); each port automatically becomes a connection point and a row in the
 properties panel. See `sonicwallTz` and `switchStencil()` for examples.
 
