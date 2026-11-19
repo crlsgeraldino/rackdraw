@@ -9,7 +9,7 @@ import { DEFAULT_DISPLAY } from '@/lib/display';
 import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
 import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, ShapeKind, StencilDef } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -52,6 +52,7 @@ interface DiagramState {
   addStencil: (stencilId: string, position: { x: number; y: number }) => void;
   addZone: (position: { x: number; y: number }) => void;
   addNote: (position: { x: number; y: number }) => void;
+  addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
   updatePort: (nodeId: string, portId: string, patch: PortData) => void;
   updateEdgeData: (id: string, patch: Partial<CableData>) => void;
@@ -218,11 +219,14 @@ export const useDiagram = create<DiagramState>()(
         onConnect: (c) => {
           if (c.source === c.target && c.sourceHandle === c.targetHandle) return;
           get().snapshot();
+          // Device-to-device links are network cables; anything touching a drawing shape is a plain arrow line.
+          const isDevice = (id: string) => page().nodes.find((n) => n.id === id)?.type === 'device';
+          const cable = isDevice(c.source) && isDevice(c.target);
           const edge: CableEdge = {
             ...c,
             id: `e-${uid()}`,
             type: 'cable',
-            data: { cable: 'Cat6' },
+            data: cable ? { cable: 'Cat6' } : { cable: 'Line', arrows: 'end', route: 'step' },
           } as CableEdge;
           commit({ edges: addEdge(edge, page().edges) });
         },
@@ -255,6 +259,26 @@ export const useDiagram = create<DiagramState>()(
           commit({ nodes: [...page().nodes, node] });
         },
 
+        addShape: (kind, position) => {
+          get().snapshot();
+          const size = kind === 'text' ? { width: 180, height: 40 } : kind === 'arrow' ? { width: 140, height: 50 } : kind === 'diamond' ? { width: 140, height: 100 } : { width: 160, height: 80 };
+          const node: AppNode = {
+            id: `s-${uid()}`,
+            type: 'shape',
+            position: { x: position.x - size.width / 2, y: position.y - size.height / 2 },
+            ...size,
+            data: {
+              kind,
+              text: kind === 'text' ? 'Text' : kind === 'arrow' ? '' : 'Label',
+              fill: kind === 'text' ? 'transparent' : kind === 'arrow' ? '#93c5fd' : '#ffffff',
+              stroke: kind === 'text' ? 'transparent' : '#374151',
+              textColor: '#111827',
+              fontSize: kind === 'text' ? 18 : 14,
+              rotation: 0,
+            },
+          };
+          commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
         updateNodeData: (id, patch) =>
           commit({ nodes: page().nodes.map((n) => (n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as AppNode) : n)) }),
         updatePort: (nodeId, portId, patch) =>

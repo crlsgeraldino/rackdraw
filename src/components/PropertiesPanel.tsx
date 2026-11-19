@@ -4,7 +4,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEVICE_STATUSES, type BackdropNode, type CableData, type CableType, type DeviceNode } from '@/lib/types';
+import { CABLE_STYLES, DEVICE_STATUSES, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
@@ -169,7 +169,81 @@ function CableProps({ id, data }: { id: string; data: CableData }) {
       </label>
       <Field label="Label" value={data.label} onChange={(v) => update(id, { label: v })} />
       <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono />
+      <div className="flex gap-2">
+        <label className="mb-2 block flex-1">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Route</span>
+          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={data.route ?? 'step'} onChange={(e) => { snapshot(); update(id, { route: e.target.value as CableRoute }); }}>
+            <option value="step">Right angles</option>
+            <option value="straight">Straight</option>
+            <option value="curved">Curved</option>
+          </select>
+        </label>
+        <label className="mb-2 block flex-1">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Arrows</span>
+          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={data.arrows ?? 'none'} onChange={(e) => { snapshot(); update(id, { arrows: e.target.value as CableArrows }); }}>
+            <option value="none">None</option>
+            <option value="end">At end</option>
+            <option value="start">At start</option>
+            <option value="both">Both ends</option>
+          </select>
+        </label>
+      </div>
       <LayerSelect value={data.layer} onChange={(layer) => { snapshot(); update(id, { layer }); }} />
+    </>
+  );
+}
+
+const SWATCHES = ['transparent', '#ffffff', '#f3f4f6', '#dbeafe', '#dcfce7', '#fef9c3', '#fee2e2', '#ede9fe', '#93c5fd', '#374151', '#111827'];
+
+function ShapeProps({ node }: { node: ShapeNode }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const d = node.data;
+  const set = (patch: Partial<ShapeData>) => { snapshot(); update(node.id, patch); };
+  const swatchRow = (label: string, key: 'fill' | 'stroke' | 'textColor') => (
+    <div className="mb-2">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">{label}</span>
+      <div className="flex flex-wrap gap-1">
+        {SWATCHES.filter((c) => key !== 'textColor' || c !== 'transparent').map((c) => (
+          <button
+            key={c}
+            onClick={() => set({ [key]: c })}
+            className={`h-5 w-5 rounded border ${d[key] === c ? 'ring-2 ring-blue-500 ring-offset-1' : 'border-gray-300'}`}
+            style={{ background: c === 'transparent' ? 'repeating-conic-gradient(#e5e7eb 0 25%, #fff 0 50%) 0 0/8px 8px' : c }}
+            aria-label={c === 'transparent' ? 'None' : c}
+            title={c === 'transparent' ? 'None' : c}
+          />
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">Shape · {d.kind}</div>
+      <label className="mb-2 block">
+        <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Text (or double-click the shape)</span>
+        <textarea className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500" rows={3} value={d.text} onFocus={snapshot} onChange={(e) => update(node.id, { text: e.target.value })} />
+      </label>
+      <label className="mb-2 block">
+        <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Text size: {d.fontSize}px</span>
+        <input type="range" min={8} max={48} className="w-full" value={d.fontSize} onPointerDown={snapshot} onChange={(e) => update(node.id, { fontSize: Number(e.target.value) })} />
+      </label>
+      {d.kind !== 'text' && swatchRow('Fill', 'fill')}
+      {d.kind !== 'text' && swatchRow('Border', 'stroke')}
+      {swatchRow('Text color', 'textColor')}
+      {d.kind !== 'text' && (
+        <label className="mb-2 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.dashed} onChange={(e) => set({ dashed: e.target.checked })} /> Dashed border</label>
+      )}
+      {d.kind === 'arrow' && (
+        <label className="mb-2 block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Points</span>
+          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.rotation ?? 0} onChange={(e) => set({ rotation: Number(e.target.value) })}>
+            <option value={0}>Right</option><option value={90}>Down</option><option value={180}>Left</option><option value={270}>Up</option>
+          </select>
+        </label>
+      )}
+      <LayerSelect value={d.layer} onChange={(layer) => set({ layer })} />
+      <p className="mt-2 text-[10px] text-gray-400">Drag from a blue dot on its edge to draw an arrow to another shape or device.</p>
     </>
   );
 }
@@ -279,6 +353,8 @@ export function PropertiesPanel() {
     body = <p className="text-sm text-gray-500">Edit the note text directly on the canvas.</p>;
   } else if (selEdges[0]) {
     body = <CableProps id={selEdges[0].id} data={(selEdges[0].data ?? { cable: 'Cat6' }) as CableData} />;
+  } else if (selNodes[0]?.type === 'shape') {
+    body = <ShapeProps node={selNodes[0]} />;
   } else if (selNodes[0]?.type === 'backdrop') {
     body = <PageProps />;
   } else {

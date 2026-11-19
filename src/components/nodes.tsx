@@ -1,9 +1,9 @@
 'use client';
 
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import type { BackdropNode, DeviceNode, NoteNode, PortDef, StencilDef, ZoneNode } from '@/lib/types';
+import type { BackdropNode, DeviceNode, NoteNode, PortDef, ShapeData, ShapeNode, StencilDef, ZoneNode } from '@/lib/types';
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { useDisplay } from './useDisplay';
 
@@ -175,6 +175,56 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
   );
 }
 
+function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
+  const common = { fill: d.fill, stroke: d.stroke, strokeWidth: 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
+  switch (d.kind) {
+    case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
+    case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
+    case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
+    case 'diamond': return <polygon points={`${w / 2},1 ${w - 1},${h / 2} ${w / 2},${h - 1} 1,${h / 2}`} {...common} />;
+    case 'arrow': {
+      const head = Math.min(w * 0.4, h);
+      return <polygon points={`1,${h * 0.28} ${w - head},${h * 0.28} ${w - head},1 ${w - 1},${h / 2} ${w - head},${h - 1} ${w - head},${h * 0.72} 1,${h * 0.72}`} {...common} />;
+    }
+    default: return null;
+  }
+}
+
+/** Drawing shape: box, ellipse, diamond, arrow or free text. Double-click to edit the text. */
+function ShapeNodeView({ id, data, selected, width, height }: NodeProps<ShapeNode>) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const [editing, setEditing] = useState(false);
+  const w = width ?? 160, h = height ?? 80;
+  const textStyle: React.CSSProperties = { color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2 };
+  return (
+    <div className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
+      <NodeResizer isVisible={selected} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
+      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'arrow' && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+        <ShapeOutline d={data} w={w} h={h} />
+      </svg>
+      {data.kind === 'text' && selected && !editing && <div className="pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
+      {editing ? (
+        <textarea
+          autoFocus
+          className="nodrag absolute inset-1 resize-none bg-white/80 text-center outline-none"
+          style={textStyle}
+          defaultValue={data.text}
+          onBlur={(e) => { update(id, { text: e.target.value }); setEditing(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
+        />
+      ) : (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center whitespace-pre-wrap px-2 text-center" style={textStyle}>
+          {data.text}
+        </div>
+      )}
+      {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
+        <Handle key={side} id={side} type="source" position={SIDE[side]} className="nc-handle-side" />
+      ))}
+    </div>
+  );
+}
+
 /** Floor plan / site photo behind the page. Locked = click-through; unlocked = move and resize it. */
 function BackdropNodeView({ data, selected, width, height }: NodeProps<BackdropNode>) {
   const snapshot = useDiagram((s) => s.snapshot);
@@ -197,4 +247,5 @@ export const nodeTypes = {
   zone: memo(ZoneNodeView),
   note: memo(NoteNodeView),
   backdrop: memo(BackdropNodeView),
+  shape: memo(ShapeNodeView),
 };

@@ -1,13 +1,17 @@
 'use client';
 
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, type EdgeProps } from '@xyflow/react';
 import { memo } from 'react';
 import type { CableEdge } from '@/lib/types';
 import { useDisplay } from './useDisplay';
 
 function CableEdgeView(props: EdgeProps<CableEdge>) {
-  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
-  const [path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8, offset: 16 });
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, markerStart, markerEnd } = props;
+  const pos = { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition };
+  const [path, labelX, labelY] =
+    data?.route === 'straight' ? getStraightPath(pos)
+    : data?.route === 'curved' ? getBezierPath(pos)
+    : getSmoothStepPath({ ...pos, borderRadius: 8, offset: 16 });
   const style = useDisplay().cable(data);
   const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`].filter(Boolean).join(' · ');
 
@@ -16,6 +20,8 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
       <BaseEdge
         id={id}
         path={path}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
         style={{
           stroke: style.color,
           strokeWidth: selected ? style.width + 2 : style.width,

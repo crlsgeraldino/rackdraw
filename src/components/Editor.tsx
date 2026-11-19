@@ -5,6 +5,7 @@ import {
   BackgroundVariant,
   ConnectionMode,
   Controls,
+  MarkerType,
   MiniMap,
   Panel,
   ReactFlow,
@@ -15,7 +16,7 @@ import '@xyflow/react/style.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { allNodes } from '@/lib/project';
-import type { AppNode, CableEdge } from '@/lib/types';
+import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
@@ -209,14 +210,27 @@ function Canvas() {
   const display = useDisplay();
   // Items on hidden layers are hidden on the canvas (and so in picture exports).
   const nodes = useMemo(
-    () => page.nodes.map((n) => (n.type === 'device' && n.data.layer && display.hidden.has(n.data.layer) ? { ...n, hidden: true } : n)),
+    () => page.nodes.map((n) => ((n.type === 'device' || n.type === 'shape') && n.data.layer && display.hidden.has(n.data.layer) ? { ...n, hidden: true } : n)),
     [page.nodes, display.hidden],
   );
   const edges = useMemo(
-    () => page.edges.map((e) => (e.data?.layer && display.hidden.has(e.data.layer) ? { ...e, hidden: true } : e)),
-    [page.edges, display.hidden],
+    () =>
+      page.edges.map((e) => {
+        const hidden = !!(e.data?.layer && display.hidden.has(e.data.layer));
+        const arrows = e.data?.arrows ?? 'none';
+        if (!hidden && arrows === 'none') return e;
+        // Arrowheads take the line's color.
+        const marker = { type: MarkerType.ArrowClosed, color: display.cable(e.data).color, width: 16, height: 16 };
+        return {
+          ...e,
+          hidden,
+          markerEnd: arrows === 'end' || arrows === 'both' ? marker : undefined,
+          markerStart: arrows === 'start' || arrows === 'both' ? marker : undefined,
+        };
+      }),
+    [page.edges, display],
   );
-  const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
+  const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -225,10 +239,11 @@ function Canvas() {
     const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     if (id === '__zone') return addZone(pos);
     if (id === '__note') return addNote(pos);
+    if (id.startsWith('__shape:')) return addShape(id.slice(8) as ShapeKind, pos);
     const s = getStencil(id);
     if (!s) return;
     addStencil(id, { x: pos.x - (s.width * s.scale) / 2, y: pos.y - (s.height * s.scale) / 2 });
-  }, [rf, addStencil, addZone, addNote]);
+  }, [rf, addStencil, addZone, addNote, addShape]);
 
   // Keyboard shortcuts (outside of text fields).
   useEffect(() => {

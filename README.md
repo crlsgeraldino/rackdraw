@@ -78,6 +78,16 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - The PDF gets one picture per page; device and connection tables list the page each item is on.
 - Diagrams saved by v0.2 open as a single "Network" page.
 
+## Drawing tools and connectors
+
+- **Drawing** shapes in the palette: text, box, rounded box, ellipse, diamond and arrow. Resize with the corner
+  handles, double-click to edit text, and set fill, border, text color/size, dashed border and arrow direction in the
+  right panel.
+- Drag from a shape's blue edge dot to draw an arrow to another shape or device. Links that touch a shape are plain
+  arrow lines; device-to-device links stay network cables.
+- Any line or cable can be routed with **right angles, straight or curved**, and get **arrowheads** at the start,
+  end or both.
+
 ## Layers, status and data colors
 
 The **View** menu works like Visio's layers and data graphics:

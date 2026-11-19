@@ -59,3 +59,19 @@ body {
 .react-flow__node-zone {
   padding: 0;
 }
+
+/* Drawing shapes: connection points on each side, shown on hover. */
+.react-flow__handle.nc-handle-side {
+  width: 9px;
+  height: 9px;
+  min-width: 0;
+  min-height: 0;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  opacity: 0;
+}
+.react-flow__node:hover .nc-handle-side,
+.react-flow__node.selected .nc-handle-side,
+.react-flow__handle.nc-handle-side.connectingto {
+  opacity: 1;
+}

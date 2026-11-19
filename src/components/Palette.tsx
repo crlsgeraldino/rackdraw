@@ -5,7 +5,7 @@ import { readStencilLibrary, saveStencilLibrary } from '@/lib/export';
 import { allNodes } from '@/lib/project';
 import { loadImageFile } from '@/lib/imageImport';
 import { STENCILS, StencilThumb } from '@/lib/stencils';
-import { STENCIL_CATEGORIES, type StencilDef } from '@/lib/types';
+import { STENCIL_CATEGORIES, type ShapeKind, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
 import { StencilEditor } from './StencilEditor';
 import { VisioImportDialog } from './VisioImportDialog';
@@ -13,6 +13,16 @@ import { VisioImportDialog } from './VisioImportDialog';
 export const DND_TYPE = 'application/x-netcraft-stencil';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+const ink = { fill: '#fff', stroke: '#374151', strokeWidth: 1.5 };
+const SHAPES: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
+  { kind: 'text', label: 'Text', icon: <text x="17" y="16" textAnchor="middle" fontSize="14" fontWeight="600" fill="#374151">T</text> },
+  { kind: 'rect', label: 'Box', icon: <rect x="3" y="3" width="28" height="16" {...ink} /> },
+  { kind: 'rounded', label: 'Rounded', icon: <rect x="3" y="3" width="28" height="16" rx="6" {...ink} /> },
+  { kind: 'ellipse', label: 'Ellipse', icon: <ellipse cx="17" cy="11" rx="14" ry="8" {...ink} /> },
+  { kind: 'diamond', label: 'Diamond', icon: <polygon points="17,2 32,11 17,20 2,11" {...ink} /> },
+  { kind: 'arrow', label: 'Arrow', icon: <polygon points="2,7 20,7 20,2 32,11 20,20 20,15 2,15" fill="#93c5fd" stroke="#374151" strokeWidth="1.5" /> },
+];
 
 export function Palette() {
   const [q, setQ] = useState('');
@@ -142,6 +152,17 @@ export function Palette() {
             </div>
           </section>
         ))}
+        <section className="mb-3">
+          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Drawing</h3>
+          <div className="grid grid-cols-3 gap-1">
+            {SHAPES.map((s) => (
+              <div key={s.kind} draggable onDragStart={(e) => drag(e, `__shape:${s.kind}`)} className="flex cursor-grab flex-col items-center gap-0.5 rounded border border-gray-200 p-1 text-[10px] text-gray-600 hover:bg-gray-50" title={`Drag onto the canvas: ${s.label}`}>
+                <svg width="34" height="22" viewBox="0 0 34 22" aria-hidden>{s.icon}</svg>
+                {s.label}
+              </div>
+            ))}
+          </div>
+        </section>
         <section className="mb-3">
           <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Layout</h3>
           <div className="grid grid-cols-2 gap-1">

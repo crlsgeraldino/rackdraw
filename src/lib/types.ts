@@ -97,19 +97,41 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow';
+
+/** A drawing shape for annotations (boxes, callouts, arrows, free text). */
+export interface ShapeData extends Record<string, unknown> {
+  kind: ShapeKind;
+  text: string;
+  fill: string;
+  stroke: string;
+  textColor: string;
+  fontSize: number;
+  dashed?: boolean;
+  /** Arrow direction in degrees (0 = pointing right). */
+  rotation?: number;
+  layer?: string;
+}
+
+export type ShapeNode = Node<ShapeData, 'shape'>;
 export type DeviceNode = Node<DeviceData, 'device'>;
 export type ZoneNode = Node<ZoneData, 'zone'>;
 export type NoteNode = Node<NoteData, 'note'>;
 export type BackdropNode = Node<BackdropData, 'backdrop'>;
-export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode;
+export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode | ShapeNode;
 
-export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' | 'Wireless' | 'VPN';
+export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' | 'Wireless' | 'VPN' | 'Line';
+
+export type CableRoute = 'step' | 'straight' | 'curved';
+export type CableArrows = 'none' | 'end' | 'start' | 'both';
 
 export interface CableData extends Record<string, unknown> {
   cable: CableType;
   label?: string;
   vlan?: string;
   layer?: string;
+  route?: CableRoute;
+  arrows?: CableArrows;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';
@@ -217,4 +239,5 @@ export const CABLE_STYLES: Record<CableType, { color: string; dash?: string; wid
   Console: { color: '#6b7280', dash: '4 3', width: 1.5 },
   Wireless: { color: '#7c3aed', dash: '2 4', width: 2 },
   VPN: { color: '#059669', dash: '8 4', width: 2 },
+  Line: { color: '#374151', width: 1.5 },
 };
