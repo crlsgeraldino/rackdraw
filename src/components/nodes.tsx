@@ -29,9 +29,9 @@ function usePortStates(nodeId: string) {
 }
 
 /** Imported artwork with a highlight drawn over each connected or selected port. */
-function ImageArt({ stencil, portStates }: { stencil: StencilDef; portStates: Record<string, PortState> }) {
-  const w = stencil.width * stencil.scale;
-  const h = stencil.height * stencil.scale;
+function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates: Record<string, PortState>; k: number }) {
+  const w = stencil.width * k;
+  const h = stencil.height * k;
   return (
     <div className="relative" style={{ width: w, height: h }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL artwork, not an optimizable asset */}
@@ -41,17 +41,24 @@ function ImageArt({ stencil, portStates }: { stencil: StencilDef; portStates: Re
           const st = portStates[p.id];
           if (!st || st === 'idle') return null;
           const color = st === 'selected' ? '#3b82f6' : '#22c55e';
-          const pad = 2 / stencil.scale;
-          return <rect key={p.id} x={p.x - pad} y={p.y - pad} width={p.w + pad * 2} height={p.h + pad * 2} rx={pad} fill={`${color}33`} stroke={color} strokeWidth={2 / stencil.scale} />;
+          const pad = 2 / k;
+          return <rect key={p.id} x={p.x - pad} y={p.y - pad} width={p.w + pad * 2} height={p.h + pad * 2} rx={pad} fill={`${color}33`} stroke={color} strokeWidth={2 / k} />;
         })}
       </svg>
     </div>
   );
 }
 
-function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
+/** Diagram size of a stencil before any resizing. */
+export function baseSize(stencil: StencilDef) {
+  const k = stencil.style === 'icon' ? 1 : stencil.scale;
+  return { width: stencil.width * k, height: stencil.height * k };
+}
+
+function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
   const stencil = useStencil(data.stencilId);
   const states = usePortStates(id);
+  const snapshot = useDiagram((s) => s.snapshot);
   if (!stencil) {
     return (
       <div className="w-48 rounded border border-red-400 bg-red-50 p-2 text-xs text-red-800">
@@ -60,7 +67,24 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
       </div>
     );
   }
-  const k = stencil.scale;
+  // Resizing sets the node's width; everything (art, ports, highlights) scales from it, keeping proportions.
+  const base = baseSize(stencil);
+  const zoom = width ? width / base.width : 1;
+  const k = (stencil.style === 'icon' ? 1 : stencil.scale) * zoom;
+  const resizer = (
+    <NodeResizer
+      isVisible={selected}
+      keepAspectRatio
+      minWidth={Math.min(base.width, Math.max(24, base.width * 0.2))}
+      minHeight={Math.min(base.height, Math.max(8, base.height * 0.2))}
+      maxWidth={base.width * 6}
+      maxHeight={base.height * 6}
+      color="#3b82f6"
+      handleStyle={{ width: 9, height: 9, borderRadius: 2 }}
+      lineStyle={{ borderWidth: 0 }}
+      onResizeStart={snapshot}
+    />
+  );
 
   const handles = stencil.ports.map((p) => {
     const custom = data.ports?.[p.id];
@@ -80,9 +104,10 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
 
   if (stencil.style === 'icon') {
     return (
-      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width }}>
-        <div className="relative" style={{ width: stencil.width, height: stencil.height }}>
-          <IconArt id={stencil.id} />
+      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }}>
+        {resizer}
+        <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k }}>
+          <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
         </div>
         <div className="pointer-events-none absolute top-full mt-1 w-40 text-center text-[11px] leading-tight text-gray-800">
@@ -95,7 +120,10 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
 
   return (
     <div className={`relative ${selected ? 'nc-selected-panel' : ''}`}>
-      {stencil.style === 'image' ? <ImageArt stencil={stencil} portStates={states} /> : <PanelArt stencil={stencil} portStates={states} />}
+      {resizer}
+      {stencil.style === 'image'
+        ? <ImageArt stencil={stencil} portStates={states} k={k} />
+        : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
       {handles}
       <div className="pointer-events-none absolute left-0 top-full mt-1 flex gap-2 whitespace-nowrap text-[11px] text-gray-800">
         <span className="font-semibold">{data.name}</span>

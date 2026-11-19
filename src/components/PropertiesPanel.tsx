@@ -1,6 +1,7 @@
 'use client';
 
 import { rackLabel } from '@/lib/rack';
+import { baseSize } from './nodes';
 import { CABLE_STYLES, type CableData, type CableType, type DeviceNode } from '@/lib/types';
 import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
@@ -25,7 +26,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   const updatePort = useDiagram((s) => s.updatePort);
   const snapshot = useDiagram((s) => s.snapshot);
   const stencil = useStencil(node.data.stencilId);
-  const { selectRack, selectRackItem, setView } = useDiagram.getState();
+  const { selectRack, selectRackItem, setView, setNodeSize } = useDiagram.getState();
   const d = node.data;
   const set = (k: string) => (v: string) => update(node.id, { [k]: v });
   const mount = (project.racks ?? []).flatMap((rack) => rack.items.filter((it) => it.nodeId === node.id).map((item) => ({ rack, item })))[0];
@@ -47,6 +48,23 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <Field label="Model" value={d.model} onChange={set('model')} />
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono />
       <Field label="Serial number" value={d.serial} onChange={set('serial')} mono />
+      {stencil && (() => {
+        const base = baseSize(stencil);
+        const pct = node.width ? Math.round((node.width / base.width) * 100) : 100;
+        const setPct = (p: number) => setNodeSize(node.id, p === 100 ? null : { width: (base.width * p) / 100, height: (base.height * p) / 100 });
+        return (
+          <div className="mb-2">
+            <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Size on diagram</span>
+            <div className="flex items-center gap-1">
+              <button className="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-50" onClick={() => setPct(Math.max(20, pct - 10))} aria-label="Smaller">−</button>
+              <span className="w-12 text-center text-sm">{pct}%</span>
+              <button className="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-50" onClick={() => setPct(Math.min(600, pct + 10))} aria-label="Larger">+</button>
+              {pct !== 100 && <button className="ml-auto text-xs text-blue-600 hover:underline" onClick={() => setPct(100)}>Reset size</button>}
+            </div>
+            <span className="text-[10px] text-gray-400">Or drag a corner handle on the canvas.</span>
+          </div>
+        );
+      })()}
       <Field label="Location" value={d.location} onChange={set('location')} />
       <div className="flex gap-2">
         <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />

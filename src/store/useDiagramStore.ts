@@ -66,6 +66,8 @@ interface DiagramState {
   setView: (v: 'diagram' | 'racks') => void;
   /** Selects one diagram node and clears every other selection. */
   selectOnlyNode: (id: string) => void;
+  /** Sets a device's diagram size, or restores its stencil's default size when `size` is null. */
+  setNodeSize: (id: string, size: { width: number; height: number } | null) => void;
   selectRack: (id: string | null) => void;
   selectRackItem: (id: string | null) => void;
   addRack: (name: string, units: number) => string;
@@ -271,6 +273,17 @@ export const useDiagram = create<DiagramState>()(
         activeRackId: null,
         selectedRackItemId: null,
         setView: (view) => set({ view }),
+        setNodeSize: (id, size) => {
+          get().snapshot();
+          commit({
+            nodes: cur().nodes.map((n) => {
+              if (n.id !== id) return n;
+              const { width: _w, height: _h, measured: _m, ...rest } = n;
+              void _w; void _h; void _m;
+              return (size ? { ...rest, width: size.width, height: size.height } : rest) as AppNode;
+            }),
+          });
+        },
         selectOnlyNode: (id) =>
           commit({
             nodes: cur().nodes.map((n) => ({ ...n, selected: n.id === id })),
