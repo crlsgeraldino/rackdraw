@@ -65,6 +65,19 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Pages
+
+Each client project has **pages**, shown as tabs under the canvas (like Visio):
+
+- **＋** adds a **Network diagram** or a **Floor plan** page. Double-click a tab to rename it; its ▾ menu duplicates,
+  reorders or deletes the page (undoable).
+- Any page can have a **background image**: a floor plan, site photo or rack photo. Set it in the right panel
+  (with nothing selected), adjust opacity, and unlock it to move or resize it.
+- Cables connect devices on the same page. Racks belong to the client, so they can hold devices from any page,
+  and **Show on diagram** jumps to the right page.
+- The PDF gets one picture per page; device and connection tables list the page each item is on.
+- Diagrams saved by v0.2 open as a single "Network" page.
+
 ## Racks
 
 Switch to **Racks** in the toolbar to draw rack elevations for the client.

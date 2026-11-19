@@ -5,8 +5,9 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { RackElevation, rackSize } from '@/components/RackElevation';
 import { getStencil } from '@/store/useDiagramStore';
+import { allDevices, migrateProject } from './project';
 import { rackLabel } from './rack';
-import type { AppNode, CableData, DeviceNode, Project, Rack, StencilDef, StencilLibraryFile } from './types';
+import type { AppNode, CableData, Page, Project, Rack, StencilDef, StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
 
@@ -48,19 +49,23 @@ export interface ConnectionRow {
   cable: string;
   vlan: string;
   label: string;
+  page: string;
 }
 
 export function connectionRows(p: Project): ConnectionRow[] {
-  const byId = new Map(p.nodes.map((n) => [n.id, n]));
-  return p.edges.map((e) => {
-    const a = byId.get(e.source);
-    const b = byId.get(e.target);
-    const d = (e.data ?? { cable: 'Cat6' }) as CableData;
-    return {
-      fromDevice: nodeName(a), fromPort: portName(a, e.sourceHandle),
-      toDevice: nodeName(b), toPort: portName(b, e.targetHandle),
-      cable: d.cable, vlan: d.vlan ?? '', label: d.label ?? '',
-    };
+  return p.pages.flatMap((pg) => {
+    const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+    return pg.edges.map((e) => {
+      const a = byId.get(e.source);
+      const b = byId.get(e.target);
+      const d = (e.data ?? { cable: 'Cat6' }) as CableData;
+      return {
+        page: pg.name,
+        fromDevice: nodeName(a), fromPort: portName(a, e.sourceHandle),
+        toDevice: nodeName(b), toPort: portName(b, e.targetHandle),
+        cable: d.cable, vlan: d.vlan ?? '', label: d.label ?? '',
+      };
+    });
   });
 }
 
@@ -73,7 +78,8 @@ function rackPositions(p: Project) {
 
 export function deviceRows(p: Project) {
   const pos = rackPositions(p);
-  return p.nodes.flatMap((n) => (n.type === 'device' ? [n] : [])).map((n) => ({
+  return p.pages.flatMap((pg) => pg.nodes.flatMap((n) => (n.type === 'device' ? [{ n, page: pg.name }] : []))).map(({ n, page }) => ({
+    page,
     name: n.data.name,
     type: getStencil(n.data.stencilId)?.name ?? n.data.stencilId,
     model: n.data.model ?? '',
@@ -88,7 +94,7 @@ export function deviceRows(p: Project) {
 }
 
 export function rackRows(p: Project) {
-  const devices = new Map(p.nodes.flatMap((n) => (n.type === 'device' ? [[n.id, n] as const] : [])));
+  const devices = new Map(allDevices(p).map((n) => [n.id, n] as const));
   return (p.racks ?? []).flatMap((r) =>
     [...r.items].sort((a, b) => b.u - a.u).map((it) => {
       const d = it.nodeId ? devices.get(it.nodeId)?.data : undefined;
@@ -111,7 +117,7 @@ export function rackRows(p: Project) {
 
 /** Renders a rack's front and rear elevations side by side into a PNG, using the same component as the screen. */
 async function renderRack(p: Project, rack: Rack) {
-  const devices = new Map(p.nodes.filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n]));
+  const devices = new Map(allDevices(p).map((n) => [n.id, n]));
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-30000px;top:0;';
   document.body.appendChild(host);
@@ -171,14 +177,21 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect) {
   return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
 }
 
-export async function exportImage(kind: 'png' | 'svg', p: Project, bounds: Rect) {
+export async function exportImage(kind: 'png' | 'svg', p: Project, bounds: Rect, pageName?: string) {
   const { url } = await renderViewport(kind, bounds);
-  download(`${safeName(p.name)}.${kind}`, url);
+  const suffix = p.pages.length > 1 && pageName ? `-${safeName(pageName)}` : '';
+  download(`${safeName(p.name)}${suffix}.${kind}`, url);
 }
 
 /* ---------- PDF ---------- */
 
-export async function exportPdf(p: Project, bounds: Rect) {
+/** Captures the canvas for one page (the editor switches to it first), or null if the page is empty. */
+export type PageRenderer = (page: Page) => Promise<{ url: string; width: number; height: number } | null>;
+
+/** Captures the live canvas showing `bounds`. */
+export const renderCanvasPng = (bounds: Rect) => renderViewport('png', bounds);
+
+export async function exportPdf(p: Project, renderPage: PageRenderer) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   const W = doc.internal.pageSize.getWidth();
@@ -209,7 +222,10 @@ export async function exportPdf(p: Project, bounds: Rect) {
     doc.addImage(img.url, 'PNG', m, top, img.width * ratio, img.height * ratio, undefined, 'FAST');
   };
 
-  if (p.nodes.length) picture('Network diagram', await renderViewport('png', bounds));
+  for (const pg of p.pages) {
+    const img = await renderPage(pg);
+    if (img) picture(p.pages.length > 1 ? `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` : 'Network diagram', img);
+  }
   for (const rack of p.racks ?? []) {
     picture(['Rack elevation', rack.name, rack.location].filter(Boolean).join(': '), await renderRack(p, rack));
   }
@@ -248,8 +264,8 @@ export async function exportPdf(p: Project, bounds: Rect) {
     deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]));
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'], [0.13, 0.1, 0.07, 0.2, 0.15, 0.14, 0.11, 0.1].map((f) => f * avail),
     rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
-  table('Connections', ['From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Label'], [0.2, 0.1, 0.2, 0.1, 0.1, 0.1, 0.2].map((f) => f * avail),
-    connectionRows(p).map((c) => [c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]));
+  table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Label'], [0.11, 0.18, 0.09, 0.18, 0.09, 0.09, 0.09, 0.17].map((f) => f * avail),
+    connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]));
 
   doc.save(`${safeName(p.name)}.pdf`);
 }
@@ -264,11 +280,11 @@ export function exportCsv(p: Project) {
   const conns = connectionRows(p);
   const lines = [
     ['Client', p.name], ['Site', p.site ?? ''], [],
-    ['DEVICES'], ['Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack position', 'Location', 'Power (W)', 'Notes'],
-    ...deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack, d.location, d.powerW, d.notes]),
+    ['DEVICES'], ['Page', 'Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack position', 'Location', 'Power (W)', 'Notes'],
+    ...deviceRows(p).map((d) => [d.page, d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack, d.location, d.powerW, d.notes]),
     [],
-    ['CONNECTIONS'], ['From device', 'From port', 'To device', 'To port', 'Cable', 'VLAN', 'Label'],
-    ...conns.map((c) => [c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]),
+    ['CONNECTIONS'], ['Page', 'From device', 'From port', 'To device', 'To port', 'Cable', 'VLAN', 'Label'],
+    ...conns.map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]),
     [],
     ['RACKS'], ['Rack', 'Position', 'Height', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power (W)'],
     ...rackRows(p).map((r) => [r.rack, r.position, r.height, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW]),
@@ -281,14 +297,17 @@ export function exportCsv(p: Project) {
 
 /** Saves a project; custom stencils it uses are embedded so the file opens on any computer. */
 export function saveProjectFile(p: Project) {
-  const clean = {
+  const clean: Project = {
     ...p,
-    nodes: p.nodes.map((n) => ({ ...n, selected: false })),
-    edges: p.edges.map((e) => ({ ...e, selected: false })),
+    pages: p.pages.map((pg) => ({
+      ...pg,
+      nodes: pg.nodes.map((n) => ({ ...n, selected: false })),
+      edges: pg.edges.map((e) => ({ ...e, selected: false })),
+    })),
   };
-  const used = new Set(p.nodes.flatMap((n) => (n.type === 'device' ? [n.data.stencilId] : [])));
+  const used = new Set(allDevices(p).map((n) => n.data.stencilId));
   const stencils = [...used].map(getStencil).filter((s): s is StencilDef => !!s?.custom);
-  const body = JSON.stringify({ format: 'netcraft', version: 2, project: clean, stencils }, null, 2);
+  const body = JSON.stringify({ format: 'netcraft', version: 3, project: clean, stencils }, null, 2);
   downloadBlob(`${safeName(p.name)}.netcraft.json`, new Blob([body], { type: 'application/json' }));
 }
 
@@ -296,9 +315,11 @@ export async function readProjectFile(file: File): Promise<{ project: Project; s
   const json = JSON.parse(await file.text());
   if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" under My stencils.');
   const p = json?.project ?? json;
-  if (!p || !Array.isArray(p.nodes) || !Array.isArray(p.edges)) throw new Error('Not a NetCraft diagram file.');
+  const valid = p && (Array.isArray(p.pages) || (Array.isArray(p.nodes) && Array.isArray(p.edges)));
+  if (!valid) throw new Error('Not a NetCraft diagram file.');
   return {
-    project: { name: file.name.replace(/\.netcraft\.json$|\.json$/i, ''), createdAt: Date.now(), ...p },
+    // Files saved by v0.2 and earlier have one diagram; migrateProject turns it into a page.
+    project: migrateProject({ name: file.name.replace(/\.netcraft\.json$|\.json$/i, ''), createdAt: Date.now(), ...p }),
     stencils: Array.isArray(json.stencils) ? json.stencils : [],
   };
 }

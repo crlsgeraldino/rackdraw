@@ -83,10 +83,21 @@ export interface NoteData extends Record<string, unknown> {
   text: string;
 }
 
+/** A floor plan or site photo placed behind everything on a page. */
+export interface BackdropData extends Record<string, unknown> {
+  image: string;
+  /** Natural size of the image, for keeping proportions when resizing. */
+  naturalWidth: number;
+  naturalHeight: number;
+  opacity: number;
+  locked: boolean;
+}
+
 export type DeviceNode = Node<DeviceData, 'device'>;
 export type ZoneNode = Node<ZoneData, 'zone'>;
 export type NoteNode = Node<NoteData, 'note'>;
-export type AppNode = DeviceNode | ZoneNode | NoteNode;
+export type BackdropNode = Node<BackdropData, 'backdrop'>;
+export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode;
 
 export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' | 'Wireless' | 'VPN';
 
@@ -126,6 +137,17 @@ export interface Rack {
   items: RackItem[];
 }
 
+export type PageKind = 'network' | 'floorplan';
+
+/** One drawing in a client project (like a Visio page). Cables connect devices on the same page. */
+export interface Page {
+  id: string;
+  name: string;
+  kind: PageKind;
+  nodes: AppNode[];
+  edges: CableEdge[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -133,9 +155,13 @@ export interface Project {
   address?: string;
   contact?: string;
   notes?: string;
-  nodes: AppNode[];
-  edges: CableEdge[];
+  pages: Page[];
+  activePageId: string;
+  /** Racks belong to the client and can hold devices from any page. */
   racks?: Rack[];
+  /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */
+  nodes?: AppNode[];
+  edges?: CableEdge[];
   createdAt: number;
   updatedAt: number;
 }

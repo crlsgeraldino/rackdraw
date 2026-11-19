@@ -12,13 +12,15 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/style.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { exportCsv, exportImage, exportPdf, readProjectFile, saveProjectFile } from '@/lib/export';
+import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { allNodes } from '@/lib/project';
 import type { AppNode, CableEdge } from '@/lib/types';
-import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
 import { DND_TYPE, Palette } from './Palette';
 import { PropertiesPanel } from './PropertiesPanel';
+import { PageTabs } from './PageTabs';
 import { RackView } from './RackView';
 
 function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
@@ -48,10 +50,19 @@ function Toolbar() {
 
   const view = useDiagram((s) => s.view);
   const setView = useDiagram((s) => s.setView);
-  const bounds = () => rf.getNodesBounds(project.nodes);
+  const page = useCurrentPage();
+  const bounds = () => rf.getNodesBounds(page.nodes);
+
+  /** For the PDF: show each page in turn and capture it. */
+  const renderPage: PageRenderer = async (pg) => {
+    if (!pg.nodes.length) return null;
+    useDiagram.getState().setActivePage(pg.id);
+    await new Promise((r) => setTimeout(r, 700));
+    return renderCanvasPng(rf.getNodesBounds(pg.nodes));
+  };
 
   const run = async (fn: () => Promise<void> | void, needsCanvas = true) => {
-    if (!project.nodes.length && !(project.racks ?? []).length) return alert('This client has no diagram or racks yet.');
+    if (!allNodes(project).length && !(project.racks ?? []).length) return alert('This client has no diagram or racks yet.');
     setMenu(false);
     setBusy(true);
     try {
@@ -173,9 +184,9 @@ function Toolbar() {
         </button>
         {menu && (
           <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setMenu(false)}>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportPdf(project, bounds()))}>PDF report <span className="text-xs text-gray-400">diagram, racks, tables</span></button>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportImage('png', project, bounds()))}>PNG image <span className="text-xs text-gray-400">Word, email</span></button>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportImage('svg', project, bounds()))}>SVG vector <span className="text-xs text-gray-400">Visio, Office</span></button>
+            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(async () => { const back = project.activePageId; try { await exportPdf(project, renderPage); } finally { useDiagram.getState().setActivePage(back); } })}>PDF report <span className="text-xs text-gray-400">diagram, racks, tables</span></button>
+            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => { if (!page.nodes.length) return alert('This page is empty.'); return exportImage('png', project, bounds(), page.name); })}>PNG image <span className="text-xs text-gray-400">Word, email</span></button>
+            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => { if (!page.nodes.length) return alert('This page is empty.'); return exportImage('svg', project, bounds(), page.name); })}>SVG vector <span className="text-xs text-gray-400">Visio, Office</span></button>
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportCsv(project), false)}>CSV tables <span className="text-xs text-gray-400">Excel</span></button>
           </div>
         )}
@@ -187,6 +198,7 @@ function Toolbar() {
 function Canvas() {
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
+  const page = useCurrentPage();
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -216,9 +228,9 @@ function Canvas() {
   return (
     <div className="relative flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
       <ReactFlow<AppNode, CableEdge>
-        key={project.id}
-        nodes={project.nodes}
-        edges={project.edges}
+        key={page.id}
+        nodes={page.nodes}
+        edges={page.edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
@@ -239,12 +251,14 @@ function Canvas() {
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
         <Controls />
-        <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />
+        <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />
       </ReactFlow>
-      {project.nodes.length === 0 && (
+      {page.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-lg border border-dashed border-gray-300 bg-white/80 px-6 py-4 text-center text-sm text-gray-500">
-            Drag a device from the left to start documenting <b>{project.name}</b>.
+            {page.kind === 'floorplan'
+              ? <>Add a floor plan image from the panel on the right, then drag devices onto it.</>
+              : <>Drag a device from the left to start documenting <b>{project.name}</b>.</>}
           </div>
         </div>
       )}
@@ -288,7 +302,10 @@ export default function Editor() {
         ) : (
           <div className="flex min-h-0 flex-1">
             <Palette />
-            <Canvas />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <Canvas />
+              <PageTabs />
+            </div>
             <PropertiesPanel />
           </div>
         )}

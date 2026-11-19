@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { readStencilLibrary, saveStencilLibrary } from '@/lib/export';
+import { allNodes } from '@/lib/project';
 import { loadImageFile } from '@/lib/imageImport';
 import { STENCILS, StencilThumb } from '@/lib/stencils';
 import { STENCIL_CATEGORIES, type StencilDef } from '@/lib/types';
@@ -69,7 +70,7 @@ export function Palette() {
   };
 
   const remove = (s: StencilDef) => {
-    const uses = Object.values(projects).reduce((n, p) => n + p.nodes.filter((x) => x.type === 'device' && x.data.stencilId === s.id).length, 0);
+    const uses = Object.values(projects).reduce((n, p) => n + allNodes(p).filter((x) => x.type === 'device' && x.data.stencilId === s.id).length, 0);
     const warn = uses ? `\n\nIt is used by ${uses} device${uses === 1 ? '' : 's'} in your diagrams; they will show as "missing stencil" until you import it again.` : '';
     if (confirm(`Delete the stencil "${s.name}"?${warn}`)) deleteCustomStencil(s.id);
   };

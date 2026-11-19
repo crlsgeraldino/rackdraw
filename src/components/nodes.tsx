@@ -3,8 +3,8 @@
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import type { DeviceNode, NoteNode, PortDef, StencilDef, ZoneNode } from '@/lib/types';
-import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import type { BackdropNode, DeviceNode, NoteNode, PortDef, StencilDef, ZoneNode } from '@/lib/types';
+import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
 
 const SIDE: Record<PortDef['side'], Position> = {
   top: Position.Top,
@@ -14,7 +14,7 @@ const SIDE: Record<PortDef['side'], Position> = {
 };
 
 function usePortStates(nodeId: string) {
-  const edges = useCurrentProject().edges;
+  const edges = useCurrentPage().edges;
   return useMemo(() => {
     const states: Record<string, PortState> = {};
     for (const e of edges) {
@@ -163,8 +163,26 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
   );
 }
 
+/** Floor plan / site photo behind the page. Locked = click-through; unlocked = move and resize it. */
+function BackdropNodeView({ data, selected, width, height }: NodeProps<BackdropNode>) {
+  const snapshot = useDiagram((s) => s.snapshot);
+  return (
+    <>
+      <NodeResizer isVisible={selected && !data.locked} keepAspectRatio minWidth={100} minHeight={60} color="#6b7280" onResizeStart={snapshot} />
+      {/* eslint-disable-next-line @next/next/no-img-element -- user floor plan as a data URL */}
+      <img
+        src={data.image}
+        alt="Floor plan"
+        draggable={false}
+        style={{ width: width ?? data.naturalWidth, height: height ?? data.naturalHeight, opacity: data.opacity, display: 'block', pointerEvents: data.locked ? 'none' : 'auto' }}
+      />
+    </>
+  );
+}
+
 export const nodeTypes = {
   device: memo(DeviceNodeView),
   zone: memo(ZoneNodeView),
   note: memo(NoteNodeView),
+  backdrop: memo(BackdropNodeView),
 };

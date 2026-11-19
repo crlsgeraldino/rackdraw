@@ -5,8 +5,9 @@ import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { STENCIL_MAP } from '@/lib/stencils';
+import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
-import type { AppNode, CableData, CableEdge, DeviceData, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DeviceData, Page, PageKind, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -22,10 +23,13 @@ const idbStorage: StateStorage = {
 };
 
 interface Snapshot {
-  nodes: AppNode[];
-  edges: CableEdge[];
+  pages: Page[];
   racks: Rack[];
+  activePageId: string;
 }
+
+/** What a change may touch: the active page's nodes/edges, or project-level pages/racks. */
+type Patch = Partial<{ nodes: AppNode[]; edges: CableEdge[]; racks: Rack[]; pages: Page[]; activePageId: string }>;
 
 interface DiagramState {
   projects: Record<string, Project>;
@@ -58,6 +62,17 @@ interface DiagramState {
   updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes'>>) => void;
   deleteProject: (id: string) => void;
   importProject: (p: Project, stencils?: StencilDef[]) => void;
+
+  // pages (current project)
+  setActivePage: (id: string) => void;
+  addPage: (name: string, kind: PageKind) => void;
+  renamePage: (id: string, name: string) => void;
+  duplicatePage: (id: string) => void;
+  deletePage: (id: string) => void;
+  movePage: (id: string, dir: -1 | 1) => void;
+  /** Puts a floor plan / photo behind the active page (replacing any existing one). */
+  setBackdrop: (image: string, naturalWidth: number, naturalHeight: number) => void;
+  updateBackdrop: (patch: Partial<Pick<BackdropData, 'opacity' | 'locked'>> | null) => void;
 
   // racks (current project)
   view: 'diagram' | 'racks';
@@ -106,8 +121,12 @@ function pruneRacks(racks: Rack[] | undefined, nodes: AppNode[]): Rack[] {
 
 function blankProject(name: string): Project {
   const now = Date.now();
-  return { id: uid(), name, nodes: [], edges: [], createdAt: now, updatedAt: now };
+  const page = newPage('Network');
+  return { id: uid(), name, pages: [page], activePageId: page.id, createdAt: now, updatedAt: now };
 }
+
+/** Gives a copied node a fresh id (keeping its id prefix). */
+const reId = (id: string) => `${id.split('-')[0]}-${uid()}`;
 
 const HISTORY_LIMIT = 100;
 const first = blankProject('New client');
@@ -116,12 +135,29 @@ export const useDiagram = create<DiagramState>()(
   persist(
     (set, get) => {
       const cur = () => get().projects[get().currentId];
+      const page = () => activePage(cur());
 
-      /** Replace the current project's nodes/edges. */
-      const commit = (patch: Partial<Snapshot>) => {
+      /** Applies a change: nodes/edges go to the active page, pages/racks to the project. */
+      const commit = (patch: Patch) => {
         const p = cur();
-        set({ projects: { ...get().projects, [p.id]: { ...p, ...patch, updatedAt: Date.now() } } });
+        const pgId = activePage(p).id;
+        let pages = patch.pages ?? p.pages;
+        if (patch.nodes || patch.edges) {
+          pages = pages.map((x) => (x.id === pgId ? { ...x, nodes: patch.nodes ?? x.nodes, edges: patch.edges ?? x.edges } : x));
+        }
+        set({
+          projects: {
+            ...get().projects,
+            [p.id]: { ...p, pages, racks: patch.racks ?? p.racks, activePageId: patch.activePageId ?? p.activePageId, updatedAt: Date.now() },
+          },
+        });
       };
+      const snap = (): Snapshot => {
+        const p = cur();
+        return { pages: p.pages, racks: p.racks ?? [], activePageId: p.activePageId };
+      };
+      /** Every node in the project if the active page's nodes were `nodes` (for rack pruning). */
+      const allWith = (nodes: AppNode[]) => cur().pages.flatMap((pg) => (pg.id === page().id ? nodes : pg.nodes));
 
       return {
         projects: { [first.id]: first },
@@ -131,39 +167,36 @@ export const useDiagram = create<DiagramState>()(
         future: [],
 
         snapshot: () => {
-          const p = cur();
-          set({ past: [...get().past.slice(-HISTORY_LIMIT + 1), { nodes: p.nodes, edges: p.edges, racks: p.racks ?? [] }], future: [] });
+          set({ past: [...get().past.slice(-HISTORY_LIMIT + 1), snap()], future: [] });
         },
         undo: () => {
           const { past, future } = get();
           if (!past.length) return;
-          const p = cur();
           const prev = past[past.length - 1];
-          set({ past: past.slice(0, -1), future: [{ nodes: p.nodes, edges: p.edges, racks: p.racks ?? [] }, ...future] });
+          set({ past: past.slice(0, -1), future: [snap(), ...future] });
           commit(prev);
         },
         redo: () => {
           const { past, future } = get();
           if (!future.length) return;
-          const p = cur();
           const next = future[0];
-          set({ past: [...past, { nodes: p.nodes, edges: p.edges, racks: p.racks ?? [] }], future: future.slice(1) });
+          set({ past: [...past, snap()], future: future.slice(1) });
           commit(next);
         },
 
         onNodesChange: (changes) => {
           const arr = changes.toArray();
           if (arr.some((c) => c.type === 'remove')) get().snapshot();
-          const nodes = changes.applyTo(cur().nodes);
+          const nodes = changes.applyTo(page().nodes);
           // Removing a device removes its cables too.
           const ids = new Set(nodes.map((n) => n.id));
-          const edges = cur().edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+          const edges = page().edges.filter((e) => ids.has(e.source) && ids.has(e.target));
           const removed = arr.some((c) => c.type === 'remove');
-          commit(removed ? { nodes, edges, racks: pruneRacks(cur().racks, nodes) } : { nodes, edges });
+          commit(removed ? { nodes, edges, racks: pruneRacks(cur().racks, allWith(nodes)) } : { nodes, edges });
         },
         onEdgesChange: (changes) => {
           if (changes.toArray().some((c) => c.type === 'remove')) get().snapshot();
-          commit({ edges: changes.applyTo(cur().edges) });
+          commit({ edges: changes.applyTo(page().edges) });
         },
         onConnect: (c) => {
           if (c.source === c.target && c.sourceHandle === c.targetHandle) return;
@@ -174,21 +207,21 @@ export const useDiagram = create<DiagramState>()(
             type: 'cable',
             data: { cable: 'Cat6' },
           } as CableEdge;
-          commit({ edges: addEdge(edge, cur().edges) });
+          commit({ edges: addEdge(edge, page().edges) });
         },
 
         addStencil: (stencilId, position) => {
           const s = findStencil(stencilId, get().customStencils);
           if (!s) return;
           get().snapshot();
-          const count = cur().nodes.filter((n) => n.type === 'device' && n.data.stencilId === stencilId).length;
+          const count = page().nodes.filter((n) => n.type === 'device' && n.data.stencilId === stencilId).length;
           const node: AppNode = {
             id: `n-${uid()}`,
             type: 'device',
             position,
             data: { stencilId, name: count ? `${s.name} ${count + 1}` : s.name, ...s.defaults } as DeviceData,
           };
-          commit({ nodes: [...cur().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+          commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
         addZone: (position) => {
           get().snapshot();
@@ -197,19 +230,19 @@ export const useDiagram = create<DiagramState>()(
             style: { width: 420, height: 260 },
             data: { title: 'Server room', color: '#3b82f6' },
           };
-          commit({ nodes: [node, ...cur().nodes] });
+          commit({ nodes: [node, ...page().nodes] });
         },
         addNote: (position) => {
           get().snapshot();
           const node: AppNode = { id: `t-${uid()}`, type: 'note', position, data: { text: 'Note' } };
-          commit({ nodes: [...cur().nodes, node] });
+          commit({ nodes: [...page().nodes, node] });
         },
 
         updateNodeData: (id, patch) =>
-          commit({ nodes: cur().nodes.map((n) => (n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as AppNode) : n)) }),
+          commit({ nodes: page().nodes.map((n) => (n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as AppNode) : n)) }),
         updatePort: (nodeId, portId, patch) =>
           commit({
-            nodes: cur().nodes.map((n) => {
+            nodes: page().nodes.map((n) => {
               if (n.id !== nodeId || n.type !== 'device') return n;
               const ports = { ...(n.data.ports ?? {}) };
               ports[portId] = { ...ports[portId], ...patch };
@@ -217,28 +250,106 @@ export const useDiagram = create<DiagramState>()(
             }),
           }),
         updateEdgeData: (id, patch) =>
-          commit({ edges: cur().edges.map((e) => (e.id === id ? { ...e, data: { ...(e.data as CableData), ...patch } } : e)) }),
+          commit({ edges: page().edges.map((e) => (e.id === id ? { ...e, data: { ...(e.data as CableData), ...patch } } : e)) }),
 
         deleteSelected: () => {
-          const p = cur();
+          const pg = page();
           get().snapshot();
-          const nodes = p.nodes.filter((n) => !n.selected);
+          const nodes = pg.nodes.filter((n) => !n.selected);
           const ids = new Set(nodes.map((n) => n.id));
-          commit({ nodes, edges: p.edges.filter((e) => !e.selected && ids.has(e.source) && ids.has(e.target)), racks: pruneRacks(p.racks, nodes) });
+          commit({ nodes, edges: pg.edges.filter((e) => !e.selected && ids.has(e.source) && ids.has(e.target)), racks: pruneRacks(cur().racks, allWith(nodes)) });
         },
         duplicateSelected: () => {
-          const p = cur();
-          const sel = p.nodes.filter((n) => n.selected);
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
           if (!sel.length) return;
           get().snapshot();
           const copies = sel.map((n) => ({
             ...n,
-            id: `${n.id.split('-')[0]}-${uid()}`,
+            id: reId(n.id),
             position: { x: n.position.x + 40, y: n.position.y + 40 },
             selected: true,
             data: { ...n.data },
           })) as AppNode[];
-          commit({ nodes: [...p.nodes.map((n) => ({ ...n, selected: false })), ...copies] });
+          commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), ...copies] });
+        },
+
+        setActivePage: (id) => {
+          if (cur().pages.some((p) => p.id === id)) commit({ activePageId: id });
+        },
+        addPage: (name, kind) => {
+          get().snapshot();
+          const pg = newPage(name, kind);
+          commit({ pages: [...cur().pages, pg], activePageId: pg.id });
+        },
+        renamePage: (id, name) => commit({ pages: cur().pages.map((p) => (p.id === id ? { ...p, name } : p)) }),
+        duplicatePage: (id) => {
+          const src = cur().pages.find((p) => p.id === id);
+          if (!src) return;
+          get().snapshot();
+          // New ids for everything, so the copy's devices are independent (and not mounted in racks).
+          const map = new Map(src.nodes.map((n) => [n.id, reId(n.id)]));
+          const pg: Page = {
+            ...newPage(`${src.name} (copy)`, src.kind),
+            nodes: src.nodes.map((n) => ({ ...n, id: map.get(n.id)!, selected: false, data: { ...n.data } }) as AppNode),
+            edges: src.edges.map((e) => ({ ...e, id: `e-${uid()}`, source: map.get(e.source) ?? e.source, target: map.get(e.target) ?? e.target, selected: false })),
+          };
+          const pages = [...cur().pages];
+          pages.splice(pages.findIndex((p) => p.id === id) + 1, 0, pg);
+          commit({ pages, activePageId: pg.id });
+        },
+        deletePage: (id) => {
+          const p = cur();
+          if (p.pages.length <= 1) return;
+          get().snapshot();
+          const pages = p.pages.filter((x) => x.id !== id);
+          const idx = p.pages.findIndex((x) => x.id === id);
+          commit({
+            pages,
+            racks: pruneRacks(p.racks, pages.flatMap((x) => x.nodes)),
+            activePageId: p.activePageId === id ? pages[Math.max(0, idx - 1)].id : p.activePageId,
+          });
+        },
+        movePage: (id, dir) => {
+          const pages = [...cur().pages];
+          const i = pages.findIndex((p) => p.id === id);
+          const j = i + dir;
+          if (i < 0 || j < 0 || j >= pages.length) return;
+          [pages[i], pages[j]] = [pages[j], pages[i]];
+          commit({ pages });
+        },
+        setBackdrop: (image, naturalWidth, naturalHeight) => {
+          get().snapshot();
+          // Fit the long side to ~1600px so a floor plan starts at a workable size.
+          const k = 1600 / Math.max(naturalWidth, naturalHeight);
+          const old = page().nodes.find((n) => n.type === 'backdrop');
+          const node: AppNode = {
+            id: old?.id ?? `b-${uid()}`,
+            type: 'backdrop',
+            position: old?.position ?? { x: 0, y: 0 },
+            width: naturalWidth * k,
+            height: naturalHeight * k,
+            zIndex: -10,
+            draggable: false,
+            selectable: false,
+            data: { image, naturalWidth, naturalHeight, opacity: 0.6, locked: true },
+          };
+          commit({ nodes: [node, ...page().nodes.filter((n) => n.type !== 'backdrop')] });
+        },
+        updateBackdrop: (patch) => {
+          get().snapshot();
+          if (!patch) {
+            commit({ nodes: page().nodes.filter((n) => n.type !== 'backdrop') });
+            return;
+          }
+          commit({
+            nodes: page().nodes.map((n) => {
+              if (n.type !== 'backdrop') return n;
+              const data = { ...n.data, ...patch };
+              // An unlocked backdrop can be moved and resized; a locked one ignores clicks so you can work on top.
+              return { ...n, data, draggable: !data.locked, selectable: !data.locked, selected: n.selected && !data.locked };
+            }),
+          });
         },
 
         newProject: (name) => {
@@ -265,7 +376,7 @@ export const useDiagram = create<DiagramState>()(
         },
         importProject: (p, stencils) => {
           if (stencils?.length) get().importStencils(stencils);
-          const copy: Project = { ...p, id: uid(), updatedAt: Date.now() };
+          const copy: Project = { ...migrateProject(p), id: uid(), updatedAt: Date.now() };
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
         },
 
@@ -276,7 +387,7 @@ export const useDiagram = create<DiagramState>()(
         setNodeSize: (id, size) => {
           get().snapshot();
           commit({
-            nodes: cur().nodes.map((n) => {
+            nodes: page().nodes.map((n) => {
               if (n.id !== id) return n;
               const { width: _w, height: _h, measured: _m, ...rest } = n;
               void _w; void _h; void _m;
@@ -284,11 +395,20 @@ export const useDiagram = create<DiagramState>()(
             }),
           });
         },
-        selectOnlyNode: (id) =>
+        selectOnlyNode: (id) => {
+          // The node may live on another page: switch to it, then select it there.
+          const target = cur().pages.find((pg) => pg.nodes.some((n) => n.id === id));
+          if (!target) return;
           commit({
-            nodes: cur().nodes.map((n) => ({ ...n, selected: n.id === id })),
-            edges: cur().edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
-          }),
+            activePageId: target.id,
+            pages: cur().pages.map((pg) =>
+              pg.id !== target.id ? pg : {
+                ...pg,
+                nodes: pg.nodes.map((n) => ({ ...n, selected: n.id === id })),
+                edges: pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+              }),
+          });
+        },
         selectRack: (id) => set({ activeRackId: id, selectedRackItemId: null }),
         selectRackItem: (id) => set({ selectedRackItemId: id }),
 
@@ -352,7 +472,7 @@ export const useDiagram = create<DiagramState>()(
           if (at === null || !fits(r, at, height, 'full')) return false;
           get().snapshot();
           // Put the new device on the diagram below everything else so it doesn't cover existing work.
-          const nodes = cur().nodes;
+          const nodes = page().nodes;
           const bottom = nodes.reduce((m, n) => Math.max(m, n.position.y + (n.measured?.height ?? 100)), 0);
           const count = nodes.filter((n) => n.type === 'device' && n.data.stencilId === stencilId).length;
           const node: AppNode = {
@@ -373,15 +493,14 @@ export const useDiagram = create<DiagramState>()(
         saveCustomStencil: (s) => {
           // Cables plugged into ports that were removed from the stencil have nothing to attach to; drop them.
           const portIds = new Set(s.ports.map((p) => p.id));
-          const projects = Object.fromEntries(
-            Object.entries(get().projects).map(([id, p]) => {
-              const users = new Set(p.nodes.filter((n) => n.type === 'device' && n.data.stencilId === s.id).map((n) => n.id));
-              if (!users.size) return [id, p];
-              const dangling = (node: string, handle?: string | null) => users.has(node) && !!handle && !portIds.has(handle);
-              const edges = p.edges.filter((e) => !dangling(e.source, e.sourceHandle) && !dangling(e.target, e.targetHandle));
-              return [id, edges.length === p.edges.length ? p : { ...p, edges }];
-            }),
-          );
+          const prunePage = (pg: Page): Page => {
+            const users = new Set(pg.nodes.filter((n) => n.type === 'device' && n.data.stencilId === s.id).map((n) => n.id));
+            if (!users.size) return pg;
+            const dangling = (node: string, handle?: string | null) => users.has(node) && !!handle && !portIds.has(handle);
+            const edges = pg.edges.filter((e) => !dangling(e.source, e.sourceHandle) && !dangling(e.target, e.targetHandle));
+            return edges.length === pg.edges.length ? pg : { ...pg, edges };
+          };
+          const projects = Object.fromEntries(Object.entries(get().projects).map(([id, p]) => [id, { ...p, pages: p.pages.map(prunePage) }]));
           set({ projects, customStencils: { ...get().customStencils, [s.id]: { ...s, custom: true, style: 'image' } } });
         },
         deleteCustomStencil: (id) => {
@@ -404,12 +523,16 @@ export const useDiagram = create<DiagramState>()(
     },
     {
       name: 'netcraft',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => idbStorage),
       partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
         const state = persisted as Partial<DiagramState>;
         if (version < 2) state.customStencils = {};
+        // v3: projects hold pages instead of a single diagram.
+        if (version < 3 && state.projects) {
+          state.projects = Object.fromEntries(Object.entries(state.projects).map(([id, p]) => [id, migrateProject(p)]));
+        }
         return state as DiagramState;
       },
     },
@@ -417,6 +540,9 @@ export const useDiagram = create<DiagramState>()(
 );
 
 export const useCurrentProject = () => useDiagram((s) => s.projects[s.currentId]);
+
+/** The page shown on the canvas. */
+export const useCurrentPage = () => useDiagram((s) => activePage(s.projects[s.currentId]));
 
 /** Built-in or custom stencil by id, reactive to library changes. */
 export const useStencil = (id: string) => useDiagram((s) => findStencil(id, s.customStencils));

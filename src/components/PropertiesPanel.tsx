@@ -2,8 +2,11 @@
 
 import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
-import { CABLE_STYLES, type CableData, type CableType, type DeviceNode } from '@/lib/types';
-import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { useRef, useState } from 'react';
+import { loadImageFile } from '@/lib/imageImport';
+import { CABLE_STYLES, type BackdropNode, type CableData, type CableType, type DeviceNode } from '@/lib/types';
+import { allDevices } from '@/lib/project';
+import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
 function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
   const snapshot = useDiagram((s) => s.snapshot);
@@ -22,6 +25,7 @@ function Field({ label, value, onChange, mono, area }: { label: string; value?: 
 
 function DeviceProps({ node }: { node: DeviceNode }) {
   const project = useCurrentProject();
+  const pg = useCurrentPage();
   const update = useDiagram((s) => s.updateNodeData);
   const updatePort = useDiagram((s) => s.updatePort);
   const snapshot = useDiagram((s) => s.snapshot);
@@ -32,11 +36,11 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   const mount = (project.racks ?? []).flatMap((rack) => rack.items.filter((it) => it.nodeId === node.id).map((item) => ({ rack, item })))[0];
 
   const peer = (portId: string) => {
-    const e = project.edges.find((x) => (x.source === node.id && x.sourceHandle === portId) || (x.target === node.id && x.targetHandle === portId));
+    const e = pg.edges.find((x) => (x.source === node.id && x.sourceHandle === portId) || (x.target === node.id && x.targetHandle === portId));
     if (!e) return '';
     const otherId = e.source === node.id ? e.target : e.source;
     const otherPort = e.source === node.id ? e.targetHandle : e.sourceHandle;
-    const other = project.nodes.find((n) => n.id === otherId);
+    const other = pg.nodes.find((n) => n.id === otherId);
     const name = other?.type === 'device' ? other.data.name : '?';
     return `${name} : ${otherPort ?? ''}`;
   };
@@ -145,10 +149,69 @@ function CableProps({ id, data }: { id: string; data: CableData }) {
   );
 }
 
+/** Settings for the page on the canvas, including a floor plan / photo backdrop. */
+function PageProps() {
+  const pg = useCurrentPage();
+  const { renamePage, setBackdrop, updateBackdrop, snapshot } = useDiagram.getState();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const bd = pg.nodes.find((n): n is BackdropNode => n.type === 'backdrop');
+
+  const onFile = async (f?: File) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const img = await loadImageFile(f);
+      setBackdrop(img.dataUrl, img.width, img.height);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">Page · {pg.kind === 'floorplan' ? 'Floor plan' : 'Network diagram'}</div>
+      <Field label="Page name" value={pg.name} onChange={(v) => renamePage(pg.id, v)} />
+      <span className="mb-1 block text-[11px] font-medium text-gray-500">{pg.kind === 'floorplan' ? 'Floor plan image' : 'Background image (optional)'}</span>
+      {bd ? (
+        <div className="space-y-2 rounded border border-gray-200 p-2 text-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element -- preview of the user's image */}
+          <img src={bd.data.image} alt="" className="max-h-24 w-full rounded object-contain" />
+          <label className="block">
+            Opacity {Math.round(bd.data.opacity * 100)}%
+            <input type="range" min={10} max={100} className="w-full" value={Math.round(bd.data.opacity * 100)} onPointerDown={snapshot}
+              onChange={(e) => updateBackdrop({ opacity: Number(e.target.value) / 100 })} />
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={bd.data.locked} onChange={(e) => updateBackdrop({ locked: e.target.checked })} />
+            Locked (unlock to move or resize it)
+          </label>
+          <div className="flex gap-2">
+            <button className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50" onClick={() => fileRef.current?.click()}>Replace…</button>
+            <button className="rounded border border-red-200 px-2 py-0.5 text-red-600 hover:bg-red-50" onClick={() => updateBackdrop(null)}>Remove</button>
+          </div>
+        </div>
+      ) : (
+        <button
+          disabled={busy}
+          className="w-full rounded border border-dashed border-gray-400 bg-gray-50 px-2 py-2 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          onClick={() => fileRef.current?.click()}
+        >
+          {busy ? 'Loading…' : '+ Add image (floor plan, site photo, PNG/JPG/SVG)'}
+        </button>
+      )}
+      <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.svg,image/*" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+    </>
+  );
+}
+
 function ProjectProps() {
   const p = useCurrentProject();
   const update = useDiagram((s) => s.updateProject);
-  const devices = p.nodes.filter((n) => n.type === 'device').length;
+  const devices = allDevices(p).length;
+  const cables = p.pages.reduce((n, pg) => n + pg.edges.length, 0);
   return (
     <>
       <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">Client</div>
@@ -157,14 +220,14 @@ function ProjectProps() {
       <Field label="Address" value={p.address} onChange={(v) => update({ address: v })} />
       <Field label="On-site contact" value={p.contact} onChange={(v) => update({ contact: v })} />
       <Field label="Notes" value={p.notes} onChange={(v) => update({ notes: v })} area />
-      <p className="mt-3 text-xs text-gray-500">{devices} devices · {p.edges.length} cables</p>
+      <p className="mt-3 text-xs text-gray-500">{devices} devices · {cables} cables · {p.pages.length} page{p.pages.length === 1 ? '' : 's'}</p>
       <p className="mt-1 text-[10px] text-gray-400">Select a device or cable to edit it.</p>
     </>
   );
 }
 
 export function PropertiesPanel() {
-  const p = useCurrentProject();
+  const p = useCurrentPage();
   const update = useDiagram((s) => s.updateNodeData);
   const selNodes = p.nodes.filter((n) => n.selected);
   const selEdges = p.edges.filter((e) => e.selected);
@@ -191,8 +254,16 @@ export function PropertiesPanel() {
     body = <p className="text-sm text-gray-500">Edit the note text directly on the canvas.</p>;
   } else if (selEdges[0]) {
     body = <CableProps id={selEdges[0].id} data={(selEdges[0].data ?? { cable: 'Cat6' }) as CableData} />;
+  } else if (selNodes[0]?.type === 'backdrop') {
+    body = <PageProps />;
   } else {
-    body = <ProjectProps />;
+    body = (
+      <>
+        <PageProps />
+        <hr className="my-4 border-gray-200" />
+        <ProjectProps />
+      </>
+    );
   }
 
   return <aside className="w-72 shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-3">{body}</aside>;

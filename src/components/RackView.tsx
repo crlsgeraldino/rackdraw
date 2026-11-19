@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { allDevices } from '@/lib/project';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { STENCILS } from '@/lib/stencils';
-import type { DeviceNode, Rack, RackDepth, RackItem, StencilDef } from '@/lib/types';
+import type { Rack, RackDepth, RackItem, StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { INNER_W, RackElevation, rackSize, uAtPoint, type RackPreview } from './RackElevation';
 
@@ -18,7 +19,7 @@ const DND = 'application/x-netcraft-rack';
 
 function useDevices() {
   const project = useCurrentProject();
-  return useMemo(() => new Map(project.nodes.filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n])), [project.nodes]);
+  return useMemo(() => new Map(allDevices(project).map((n) => [n.id, n])), [project]);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
