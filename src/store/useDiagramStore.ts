@@ -4,10 +4,11 @@ import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from
 import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import { STENCIL_MAP } from '@/lib/stencils';
+import type { ImportPlan } from '@/lib/dataImport';
+import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
 import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
-import type { AppNode, BackdropData, CableData, CableEdge, DeviceData, Page, PageKind, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, Page, PageKind, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -62,6 +63,12 @@ interface DiagramState {
   updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes'>>) => void;
   deleteProject: (id: string) => void;
   importProject: (p: Project, stencils?: StencilDef[]) => void;
+
+  /**
+   * Applies a spreadsheet import: updates matched devices on any page and creates new ones on the active page
+   * (stencil picked from the row's Type when it names one, else `defaultStencilId`). Returns counts.
+   */
+  applyImport: (plan: ImportPlan, defaultStencilId: string, link: DataLink) => { updated: number; created: number };
 
   // pages (current project)
   setActivePage: (id: string) => void;
@@ -272,6 +279,47 @@ export const useDiagram = create<DiagramState>()(
             data: { ...n.data },
           })) as AppNode[];
           commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), ...copies] });
+        },
+
+        applyImport: (plan, defaultStencilId, link) => {
+          get().snapshot();
+          const custom = get().customStencils;
+          const all = [...Object.values(custom), ...STENCILS];
+          const pickStencil = (type: string) => {
+            const t = type.trim().toLowerCase();
+            const hit = t && (all.find((s) => s.name.toLowerCase() === t) ?? all.find((s) => s.name.toLowerCase().includes(t) || t.includes(s.name.toLowerCase())));
+            return hit ? hit.id : defaultStencilId;
+          };
+          const byId = new Map(plan.updates.map((u) => [u.nodeId, u]));
+          let pages = cur().pages.map((pg) => ({
+            ...pg,
+            nodes: pg.nodes.map((n) => {
+              const u = byId.get(n.id);
+              if (!u || n.type !== 'device') return n;
+              const data = { ...n.data };
+              for (const c of u.changes) (data as Record<string, unknown>)[c.field] = c.field === 'powerW' ? Number(c.to) : c.to;
+              return { ...n, data };
+            }),
+          }));
+          // New devices go on the active page, in a grid below what is already there.
+          const active = activePage(cur()).id;
+          const pgNodes = pages.find((p) => p.id === active)!.nodes;
+          const top = pgNodes.reduce((m, n) => Math.max(m, n.position.y + (n.measured?.height ?? 100)), 0) + (pgNodes.length ? 120 : 0);
+          const created: AppNode[] = plan.creates.map((c, i) => {
+            const stencilId = pickStencil(c.type);
+            const s = findStencil(stencilId, custom);
+            return {
+              id: `n-${uid()}`,
+              type: 'device',
+              position: { x: (i % 4) * 320, y: top + Math.floor(i / 4) * 200 },
+              data: { ...s?.defaults, ...c.data, stencilId } as DeviceData,
+            };
+          });
+          if (created.length) pages = pages.map((p) => (p.id === active ? { ...p, nodes: [...p.nodes, ...created] } : p));
+          commit({ pages });
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, dataLink: link } } });
+          return { updated: plan.updates.length, created: created.length };
         },
 
         setActivePage: (id) => {

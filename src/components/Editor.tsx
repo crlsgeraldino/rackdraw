@@ -20,6 +20,7 @@ import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
 import { DND_TYPE, Palette } from './Palette';
 import { PropertiesPanel } from './PropertiesPanel';
+import { DataMenu } from './DataMenu';
 import { PageTabs } from './PageTabs';
 import { RackView } from './RackView';
 
@@ -174,7 +175,9 @@ function Toolbar() {
       <Btn onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶ Undo</Btn>
       <Btn onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">↷ Redo</Btn>
 
-      <div className="relative ml-auto">
+      <div className="ml-auto" />
+      <DataMenu />
+      <div className="relative">
         <button
           onClick={() => setMenu((m) => !m)}
           disabled={busy}

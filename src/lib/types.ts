@@ -65,6 +65,7 @@ export interface DeviceData extends Record<string, unknown> {
   name: string;
   model?: string;
   ip?: string;
+  mac?: string;
   serial?: string;
   location?: string;
   notes?: string;
@@ -137,6 +138,15 @@ export interface Rack {
   items: RackItem[];
 }
 
+export interface DataLink {
+  fileName: string;
+  /** Field → column header name. */
+  columns: Record<string, string>;
+  matchKey: string;
+  createMissing: boolean;
+  lastApplied: number;
+}
+
 export type PageKind = 'network' | 'floorplan';
 
 /** One drawing in a client project (like a Visio page). Cables connect devices on the same page. */
@@ -159,6 +169,8 @@ export interface Project {
   activePageId: string;
   /** Racks belong to the client and can hold devices from any page. */
   racks?: Rack[];
+  /** The spreadsheet last imported, so it can be re-applied with Refresh. */
+  dataLink?: DataLink;
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */
   nodes?: AppNode[];
   edges?: CableEdge[];

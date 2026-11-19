@@ -51,6 +51,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <Field label="Name / hostname" value={d.name} onChange={set('name')} />
       <Field label="Model" value={d.model} onChange={set('model')} />
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono />
+      <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />
       <Field label="Serial number" value={d.serial} onChange={set('serial')} mono />
       {stencil && (() => {
         const base = baseSize(stencil);

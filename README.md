@@ -78,6 +78,19 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - The PDF gets one picture per page; device and connection tables list the page each item is on.
 - Diagrams saved by v0.2 open as a single "Network" page.
 
+## Spreadsheet data (Excel / CSV)
+
+The **Data** menu links devices to a spreadsheet, like Visio's *Link Data to Shapes*:
+
+- **Export device list (CSV)** writes one row per device with a **NetCraft ID** column. Edit it in Excel (IPs, MACs,
+  serials, asset tags, locations, power, notes; add rows for new devices) and import it back.
+- **Import from Excel / CSV…** reads `.xlsx` or `.csv`, auto-maps columns by their headers (Hostname, IP Address,
+  Serial Number, Service Tag, Asset Tag, MAC…), matches rows to devices by ID, name, asset tag, serial, IP or MAC,
+  and shows a preview of every change before applying. Empty cells never erase existing values. Optionally adds
+  devices for unmatched rows, choosing the stencil from a Type column.
+- **Refresh** re-applies the same sheet with the same mapping after you edit it. In Edge/Chrome the app re-reads the
+  file itself (after you allow it); elsewhere it asks you to pick the file again. Imports are undoable.
+
 ## Racks
 
 Switch to **Racks** in the toolbar to draw rack elevations for the client.

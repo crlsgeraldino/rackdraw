@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { RackElevation, rackSize } from '@/components/RackElevation';
 import { getStencil } from '@/store/useDiagramStore';
+import { deviceListRows } from './dataImport';
 import { allDevices, migrateProject } from './project';
 import { rackLabel } from './rack';
 import type { AppNode, CableData, Page, Project, Rack, StencilDef, StencilLibraryFile } from './types';
@@ -291,6 +292,12 @@ export function exportCsv(p: Project) {
   ];
   // BOM so Excel reads UTF-8 correctly.
   downloadBlob(`${safeName(p.name)}.csv`, new Blob(['\ufeff' + csv(lines)], { type: 'text/csv;charset=utf-8' }));
+}
+
+/** One flat device sheet (with NetCraft IDs) meant to be edited in Excel and imported back. */
+export function exportDeviceList(p: Project) {
+  const rows = deviceListRows(p, (id) => getStencil(id)?.name ?? id);
+  downloadBlob(`${safeName(p.name)}-devices.csv`, new Blob(['﻿' + csv(rows)], { type: 'text/csv;charset=utf-8' }));
 }
 
 /* ---------- project files ---------- */
