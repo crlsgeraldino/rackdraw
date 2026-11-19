@@ -1,27 +1,61 @@
 {
   "name": "netcraft",
+  "productName": "NetCraft",
   "version": "0.1.0",
+  "description": "Free network diagrams for client documentation",
+  "author": "crlsgeraldino",
+  "license": "MIT",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "icons": "node scripts/make-icons.mjs",
+    "serve": "npx --yes serve@14 out -l 3124",
+    "desktop": "next build && electron .",
+    "dist:win": "next build && electron-builder --win"
   },
-  "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.29"
+  "build": {
+    "appId": "com.crlsgeraldino.netcraft",
+    "productName": "NetCraft",
+    "copyright": "MIT License",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["electron/**", "out/**", "build/icon.png", "package.json"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NetCraft",
+      "artifactName": "NetCraft-Setup-${version}.${ext}"
+    }
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "@xyflow/react": "^13.0.2",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
-    "@eslint/eslintrc": "^3"
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
+    "next": "15.5.29",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "zustand": "^5.1.0"
   }
 }

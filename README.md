@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NetCraft
 
-## Getting Started
+Free, browser-based network diagrams for documenting client sites — a lightweight Visio alternative for MSPs.
+Everything runs in your browser: diagrams are stored locally and never uploaded.
 
-First, run the development server:
+Built the same way as [PDFCraft](https://github.com/PDFCraftTool/pdfcraft): Next.js (App Router) + TypeScript +
+Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React Flow](https://reactflow.dev) (MIT).
+
+## Features
+
+- **Real front-panel stencils** — SonicWall TZ570/TZ670, 8/24/48-port switches, 24-port patch panel — where every
+  port is a connection point. Plus symbols for ISP, modem/ONT, AP, server, NAS, UPS, workstation, laptop, printer,
+  VoIP phone and IP camera.
+- **Cables** — drag from port to port. Pick the type (Cat6, Cat5e, Fiber, DAC, WAN, Console, Wireless, VPN), label and VLAN.
+  Connected ports light up.
+- **Device data** — hostname, model, management IP, serial, location, notes, and per-port description/VLAN.
+- **Zones and notes** — resizable rooms/racks and sticky notes.
+- **One diagram per client**, switchable from the toolbar, auto-saved in the browser. Save/open `.netcraft.json` files
+  to back up or share.
+- **Export** — PDF report (diagram + device and connection tables), PNG (Word/email), SVG (Visio, Office, draw.io),
+  CSV (Excel).
+- Undo/redo (Ctrl+Z / Ctrl+Y), duplicate (Ctrl+D), delete (Del), snap-to-grid, minimap.
+
+## Run locally
+
+Requires Node 18.18+.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Build and host
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build      # static site in out/
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `out/` to any static web host (IIS, Nginx, GitHub Pages, Netlify, Cloudflare Pages). There is no server component.
 
-## Learn More
+## Install it as an app
 
-To learn more about Next.js, take a look at the following resources:
+NetCraft is an installable web app (PWA). Open it in Edge or Chrome and click the **Install** icon in the address bar
+(Edge: **⋯ → Apps → Install NetCraft**). You get a Start-menu entry, its own window, and it keeps working offline.
+The installed app can also open `.netcraft.json` files.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Installing requires HTTPS, or `localhost` for local testing (`npm run build && npm run serve`, then open
+http://localhost:3124).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Windows desktop app
 
-## Deploy on Vercel
+```bash
+npm run desktop     # build and launch the desktop app
+npm run dist:win    # build the installer: release/NetCraft-Setup-<version>.exe
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The desktop app is the same static build wrapped in Electron (`electron/main.cjs`). It serves `out/` from a private
+`app://netcraft` origin, so diagrams persist between launches and nothing touches the network.
+The installer asks per-user vs. all users; for silent deployment (Intune/RMM) use `NetCraft-Setup-<version>.exe /S`
+(add `/allusers` for a per-machine install).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The installer is not code-signed, so SmartScreen will warn on first run until it's signed with a code-signing certificate.
+
+## License
+
+[MIT](LICENSE)
+
+## Adding a stencil
+
+Stencils live in `src/lib/stencils.tsx`. A panel stencil is a native-size artwork plus a list of ports
+(`id`, `label`, `kind`, `x`, `y`, `w`, `h`, `side`); each port automatically becomes a connection point and a row in the
+properties panel. See `sonicwallTz` and `switchStencil()` for examples.
+
+## Project layout
+
+```
+src/
+  app/                 Next.js entry (static page that loads the editor client-side)
+  components/          Editor, toolbar, palette, properties panel, node and cable renderers
+  lib/stencils.tsx     Device catalog and artwork
+  lib/export.ts        PDF / PNG / SVG / CSV export and project files
+  lib/types.ts         Data model
+  store/               Zustand store (projects, history, persistence)
+```

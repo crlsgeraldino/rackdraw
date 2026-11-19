@@ -18,7 +18,7 @@
 /out/
 
 # production
-/build
+# /build holds the installer icon (tracked)
 
 # misc
 .DS_Store
@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# desktop installer output
+/release
