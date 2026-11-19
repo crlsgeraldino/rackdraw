@@ -42,6 +42,8 @@ export interface StencilDef {
   image?: string;
   /** True for stencils the user imported (stored with their data, not in the app). */
   custom?: boolean;
+  /** Height in rack units when mounted; undefined = not rack-mount (sits on a shelf, 1U by default). */
+  rackUnits?: number;
   defaults?: Partial<DeviceData>;
 }
 
@@ -66,6 +68,9 @@ export interface DeviceData extends Record<string, unknown> {
   serial?: string;
   location?: string;
   notes?: string;
+  assetTag?: string;
+  /** Typical power draw in watts, for rack power totals. */
+  powerW?: number;
   ports?: Record<string, PortData>;
 }
 
@@ -93,6 +98,34 @@ export interface CableData extends Record<string, unknown> {
 
 export type CableEdge = Edge<CableData, 'cable'>;
 
+/** What a rack slot holds: a device from the diagram, or a passive accessory. */
+export type RackItemKind = 'device' | 'blank' | 'shelf' | 'cable-manager' | 'pdu' | 'other';
+
+/** 'full' occupies the slot front and back; 'front'/'rear' leave the other side free. */
+export type RackDepth = 'full' | 'front' | 'rear';
+
+export interface RackItem {
+  id: string;
+  kind: RackItemKind;
+  /** Lowest rack unit occupied (1 = bottom). */
+  u: number;
+  height: number;
+  depth: RackDepth;
+  /** Diagram device this slot holds (kind === 'device'). */
+  nodeId?: string;
+  /** Label for accessories. Devices use their diagram name. */
+  label?: string;
+}
+
+export interface Rack {
+  id: string;
+  name: string;
+  units: number;
+  location?: string;
+  notes?: string;
+  items: RackItem[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -102,6 +135,7 @@ export interface Project {
   notes?: string;
   nodes: AppNode[];
   edges: CableEdge[];
+  racks?: Rack[];
   createdAt: number;
   updatedAt: number;
 }

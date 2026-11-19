@@ -179,6 +179,17 @@ export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: S
               />
               <span className="text-[10px] text-gray-400">The built-in SonicWall is 524px wide; icons are 64px.</span>
             </label>
+            <label className="block">
+              <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Rack height</span>
+              <select
+                className="w-full rounded border border-gray-300 px-1.5 py-1"
+                value={s.rackUnits ?? 0}
+                onChange={(e) => setS({ ...s, rackUnits: Number(e.target.value) || undefined })}
+              >
+                <option value={0}>Not rack-mount (1U on a shelf)</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((u) => <option key={u} value={u}>{u}U</option>)}
+              </select>
+            </label>
 
             <div className="rounded border border-gray-200 p-2">
               <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{sel ? 'Selected port' : 'Ports'}</h3>

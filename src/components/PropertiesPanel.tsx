@@ -1,5 +1,6 @@
 'use client';
 
+import { rackLabel } from '@/lib/rack';
 import { CABLE_STYLES, type CableData, type CableType, type DeviceNode } from '@/lib/types';
 import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 
@@ -24,8 +25,10 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   const updatePort = useDiagram((s) => s.updatePort);
   const snapshot = useDiagram((s) => s.snapshot);
   const stencil = useStencil(node.data.stencilId);
+  const { selectRack, selectRackItem, setView } = useDiagram.getState();
   const d = node.data;
   const set = (k: string) => (v: string) => update(node.id, { [k]: v });
+  const mount = (project.racks ?? []).flatMap((rack) => rack.items.filter((it) => it.nodeId === node.id).map((item) => ({ rack, item })))[0];
 
   const peer = (portId: string) => {
     const e = project.edges.find((x) => (x.source === node.id && x.sourceHandle === portId) || (x.target === node.id && x.targetHandle === portId));
@@ -44,7 +47,18 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <Field label="Model" value={d.model} onChange={set('model')} />
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono />
       <Field label="Serial number" value={d.serial} onChange={set('serial')} mono />
-      <Field label="Location / rack" value={d.location} onChange={set('location')} />
+      <Field label="Location" value={d.location} onChange={set('location')} />
+      <div className="flex gap-2">
+        <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
+        <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
+      </div>
+      {mount ? (
+        <p className="mb-2 text-xs text-gray-600">
+          Mounted in <button className="font-medium text-blue-600 hover:underline" onClick={() => { selectRack(mount.rack.id); selectRackItem(mount.item.id); setView('racks'); }}>{mount.rack.name} · {rackLabel(mount.item)}</button>
+        </p>
+      ) : (project.racks ?? []).length ? (
+        <p className="mb-2 text-xs text-gray-400">Not in a rack. Use the Racks view to mount it.</p>
+      ) : null}
       <Field label="Notes" value={d.notes} onChange={set('notes')} area />
 
       {stencil && stencil.ports.length > 0 && (

@@ -19,6 +19,7 @@ import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
 import { DND_TYPE, Palette } from './Palette';
 import { PropertiesPanel } from './PropertiesPanel';
+import { RackView } from './RackView';
 
 function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
@@ -45,13 +46,20 @@ function Toolbar() {
   const [menu, setMenu] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
 
+  const view = useDiagram((s) => s.view);
+  const setView = useDiagram((s) => s.setView);
   const bounds = () => rf.getNodesBounds(project.nodes);
 
-  const run = async (fn: () => Promise<void> | void) => {
-    if (!project.nodes.length) return alert('The diagram is empty.');
+  const run = async (fn: () => Promise<void> | void, needsCanvas = true) => {
+    if (!project.nodes.length && !(project.racks ?? []).length) return alert('This client has no diagram or racks yet.');
     setMenu(false);
     setBusy(true);
     try {
+      // Picture exports capture the live canvas, so show the diagram first.
+      if (needsCanvas && useDiagram.getState().view !== 'diagram') {
+        setView('diagram');
+        await new Promise((r) => setTimeout(r, 500));
+      }
       await fn();
     } catch (e) {
       alert(`Export failed: ${(e as Error).message}`);
@@ -137,6 +145,21 @@ function Toolbar() {
       <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => { onOpen(e.target.files?.[0]); e.target.value = ''; }} />
 
       <div className="mx-2 h-6 w-px bg-gray-200" />
+      <div className="flex rounded border border-gray-300 p-0.5 text-sm" role="tablist" aria-label="View">
+        {(['diagram', 'racks'] as const).map((v) => (
+          <button
+            key={v}
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => setView(v)}
+            className={`rounded px-3 py-0.5 ${view === v ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+          >
+            {v === 'diagram' ? 'Diagram' : `Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`}
+          </button>
+        ))}
+      </div>
+
+      <div className="mx-2 h-6 w-px bg-gray-200" />
       <Btn onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶ Undo</Btn>
       <Btn onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">↷ Redo</Btn>
 
@@ -150,10 +173,10 @@ function Toolbar() {
         </button>
         {menu && (
           <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setMenu(false)}>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportPdf(project, bounds()))}>PDF report <span className="text-xs text-gray-400">diagram + tables</span></button>
+            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportPdf(project, bounds()))}>PDF report <span className="text-xs text-gray-400">diagram, racks, tables</span></button>
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportImage('png', project, bounds()))}>PNG image <span className="text-xs text-gray-400">Word, email</span></button>
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportImage('svg', project, bounds()))}>SVG vector <span className="text-xs text-gray-400">Visio, Office</span></button>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportCsv(project))}>CSV tables <span className="text-xs text-gray-400">Excel</span></button>
+            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportCsv(project), false)}>CSV tables <span className="text-xs text-gray-400">Excel</span></button>
           </div>
         )}
       </div>
@@ -164,7 +187,7 @@ function Toolbar() {
 function Canvas() {
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
-  const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, snapshot, undo, redo, deleteSelected, duplicateSelected } = useDiagram.getState();
+  const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -184,13 +207,11 @@ function Canvas() {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select, [contenteditable]')) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-      else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
-      else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); }
+      if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, duplicateSelected]);
+  }, [duplicateSelected]);
 
   return (
     <div className="relative flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
@@ -241,17 +262,36 @@ export default function Editor() {
     if (useDiagram.persist.hasHydrated()) setHydrated(true);
     return unsub;
   }, [hydrated]);
+  const view = useDiagram((s) => s.view);
+
+  // Undo/redo work in both views (outside of text fields, which have their own undo).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const { undo, redo } = useDiagram.getState();
+      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   if (!hydrated) return <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading your diagrams…</div>;
 
   return (
     <ReactFlowProvider>
       <div className="flex h-screen flex-col bg-gray-50 text-gray-900">
         <Toolbar />
-        <div className="flex min-h-0 flex-1">
-          <Palette />
-          <Canvas />
-          <PropertiesPanel />
-        </div>
+        {view === 'racks' ? (
+          <RackView />
+        ) : (
+          <div className="flex min-h-0 flex-1">
+            <Palette />
+            <Canvas />
+            <PropertiesPanel />
+          </div>
+        )}
       </div>
     </ReactFlowProvider>
   );

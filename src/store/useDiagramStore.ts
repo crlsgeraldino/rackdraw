@@ -5,7 +5,8 @@ import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { STENCIL_MAP } from '@/lib/stencils';
-import type { AppNode, CableData, CableEdge, DeviceData, PortData, Project, StencilDef } from '@/lib/types';
+import { findFreeU, fits } from '@/lib/rack';
+import type { AppNode, CableData, CableEdge, DeviceData, PortData, Project, Rack, RackItem, StencilDef } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -23,6 +24,7 @@ const idbStorage: StateStorage = {
 interface Snapshot {
   nodes: AppNode[];
   edges: CableEdge[];
+  racks: Rack[];
 }
 
 interface DiagramState {
@@ -57,6 +59,26 @@ interface DiagramState {
   deleteProject: (id: string) => void;
   importProject: (p: Project, stencils?: StencilDef[]) => void;
 
+  // racks (current project)
+  view: 'diagram' | 'racks';
+  activeRackId: string | null;
+  selectedRackItemId: string | null;
+  setView: (v: 'diagram' | 'racks') => void;
+  /** Selects one diagram node and clears every other selection. */
+  selectOnlyNode: (id: string) => void;
+  selectRack: (id: string | null) => void;
+  selectRackItem: (id: string | null) => void;
+  addRack: (name: string, units: number) => string;
+  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes'>>) => boolean;
+  deleteRack: (id: string) => void;
+  /** Places an item if it fits; returns false otherwise. */
+  placeRackItem: (rackId: string, item: Omit<RackItem, 'id'>) => boolean;
+  /** Moves/resizes an item if the new spot fits; returns false otherwise. */
+  updateRackItem: (rackId: string, itemId: string, patch: Partial<Omit<RackItem, 'id'>>) => boolean;
+  removeRackItem: (rackId: string, itemId: string) => void;
+  /** Creates a new diagram device from a stencil and mounts it at `u` (or the first free slot). */
+  addDeviceToRack: (rackId: string, stencilId: string, u?: number) => boolean;
+
   // custom stencils
   saveCustomStencil: (s: StencilDef) => void;
   deleteCustomStencil: (id: string) => void;
@@ -70,6 +92,15 @@ export function findStencil(id: string, custom: Record<string, StencilDef>): Ste
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+/** Drops rack slots whose diagram device no longer exists. */
+function pruneRacks(racks: Rack[] | undefined, nodes: AppNode[]): Rack[] {
+  const ids = new Set(nodes.map((n) => n.id));
+  return (racks ?? []).map((r) => {
+    const items = r.items.filter((it) => it.kind !== 'device' || (it.nodeId && ids.has(it.nodeId)));
+    return items.length === r.items.length ? r : { ...r, items };
+  });
+}
 
 function blankProject(name: string): Project {
   const now = Date.now();
@@ -99,14 +130,14 @@ export const useDiagram = create<DiagramState>()(
 
         snapshot: () => {
           const p = cur();
-          set({ past: [...get().past.slice(-HISTORY_LIMIT + 1), { nodes: p.nodes, edges: p.edges }], future: [] });
+          set({ past: [...get().past.slice(-HISTORY_LIMIT + 1), { nodes: p.nodes, edges: p.edges, racks: p.racks ?? [] }], future: [] });
         },
         undo: () => {
           const { past, future } = get();
           if (!past.length) return;
           const p = cur();
           const prev = past[past.length - 1];
-          set({ past: past.slice(0, -1), future: [{ nodes: p.nodes, edges: p.edges }, ...future] });
+          set({ past: past.slice(0, -1), future: [{ nodes: p.nodes, edges: p.edges, racks: p.racks ?? [] }, ...future] });
           commit(prev);
         },
         redo: () => {
@@ -114,7 +145,7 @@ export const useDiagram = create<DiagramState>()(
           if (!future.length) return;
           const p = cur();
           const next = future[0];
-          set({ past: [...past, { nodes: p.nodes, edges: p.edges }], future: future.slice(1) });
+          set({ past: [...past, { nodes: p.nodes, edges: p.edges, racks: p.racks ?? [] }], future: future.slice(1) });
           commit(next);
         },
 
@@ -125,7 +156,8 @@ export const useDiagram = create<DiagramState>()(
           // Removing a device removes its cables too.
           const ids = new Set(nodes.map((n) => n.id));
           const edges = cur().edges.filter((e) => ids.has(e.source) && ids.has(e.target));
-          commit({ nodes, edges });
+          const removed = arr.some((c) => c.type === 'remove');
+          commit(removed ? { nodes, edges, racks: pruneRacks(cur().racks, nodes) } : { nodes, edges });
         },
         onEdgesChange: (changes) => {
           if (changes.toArray().some((c) => c.type === 'remove')) get().snapshot();
@@ -190,7 +222,7 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           const nodes = p.nodes.filter((n) => !n.selected);
           const ids = new Set(nodes.map((n) => n.id));
-          commit({ nodes, edges: p.edges.filter((e) => !e.selected && ids.has(e.source) && ids.has(e.target)) });
+          commit({ nodes, edges: p.edges.filter((e) => !e.selected && ids.has(e.source) && ids.has(e.target)), racks: pruneRacks(p.racks, nodes) });
         },
         duplicateSelected: () => {
           const p = cur();
@@ -212,7 +244,8 @@ export const useDiagram = create<DiagramState>()(
           set({ projects: { ...get().projects, [p.id]: p }, currentId: p.id, past: [], future: [] });
         },
         openProject: (id) => {
-          if (get().projects[id]) set({ currentId: id, past: [], future: [] });
+          const p = get().projects[id];
+          if (p) set({ currentId: id, past: [], future: [], activeRackId: p.racks?.[0]?.id ?? null, selectedRackItemId: null });
         },
         updateProject: (patch) => {
           const p = cur();
@@ -232,6 +265,96 @@ export const useDiagram = create<DiagramState>()(
           if (stencils?.length) get().importStencils(stencils);
           const copy: Project = { ...p, id: uid(), updatedAt: Date.now() };
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
+        },
+
+        view: 'diagram',
+        activeRackId: null,
+        selectedRackItemId: null,
+        setView: (view) => set({ view }),
+        selectOnlyNode: (id) =>
+          commit({
+            nodes: cur().nodes.map((n) => ({ ...n, selected: n.id === id })),
+            edges: cur().edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+          }),
+        selectRack: (id) => set({ activeRackId: id, selectedRackItemId: null }),
+        selectRackItem: (id) => set({ selectedRackItemId: id }),
+
+        addRack: (name, units) => {
+          get().snapshot();
+          const rack: Rack = { id: `r-${uid()}`, name, units, items: [] };
+          commit({ racks: [...(cur().racks ?? []), rack] });
+          set({ activeRackId: rack.id, selectedRackItemId: null });
+          return rack.id;
+        },
+        updateRack: (id, patch) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === id);
+          if (!r) return false;
+          // Shrinking a rack must not cut off mounted equipment.
+          if (patch.units !== undefined && r.items.some((it) => it.u + it.height - 1 > patch.units!)) return false;
+          commit({ racks: racks.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
+          return true;
+        },
+        deleteRack: (id) => {
+          get().snapshot();
+          const racks = (cur().racks ?? []).filter((r) => r.id !== id);
+          commit({ racks });
+          set({ activeRackId: racks[0]?.id ?? null, selectedRackItemId: null });
+        },
+        placeRackItem: (rackId, item) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          if (!r || !fits(r, item.u, item.height, item.depth)) return false;
+          // A device can only be mounted once across all racks.
+          if (item.nodeId && racks.some((x) => x.items.some((it) => it.nodeId === item.nodeId))) return false;
+          get().snapshot();
+          const full: RackItem = { ...item, id: `ri-${uid()}` };
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, items: [...x.items, full] } : x)) });
+          set({ selectedRackItemId: full.id });
+          return true;
+        },
+        updateRackItem: (rackId, itemId, patch) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          const it = r?.items.find((x) => x.id === itemId);
+          if (!r || !it) return false;
+          const next = { ...it, ...patch };
+          const moved = next.u !== it.u || next.height !== it.height || next.depth !== it.depth;
+          if (moved && !fits(r, next.u, next.height, next.depth, itemId)) return false;
+          if (moved) get().snapshot();
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, items: x.items.map((y) => (y.id === itemId ? next : y)) } : x)) });
+          return true;
+        },
+        removeRackItem: (rackId, itemId) => {
+          get().snapshot();
+          commit({ racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: x.items.filter((y) => y.id !== itemId) } : x)) });
+          set({ selectedRackItemId: null });
+        },
+        addDeviceToRack: (rackId, stencilId, u) => {
+          const s = findStencil(stencilId, get().customStencils);
+          const r = (cur().racks ?? []).find((x) => x.id === rackId);
+          if (!s || !r) return false;
+          const height = s.rackUnits ?? 1;
+          const at = u ?? findFreeU(r, height, 'full');
+          if (at === null || !fits(r, at, height, 'full')) return false;
+          get().snapshot();
+          // Put the new device on the diagram below everything else so it doesn't cover existing work.
+          const nodes = cur().nodes;
+          const bottom = nodes.reduce((m, n) => Math.max(m, n.position.y + (n.measured?.height ?? 100)), 0);
+          const count = nodes.filter((n) => n.type === 'device' && n.data.stencilId === stencilId).length;
+          const node: AppNode = {
+            id: `n-${uid()}`,
+            type: 'device',
+            position: { x: 0, y: nodes.length ? bottom + 80 : 0 },
+            data: { stencilId, name: count ? `${s.name} ${count + 1}` : s.name, location: r.name, ...s.defaults } as DeviceData,
+          };
+          const item: RackItem = { id: `ri-${uid()}`, kind: 'device', nodeId: node.id, u: at, height, depth: 'full' };
+          commit({
+            nodes: [...nodes, node],
+            racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: [...x.items, item] } : x)),
+          });
+          set({ selectedRackItemId: item.id });
+          return true;
         },
 
         saveCustomStencil: (s) => {
@@ -270,7 +393,7 @@ export const useDiagram = create<DiagramState>()(
       name: 'netcraft',
       version: 2,
       storage: createJSONStorage(() => idbStorage),
-      partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils }),
+      partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
         const state = persisted as Partial<DiagramState>;
         if (version < 2) state.customStencils = {};

@@ -20,6 +20,7 @@ const sonicwallTz: StencilDef = {
   height: 172,
   scale: 0.5,
   style: 'panel',
+  rackUnits: 1,
   defaults: { model: 'TZ570 / TZ670' },
   ports: [
     { id: 'CONSOLE', label: 'Console', kind: 'console', x: 304, y: 76, w: 68, h: 60, side: 'top' },
@@ -63,7 +64,7 @@ function switchStencil(id: string, name: string, copper: number, sfp: number, po
   const width = sfpStart + Math.ceil(sfp / 2) * 52 + 60;
   ports.push({ id: 'CONSOLE', label: 'Console', kind: 'console', x: 40, y: 30, w: 44, h: 40, side: 'top' });
   return {
-    id, name, category: 'Switching', width, height: 100, scale: 0.5, style: 'panel', ports,
+    id, name, category: 'Switching', width, height: 100, scale: 0.5, style: 'panel', ports, rackUnits: 1,
     defaults: { model: `${copper}-port${poe ? ' PoE+' : ''} managed switch` },
   };
 }
@@ -76,15 +77,15 @@ function patchPanel(count: number): StencilDef {
   }
   return {
     id: `patch-panel-${count}`, name: `Patch panel ${count}-port`, category: 'Switching',
-    width: 90 + count * 36 + Math.floor(count / 6) * 14 + 60, height: 90, scale: 0.5, style: 'panel', ports,
+    width: 90 + count * 36 + Math.floor(count / 6) * 14 + 60, height: 90, scale: 0.5, style: 'panel', ports, rackUnits: 1,
   };
 }
 
-function icon(id: string, name: string, category: StencilDef['category'], ports: { id: string; label: string; side: PortDef['side']; kind?: PortDef['kind'] }[], defaults?: StencilDef['defaults']): StencilDef {
+function icon(id: string, name: string, category: StencilDef['category'], ports: { id: string; label: string; side: PortDef['side']; kind?: PortDef['kind'] }[], defaults?: StencilDef['defaults'], rackUnits?: number): StencilDef {
   const size = 64;
   const pos: Record<PortDef['side'], [number, number]> = { top: [size / 2, 0], bottom: [size / 2, size], left: [0, size / 2], right: [size, size / 2] };
   return {
-    id, name, category, width: size, height: size, scale: 1, style: 'icon', defaults,
+    id, name, category, width: size, height: size, scale: 1, style: 'icon', defaults, rackUnits,
     ports: ports.map((p) => {
       const [cx, cy] = pos[p.side];
       return { id: p.id, label: p.label, kind: p.kind ?? 'link', x: cx - 5, y: cy - 5, w: 10, h: 10, side: p.side };
@@ -101,14 +102,14 @@ export const STENCILS: StencilDef[] = [
   icon('internet', 'Internet / ISP', 'WAN', [{ id: 'WAN', label: 'WAN', side: 'bottom' }]),
   icon('modem', 'ISP modem / ONT', 'WAN', [{ id: 'UPLINK', label: 'Uplink', side: 'top' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }]),
   icon('access-point', 'Wireless access point', 'Wireless', [{ id: 'ETH', label: 'PoE uplink', side: 'top', kind: 'rj45' }, { id: 'WIFI', label: 'Wireless', side: 'bottom' }]),
-  icon('server', 'Server', 'Servers', [{ id: 'NIC1', label: 'NIC 1', side: 'top', kind: 'rj45' }, { id: 'MGMT', label: 'iDRAC / iLO', side: 'left', kind: 'rj45' }, { id: 'NIC2', label: 'NIC 2', side: 'right', kind: 'rj45' }]),
-  icon('nas', 'NAS', 'Servers', [{ id: 'NIC1', label: 'NIC 1', side: 'top', kind: 'rj45' }]),
+  icon('server', 'Server', 'Servers', [{ id: 'NIC1', label: 'NIC 1', side: 'top', kind: 'rj45' }, { id: 'MGMT', label: 'iDRAC / iLO', side: 'left', kind: 'rj45' }, { id: 'NIC2', label: 'NIC 2', side: 'right', kind: 'rj45' }], undefined, 2),
+  icon('nas', 'NAS', 'Servers', [{ id: 'NIC1', label: 'NIC 1', side: 'top', kind: 'rj45' }], undefined, 1),
   icon('workstation', 'Workstation', 'Endpoints', [{ id: 'NIC', label: 'NIC', side: 'top', kind: 'rj45' }]),
   icon('laptop', 'Laptop', 'Endpoints', [{ id: 'NIC', label: 'NIC / Wi-Fi', side: 'top' }]),
   icon('printer', 'Printer / MFP', 'Endpoints', [{ id: 'NIC', label: 'NIC', side: 'top', kind: 'rj45' }]),
   icon('phone', 'VoIP phone', 'Endpoints', [{ id: 'LAN', label: 'LAN', side: 'top', kind: 'rj45' }, { id: 'PC', label: 'PC passthrough', side: 'bottom', kind: 'rj45' }]),
   icon('camera', 'IP camera', 'Endpoints', [{ id: 'ETH', label: 'PoE', side: 'top', kind: 'rj45' }]),
-  icon('ups', 'UPS', 'Servers', [{ id: 'NMC', label: 'Network card', side: 'top', kind: 'rj45' }, { id: 'USB', label: 'USB', side: 'right', kind: 'usb' }]),
+  icon('ups', 'UPS', 'Servers', [{ id: 'NMC', label: 'Network card', side: 'top', kind: 'rj45' }, { id: 'USB', label: 'USB', side: 'right', kind: 'usb' }], undefined, 2),
 ];
 
 export const STENCIL_MAP: Record<string, StencilDef> = Object.fromEntries(STENCILS.map((s) => [s.id, s]));
@@ -234,14 +235,15 @@ function PatchDecor({ s }: { s: StencilDef }) {
   );
 }
 
-export function PanelArt({ stencil, portStates }: { stencil: StencilDef; portStates: Record<string, PortState> }) {
+/** Front-panel artwork. `width`/`height` override the diagram size (the rack view draws it to fit a slot). */
+export function PanelArt({ stencil, portStates, width, height }: { stencil: StencilDef; portStates: Record<string, PortState>; width?: number; height?: number }) {
   const decor: ReactNode =
     stencil.id === sonicwallTz.id ? <SonicWallDecor /> :
     stencil.id.startsWith('patch') ? <PatchDecor s={stencil} /> :
     <SwitchDecor s={stencil} />;
   const chassis = stencil.id.startsWith('patch') ? '#3b3b3e' : '#2a2a2c';
   return (
-    <svg viewBox={`0 0 ${stencil.width} ${stencil.height}`} width={stencil.width * stencil.scale} height={stencil.height * stencil.scale} style={{ display: 'block' }}>
+    <svg viewBox={`0 0 ${stencil.width} ${stencil.height}`} width={width ?? stencil.width * stencil.scale} height={height ?? stencil.height * stencil.scale} style={{ display: 'block' }}>
       <rect x={0} y={0} width={stencil.width} height={stencil.height} rx={3} fill={chassis} />
       <rect x={0} y={0} width={stencil.width} height={6} rx={2} fill="#4a4a4d" />
       <rect x={0} y={stencil.height - 6} width={stencil.width} height={6} rx={2} fill="#1c1c1e" />

@@ -1,7 +1,12 @@
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
+import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import { RackElevation, rackSize } from '@/components/RackElevation';
 import { getStencil } from '@/store/useDiagramStore';
-import type { AppNode, CableData, Project, StencilDef, StencilLibraryFile } from './types';
+import { rackLabel } from './rack';
+import type { AppNode, CableData, DeviceNode, Project, Rack, StencilDef, StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
 
@@ -59,16 +64,91 @@ export function connectionRows(p: Project): ConnectionRow[] {
   });
 }
 
+/** "Rack A U12–U13" for each mounted device. */
+function rackPositions(p: Project) {
+  const pos = new Map<string, string>();
+  for (const r of p.racks ?? []) for (const it of r.items) if (it.nodeId) pos.set(it.nodeId, `${r.name} ${rackLabel(it)}`);
+  return pos;
+}
+
 export function deviceRows(p: Project) {
+  const pos = rackPositions(p);
   return p.nodes.flatMap((n) => (n.type === 'device' ? [n] : [])).map((n) => ({
     name: n.data.name,
     type: getStencil(n.data.stencilId)?.name ?? n.data.stencilId,
     model: n.data.model ?? '',
     ip: n.data.ip ?? '',
     serial: n.data.serial ?? '',
+    assetTag: n.data.assetTag ?? '',
+    rack: pos.get(n.id) ?? '',
     location: n.data.location ?? '',
+    powerW: n.data.powerW ?? '',
     notes: n.data.notes ?? '',
   }));
+}
+
+export function rackRows(p: Project) {
+  const devices = new Map(p.nodes.flatMap((n) => (n.type === 'device' ? [[n.id, n] as const] : [])));
+  return (p.racks ?? []).flatMap((r) =>
+    [...r.items].sort((a, b) => b.u - a.u).map((it) => {
+      const d = it.nodeId ? devices.get(it.nodeId)?.data : undefined;
+      return {
+        rack: r.name,
+        position: rackLabel(it),
+        height: `${it.height}U`,
+        depth: it.depth === 'full' ? 'Full' : it.depth === 'front' ? 'Front' : 'Rear',
+        item: it.kind === 'device' ? d?.name ?? 'Missing device' : it.label ?? it.kind,
+        model: d?.model ?? '',
+        serial: d?.serial ?? '',
+        assetTag: d?.assetTag ?? '',
+        powerW: d?.powerW ?? '',
+      };
+    }),
+  );
+}
+
+/* ---------- rack elevations ---------- */
+
+/** Renders a rack's front and rear elevations side by side into a PNG, using the same component as the screen. */
+async function renderRack(p: Project, rack: Rack) {
+  const devices = new Map(p.nodes.filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n]));
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-30000px;top:0;';
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    flushSync(() =>
+      root.render(
+        createElement(
+          'div',
+          null,
+          createElement(RackElevation, { rack, face: 'front', devices, stencil: getStencil }),
+          createElement(RackElevation, { rack, face: 'rear', devices, stencil: getStencil }),
+        ),
+      ),
+    );
+    const size = rackSize(rack);
+    const gap = 40;
+    const k = 2; // print resolution
+    const canvas = document.createElement('canvas');
+    canvas.width = (size.width * 2 + gap) * k;
+    canvas.height = size.height * k;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const faces = [...(host.firstElementChild?.children ?? [])] as SVGSVGElement[];
+    for (const [i, svg] of faces.entries()) {
+      const markup = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+      await img.decode();
+      ctx.drawImage(img, i * (size.width + gap) * k, 0, size.width * k, size.height * k);
+    }
+    return { url: canvas.toDataURL('image/png'), width: canvas.width / k, height: canvas.height / k };
+  } finally {
+    root.unmount();
+    host.remove();
+  }
 }
 
 /* ---------- image export ---------- */
@@ -100,11 +180,14 @@ export async function exportImage(kind: 'png' | 'svg', p: Project, bounds: Rect)
 
 export async function exportPdf(p: Project, bounds: Rect) {
   const { jsPDF } = await import('jspdf');
-  const { url, width, height } = await renderViewport('png', bounds);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const m = 36;
+  let pages = 0;
+  const newPage = () => {
+    if (pages++) doc.addPage();
+  };
 
   const header = (title: string) => {
     doc.setFont('helvetica', 'bold');
@@ -118,14 +201,22 @@ export async function exportPdf(p: Project, bounds: Rect) {
     doc.setTextColor(0);
   };
 
-  header('Network diagram');
-  const top = m + 28;
-  const ratio = Math.min((W - m * 2) / width, (H - top - m) / height);
-  doc.addImage(url, 'PNG', m, top, width * ratio, height * ratio, undefined, 'FAST');
+  const picture = (title: string, img: { url: string; width: number; height: number }) => {
+    newPage();
+    header(title);
+    const top = m + 28;
+    const ratio = Math.min((W - m * 2) / img.width, (H - top - m) / img.height);
+    doc.addImage(img.url, 'PNG', m, top, img.width * ratio, img.height * ratio, undefined, 'FAST');
+  };
+
+  if (p.nodes.length) picture('Network diagram', await renderViewport('png', bounds));
+  for (const rack of p.racks ?? []) {
+    picture(['Rack elevation', rack.name, rack.location].filter(Boolean).join(': '), await renderRack(p, rack));
+  }
 
   const table = (title: string, cols: string[], widths: number[], rows: string[][]) => {
     if (!rows.length) return;
-    doc.addPage();
+    newPage();
     header(title);
     let y = m + 40;
     const row = (cells: string[], bold: boolean) => {
@@ -153,8 +244,10 @@ export async function exportPdf(p: Project, bounds: Rect) {
   };
 
   const avail = W - m * 2;
-  table('Devices', ['Name', 'Type', 'Model', 'IP', 'Serial', 'Location'], [0.2, 0.2, 0.16, 0.14, 0.15, 0.15].map((f) => f * avail),
-    deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.location]));
+  table('Devices', ['Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack'], [0.18, 0.16, 0.14, 0.12, 0.13, 0.1, 0.17].map((f) => f * avail),
+    deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]));
+  table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'], [0.13, 0.1, 0.07, 0.2, 0.15, 0.14, 0.11, 0.1].map((f) => f * avail),
+    rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
   table('Connections', ['From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Label'], [0.2, 0.1, 0.2, 0.1, 0.1, 0.1, 0.2].map((f) => f * avail),
     connectionRows(p).map((c) => [c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]));
 
@@ -171,11 +264,14 @@ export function exportCsv(p: Project) {
   const conns = connectionRows(p);
   const lines = [
     ['Client', p.name], ['Site', p.site ?? ''], [],
-    ['DEVICES'], ['Name', 'Type', 'Model', 'IP', 'Serial', 'Location', 'Notes'],
-    ...deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.location, d.notes]),
+    ['DEVICES'], ['Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack position', 'Location', 'Power (W)', 'Notes'],
+    ...deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack, d.location, d.powerW, d.notes]),
     [],
     ['CONNECTIONS'], ['From device', 'From port', 'To device', 'To port', 'Cable', 'VLAN', 'Label'],
     ...conns.map((c) => [c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]),
+    [],
+    ['RACKS'], ['Rack', 'Position', 'Height', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power (W)'],
+    ...rackRows(p).map((r) => [r.rack, r.position, r.height, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW]),
   ];
   // BOM so Excel reads UTF-8 correctly.
   downloadBlob(`${safeName(p.name)}.csv`, new Blob(['\ufeff' + csv(lines)], { type: 'text/csv;charset=utf-8' }));

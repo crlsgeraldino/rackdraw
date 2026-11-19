@@ -65,6 +65,22 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Racks
+
+Switch to **Racks** in the toolbar to draw rack elevations for the client.
+
+- **+ Add rack** in any standard size (6U–48U); several racks per client.
+- Drag devices from **On the diagram, not racked** into the rack, or drag a **New device** in (it is added to the
+  diagram too). Drag **accessories** in: blanking panels, cable managers, shelves, PDUs.
+- Front and rear views side by side. Items are **full depth** (both faces) or **front/rear only**, so a rear PDU can
+  share a unit with a front blanking panel. Overlaps and out-of-rack positions are refused.
+- Drag mounted items to move them; set U position, height and depth precisely in the right panel.
+- A mounted device is the same device as on the diagram: name, model, IP, serial, **asset tag** and **power (W)** are
+  shared, and the diagram's properties panel links to its rack position.
+- The rack panel totals used/free units and power draw.
+- Exports: the **PDF** gets a front/rear elevation page per rack and a **Rack contents** table; the **CSV** gets a
+  RACKS section and rack positions in the device list.
+
 ## Your own stencils (no code needed)
 
 **My stencils → + Import image as device** takes an SVG, PNG, JPG or WebP — a vendor product photo, a datasheet
