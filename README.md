@@ -96,6 +96,21 @@ optional role (WAN, LAN, MGMT). Set how wide it should appear on the diagram and
 
 Vendor artwork keeps its own license: import it for your own documentation, but don't bundle it in this repository.
 
+### Visio stencils (.vssx)
+
+**My stencils → + Import Visio stencil (.vssx)** opens a vendor stencil (Dell, Ubiquiti, HPE, Cisco…), lists its
+shapes with a live preview, and imports the ones you tick into a category you choose.
+
+- Works without Visio, entirely in the browser. Also reads the masters inside `.vsdx` drawings and `.vstx` templates.
+- Draws Visio geometry (lines, arcs, elliptical arcs, Béziers, ellipses), groups, rotation/flips, line and fill
+  styles, simple text, and embedded **PNG/JPG/GIF/BMP** pictures.
+- Converts embedded **EMF** pictures (the format most vendor stencils use) with a built-in EMF→SVG converter:
+  paths, polygons, Béziers, pens, brushes, world transforms, clipping, text and bitmaps.
+- Visio **connection points become cable ports** automatically; rename them later with ✎.
+- 19" gear (16.5–19.5" wide) gets a **rack height** from its height (1U = 1.75").
+- Old binary `.vss`/`.vsd` files aren't supported: open them in Visio and save as `.vssx`. EMF+-only pictures and
+  WMF pictures are skipped with a note.
+
 ## Adding a built-in stencil
 
 Built-in stencils live in `src/lib/stencils.tsx`. A panel stencil is a native-size artwork plus a list of ports

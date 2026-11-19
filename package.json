@@ -64,6 +64,7 @@
     "electron-builder": "^26.18.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
+    "fflate": "^0.8.3",
     "html-to-image": "^1.11.13",
     "idb-keyval": "^6.3.0",
     "jspdf": "^4.2.1",

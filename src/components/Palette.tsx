@@ -7,6 +7,7 @@ import { STENCILS, StencilThumb } from '@/lib/stencils';
 import { STENCIL_CATEGORIES, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
 import { StencilEditor } from './StencilEditor';
+import { VisioImportDialog } from './VisioImportDialog';
 
 export const DND_TYPE = 'application/x-netcraft-stencil';
 
@@ -17,6 +18,8 @@ export function Palette() {
   const [editing, setEditing] = useState<StencilDef | null>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const libRef = useRef<HTMLInputElement>(null);
+  const visioRef = useRef<HTMLInputElement>(null);
+  const [visioFile, setVisioFile] = useState<File | null>(null);
   const custom = useDiagram((s) => s.customStencils);
   const projects = useDiagram((s) => s.projects);
   const { saveCustomStencil, deleteCustomStencil, importStencils } = useDiagram.getState();
@@ -93,11 +96,19 @@ export function Palette() {
         >
           + Import image as device
         </button>
+        <button
+          onClick={() => visioRef.current?.click()}
+          className="mb-1 w-full rounded border border-dashed border-violet-400 bg-violet-50 px-2 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100"
+          title="Import shapes from a Visio stencil (.vssx), e.g. vendor stencils from Dell, Ubiquiti, Cisco"
+        >
+          + Import Visio stencil (.vssx)
+        </button>
         <div className="flex gap-1 text-[11px]">
           <button className="flex-1 rounded px-1 py-0.5 text-gray-600 hover:bg-gray-100" onClick={() => libRef.current?.click()} title="Add stencils from a .netcraft-stencils.json or project file">Import library</button>
           <button className="flex-1 rounded px-1 py-0.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40" disabled={!customList.length} onClick={() => saveStencilLibrary(customList)} title="Save all your stencils to one file to share with techs">Export library</button>
         </div>
         <input ref={imageRef} type="file" hidden accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp" onChange={(e) => { onImage(e.target.files?.[0]); e.target.value = ''; }} />
+        <input ref={visioRef} type="file" hidden accept=".vssx,.vsdx,.vstx,.vss,.vsd" onChange={(e) => { setVisioFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
         <input ref={libRef} type="file" hidden accept=".json,application/json" onChange={(e) => { onLibrary(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
 
@@ -142,6 +153,7 @@ export function Palette() {
         Drag a shape onto the canvas. Drag from one port to another to draw a cable.
       </p>
 
+      {visioFile && <VisioImportDialog key={`${visioFile.name}:${visioFile.lastModified}:${visioFile.size}`} file={visioFile} onClose={() => setVisioFile(null)} />}
       {editing && (
         <StencilEditor
           initial={editing}
