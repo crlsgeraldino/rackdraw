@@ -195,7 +195,10 @@ export async function renderRack(p: Project, rack: Rack) {
 
 /* ---------- image export ---------- */
 
-async function renderViewport(kind: 'png' | 'svg', bounds: Rect) {
+/** What a "selection only" picture keeps: these items, and the cables between them. */
+export interface Only { nodes: Set<string>; edges: Set<string> }
+
+async function renderViewport(kind: 'png' | 'svg', bounds: Rect, only?: Only) {
   const pad = 60;
   const width = Math.max(800, Math.ceil(bounds.width + pad * 2));
   const height = Math.max(500, Math.ceil(bounds.height + pad * 2));
@@ -210,14 +213,29 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect) {
     style: { width: `${width}px`, height: `${height}px`, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})` },
     // Leave out resize handles and connection dots (shown on selected items).
     // Non-printing layers (Layer Properties → Print) are tagged nc-noprint; their cables are SVG elements.
-    filter: (node: Element) => !(node instanceof Element && node.classList?.contains('nc-noprint')) && !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle') || node.classList?.contains('react-flow__node-toolbar') || node.classList?.contains('nc-page-sheet'))),
+    filter: (node: Element) => !(node instanceof Element && node.classList?.contains('nc-noprint')) && !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle') || node.classList?.contains('react-flow__node-toolbar') || node.classList?.contains('nc-page-sheet')))
   };
-  return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
+  // Selection outlines and editing handles stay out of the picture; for "selection only", everything else is made
+  // invisible (not removed, so nothing shifts) while the picture is taken.
+  const hidden: Element[] = [];
+  if (only) {
+    for (const n of el.querySelectorAll<HTMLElement>('.react-flow__node')) if (!only.nodes.has(n.dataset.id ?? '')) hidden.push(n);
+    for (const g of el.querySelectorAll('g.react-flow__edge')) if (!only.edges.has(g.getAttribute('data-id') ?? '')) hidden.push(g.closest('svg') ?? g);
+    for (const l of document.querySelectorAll('[data-edge-label]')) if (!only.edges.has(l.getAttribute('data-edge-label') ?? '')) hidden.push(l);
+    hidden.forEach((h) => h.classList.add('nc-export-hide'));
+  }
+  document.body.classList.add('nc-exporting');
+  try {
+    return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
+  } finally {
+    document.body.classList.remove('nc-exporting');
+    hidden.forEach((h) => h.classList.remove('nc-export-hide'));
+  }
 }
 
-export async function exportImage(kind: 'png' | 'svg', p: Project, bounds: Rect, pageName?: string) {
-  const { url } = await renderViewport(kind, bounds);
-  const suffix = p.pages.length > 1 && pageName ? `-${safeName(pageName)}` : '';
+export async function exportImage(kind: 'png' | 'svg', p: Project, bounds: Rect, pageName?: string, only?: Only) {
+  const { url } = await renderViewport(kind, bounds, only);
+  const suffix = only ? '-selection' : p.pages.length > 1 && pageName ? `-${safeName(pageName)}` : '';
   download(`${safeName(p.name)}${suffix}.${kind}`, url);
 }
 

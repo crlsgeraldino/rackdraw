@@ -12,5 +12,7 @@ export const paletteAction = (action: PaletteAction) => window.dispatchEvent(new
 
 /** F2 (Visio: edit text): the item id whose text to edit in place. */
 export const EDIT_TEXT_EVENT = 'netcraft:edit-text';
+/** Right-click → Save selection as picture: detail is 'png' or 'svg'. */
+export const SAVE_SELECTION_EVENT = 'netcraft:save-selection';
 /** F1: open the keyboard shortcuts list. */
 export const SHORTCUTS_EVENT = 'netcraft:shortcuts';

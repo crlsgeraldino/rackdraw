@@ -88,3 +88,10 @@ body {
   opacity: 1 !important;
   outline: 2px solid #ef4444;
 }
+
+/* While a picture is being exported: no selection outlines or editing handles. */
+.nc-exporting .nc-ui { display: none !important; }
+.nc-exporting .nc-selected-panel { outline: none !important; }
+.nc-exporting .nc-selected-icon > div:first-child { outline: none !important; }
+.nc-exporting .react-flow__node.selected { box-shadow: none !important; }
+.nc-exporting .nc-export-hide { visibility: hidden !important; }

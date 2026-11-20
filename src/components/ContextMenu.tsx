@@ -6,6 +6,7 @@ import type { CableRoute } from '@/lib/types';
 import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
 import { OPEN_CHECK_EVENT } from './CheckPanel';
 import { openChangeShape } from './ChangeShapeDialog';
+import { SAVE_SELECTION_EVENT } from '@/lib/events';
 
 /** Asks the palette to open the stencil editor for a custom stencil (it owns the editor). */
 export const EDIT_STENCIL_EVENT = 'netcraft:edit-stencil';
@@ -63,6 +64,7 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
     if (selCount > 1) items.push({ label: 'Group', keys: 'Ctrl+G', run: s.groupSelected });
     if (node.type !== 'backdrop' && node.data.group) items.push({ label: 'Ungroup', keys: 'Ctrl+Shift+G', run: s.ungroupSelected });
     if (node.type !== 'backdrop') items.push({ label: node.data.tip ? 'Edit ScreenTip…' : 'ScreenTip…', run: () => void editScreenTip() });
+    items.push({ label: 'Save selection as picture (PNG)', run: () => window.dispatchEvent(new CustomEvent(SAVE_SELECTION_EVENT, { detail: 'png' })) });
     if (node.type === 'device' || (node.type === 'shape' && node.data.kind !== 'window' && node.data.kind !== 'callout')) {
       items.push({ label: 'Rotate right 90°', run: () => s.rotateSelection(90) }, { label: 'Rotate left 90°', run: () => s.rotateSelection(-90) });
     }

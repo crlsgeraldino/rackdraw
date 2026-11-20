@@ -284,6 +284,12 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   attached to it — a leader line points at it and the callout moves with it. Change what it points to under
   **Points to** in the right panel. Callouts and text formatting carry over to `.vsdx`.
 
+## Selection as a picture
+
+- Select some devices and **right-click → Save selection as picture (PNG)**, or **File → Export → Selection as PNG / SVG**:
+  only those items, their labels and info boxes, and the cables between them — handy for a ticket or an email.
+- Pictures of a page or a selection never show selection outlines or editing handles.
+
 ## PowerPoint slides (.pptx)
 
 - **File → Export → PowerPoint slides**: a title slide (client, site, date), then one 16:9 slide per page and per rack,

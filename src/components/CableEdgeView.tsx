@@ -135,6 +135,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
       {text && (
         <EdgeLabelRenderer>
           <div
+            data-edge-label={id}
             className="nodrag nopan pointer-events-auto absolute cursor-move whitespace-nowrap rounded border bg-white px-1.5 py-0.5 text-[10px] shadow-sm"
             style={{ transform: `translate(-50%, -50%) translate(${labelPt.x}px, ${labelPt.y}px)`, borderColor: style.color, color: style.color }}
             title="Drag along the cable to move the text · double-click to centre it"

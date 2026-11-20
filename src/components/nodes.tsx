@@ -408,7 +408,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
-      {data.kind === 'text' && selected && !editing && <div className="pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
+      {data.kind === 'text' && selected && !editing && <div className="nc-ui pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
       {editing ? (
         <textarea
           autoFocus
@@ -448,11 +448,11 @@ function TurnedResizer({ id, x, y, w, h, rotation }: { id: string; x: number; y:
   const turn = (vx: number, vy: number) => ({ x: vx * c - vy * s, y: vx * s + vy * c });
   return (
     <>
-      <div className="pointer-events-none absolute inset-0 border border-dashed border-blue-500" />
+      <div className="nc-ui pointer-events-none absolute inset-0 border border-dashed border-blue-500" />
       {RESIZE_HANDLES.map(([sx, sy]) => (
         <span
           key={`${sx}${sy}`}
-          className="nodrag nopan absolute h-[9px] w-[9px] rounded-sm border border-white bg-blue-500"
+          className="nc-ui nodrag nopan absolute h-[9px] w-[9px] rounded-sm border border-white bg-blue-500"
           style={{ left: w / 2 + (sx * w) / 2 - 4.5, top: h / 2 + (sy * h) / 2 - 4.5, cursor: 'move' }}
           onPointerDown={(e) => {
             if (e.button !== 0) return;
@@ -491,10 +491,10 @@ function DeviceRotateHandle({ id }: { id: string }) {
   const active = useRef(false);
   return (
     <>
-      <span className="pointer-events-none absolute left-1/2 h-4 w-px -translate-x-1/2 bg-blue-500" style={{ top: -20 }} />
+      <span className="nc-ui pointer-events-none absolute left-1/2 h-4 w-px -translate-x-1/2 bg-blue-500" style={{ top: -20 }} />
       <span
         ref={node}
-        className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
+        className="nc-ui nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
         style={{ top: -26 }}
         title="Drag to rotate (Shift: 15° steps)"
         onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
@@ -536,9 +536,9 @@ function RotateHandle({ id, center }: { id: string; center: React.RefObject<HTML
   };
   return (
     <>
-      <span className="pointer-events-none absolute left-1/2 h-5 w-px -translate-x-1/2 bg-blue-500" style={{ top: -22 }} />
+      <span className="nc-ui pointer-events-none absolute left-1/2 h-5 w-px -translate-x-1/2 bg-blue-500" style={{ top: -22 }} />
       <span
-        className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
+        className="nc-ui nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
         style={{ top: -28 }}
         title="Drag to rotate (Shift: 15° steps)"
         onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}

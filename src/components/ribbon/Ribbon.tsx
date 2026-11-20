@@ -18,7 +18,7 @@ import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { openChangeShape } from '../ChangeShapeDialog';
 import { THEMES, themeById, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
-import { SHORTCUTS_EVENT } from '@/lib/events';
+import { SAVE_SELECTION_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
@@ -61,10 +61,12 @@ function useDocument() {
    * What to capture: the nodes (by id, so React Flow uses its live measurements rather than sizes saved in the
    * diagram), widened to take in device labels, info boxes and dimension lines that sit outside their node box.
    */
-  const contentBounds = (ids: string[]) => {
+  const contentBounds = (ids: string[], onlyTheirs = false) => {
     const b = rf.getNodesBounds(ids);
     let [x0, y0, x1, y1] = [b.x, b.y, b.x + b.width, b.y + b.height];
-    document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label, .react-flow__viewport .nc-measure *').forEach((el) => {
+    // For a selection, only the labels / info boxes of the selected items count.
+    const scope = onlyTheirs ? ids.map((id) => `.react-flow__node[data-id="${CSS.escape(id)}"]`) : ['.react-flow__viewport'];
+    document.querySelectorAll(scope.flatMap((s) => [`${s} .nc-infobox`, `${s} .nc-device-label`, `${s}.nc-measure, ${s} .nc-measure *`]).join(', ')).forEach((el) => {
       const r = el.getBoundingClientRect();
       if (!r.width) return;
       const a = rf.screenToFlowPosition({ x: r.left, y: r.top }, { snapToGrid: false });
@@ -111,6 +113,14 @@ function useDocument() {
     png: () => run(() => (page.nodes.length ? exportImage('png', project, contentBounds(withBackground(page)), page.name) : alert('This page is empty.'))),
     svg: () => run(() => (page.nodes.length ? exportImage('svg', project, contentBounds(withBackground(page)), page.name) : alert('This page is empty.'))),
     csv: () => run(() => exportCsv(project), false),
+    selection: (kind: 'png' | 'svg') => run(() => {
+      const nodes = page.nodes.filter((n) => n.selected && n.type !== 'backdrop').map((n) => n.id);
+      if (!nodes.length) return alert('Select the devices and shapes to put in the picture first.');
+      const set = new Set(nodes);
+      // The selected cables, and any cable between two selected items.
+      const edges = new Set(page.edges.filter((e) => e.selected || (set.has(e.source) && set.has(e.target))).map((e) => e.id));
+      return exportImage(kind, project, contentBounds(nodes, true), page.name, { nodes: set, edges });
+    }),
     pptx: () => run(async () => {
       try {
         const bytes = await exportDeck(project, renderPage);
@@ -195,6 +205,14 @@ export function Ribbon() {
   const { openProject, undo, redo } = useDiagram.getState();
   const rf = useReactFlow<AppNode>();
   const doc = useDocument();
+  // Right-click → Save selection as picture (the export code lives here).
+  const saveSelection = useRef(doc.selection);
+  saveSelection.current = doc.selection;
+  useEffect(() => {
+    const on = (e: Event) => saveSelection.current((e as CustomEvent).detail === 'svg' ? 'svg' : 'png');
+    window.addEventListener(SAVE_SELECTION_EVENT, on);
+    return () => window.removeEventListener(SAVE_SELECTION_EVENT, on);
+  }, []);
   const collapsed = usePref('ribbonCollapsed');
   const [tab, setTab] = useState<Tab>('home');
   const [file, setFile] = useState(false);
@@ -303,7 +321,7 @@ export function Ribbon() {
           onOpen={() => { setFile(false); openRef.current?.click(); }}
           onSave={() => { setFile(false); doc.save(); }}
           onPrint={() => { setFile(false); setPrinting(true); }}
-          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx })[kind](); }}
+          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx, selPng: () => doc.selection('png'), selSvg: () => doc.selection('svg') })[kind](); }}
         />
       )}
       <input ref={openRef} type="file" accept=".json,application/json,.vsdx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
@@ -368,7 +386,7 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
 /** The File tab's full-window page (Office "backstage"). */
 function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onClose: () => void; onNew: () => void; onOpen: () => void; onSave: () => void; onPrint: () => void;
-  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx') => void;
+  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg') => void;
 }) {
   const project = useCurrentProject();
   useEffect(() => {
@@ -381,7 +399,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <Icon name={icon} size={18} /> {label}
     </button>
   );
-  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx') => (
+  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg') => (
     <button key={kind} className="flex items-start gap-3 rounded border border-gray-200 p-3 text-left hover:border-blue-400 hover:bg-blue-50" onClick={() => onExport(kind)}>
       <Icon name={icon} size={28} className="shrink-0 text-gray-700" />
       <span><span className="block text-sm font-medium text-gray-900">{title}</span><span className="text-xs text-gray-500">{sub}</span></span>
@@ -411,6 +429,8 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
           {exp('pdf', 'PDF report', 'Every page, rack elevations and the device, connection and port tables, with the title block', 'pdf')}
           {exp('image', 'PNG picture of this page', 'For Word documents and email', 'png')}
           {exp('exportFile', 'SVG drawing of this page', 'Scalable vector picture for Office and Visio', 'svg')}
+          {exp('image', 'Selection as PNG', 'Only the selected devices and the cables between them, for a ticket or email', 'selPng')}
+          {exp('exportFile', 'Selection as SVG', 'The selected items as a scalable picture', 'selSvg')}
           {exp('csv', 'CSV tables', 'Devices, connections, racks and port notes for Excel', 'csv')}
         </div>
         <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-gray-500">Save and share</h2>
