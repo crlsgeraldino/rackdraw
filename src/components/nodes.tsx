@@ -10,6 +10,7 @@ import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
 import { useDragOffset } from './useDragOffset';
+import MeasureNodeView from './MeasureNode';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
 
@@ -303,6 +304,7 @@ function BackdropNodeView({ data, selected, width, height }: NodeProps<BackdropN
 }
 
 export const nodeTypes = {
+  measure: memo(MeasureNodeView),
   device: memo(DeviceNodeView),
   zone: memo(ZoneNodeView),
   note: memo(NoteNodeView),

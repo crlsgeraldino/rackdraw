@@ -12,7 +12,7 @@ import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
 import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
 import { replaceHits, type FindHit } from '@/lib/find';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, ShapeKind, StencilDef, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -56,6 +56,12 @@ interface DiagramState {
   addZone: (position: { x: number; y: number }) => void;
   addNote: (position: { x: number; y: number }) => void;
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
+  /** Adds a dimension line starting at `position` (horizontal, 200 units long). */
+  addMeasure: (position: { x: number; y: number }) => void;
+  /** Moves one end of a dimension line to a diagram point (no undo step; the drag takes one at its start). */
+  moveMeasureEnd: (id: string, end: 'a' | 'b', point: { x: number; y: number }) => void;
+  /** Sets or clears the active page's drawing scale (undoable). */
+  setPageScale: (scale: PageScale | null) => void;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
   updatePort: (nodeId: string, portId: string, patch: PortData) => void;
   updateEdgeData: (id: string, patch: Partial<CableData>) => void;
@@ -345,6 +351,25 @@ export const useDiagram = create<DiagramState>()(
             data: { title: 'Server room', color: '#3b82f6' },
           };
           commit({ nodes: [node, ...page().nodes] });
+        },
+        addMeasure: (position) => {
+          get().snapshot();
+          const node: AppNode = { id: `m-${uid()}`, type: 'measure', position, data: { dx: 200, dy: 0 } };
+          commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        moveMeasureEnd: (id, end, point) =>
+          commit({
+            nodes: page().nodes.map((n) => {
+              if (n.id !== id || n.type !== 'measure') return n;
+              const b = { x: n.position.x + n.data.dx, y: n.position.y + n.data.dy };
+              if (end === 'b') return { ...n, data: { ...n.data, dx: point.x - n.position.x, dy: point.y - n.position.y } };
+              return { ...n, position: point, data: { ...n.data, dx: b.x - point.x, dy: b.y - point.y } };
+            }),
+          }),
+        setPageScale: (scale) => {
+          get().snapshot();
+          const id = page().id;
+          commit({ pages: cur().pages.map((pg) => (pg.id === id ? { ...pg, scale: scale ?? undefined } : pg)) });
         },
         addNote: (position) => {
           get().snapshot();

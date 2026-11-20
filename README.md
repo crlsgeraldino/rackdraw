@@ -95,6 +95,14 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   and **Show on diagram** jumps to the right page.
 - The PDF gets one picture per page; device and connection tables list the page each item is on.
 - Diagrams saved by v0.2 open as a single "Network" page.
+- **Drawing scale and measuring** (floor plans): with nothing selected, **Set scale…** in the right panel, click two
+  points a known distance apart on the plan (both sides of a door, a wall), and type the real distance
+  (`30 ft`, `12' 6"`, `9.5 m`, `250 cm`). Or type it as *100 units = … feet/metres*.
+- **Dimension line** (palette → Layout): drag it onto the page, drag its ends (Shift keeps it straight); it shows the
+  real length, with an optional label.
+- **Cable lengths**: a cable's **Length** can be typed, or measured from the scaled drawing with one click (**Use
+  42' 6"**); tick *Show length on the cable* to label it. Lengths appear in the connections table of the PDF,
+  printout and CSV, handy for cable estimates.
 
 ## Drawing tools and connectors
 

@@ -11,6 +11,8 @@ import { PAGE_LINK, resolveLink } from '@/lib/links';
 import { ArrangeButtons } from './ArrangeMenu';
 import { editStencil } from './ContextMenu';
 import { useFollowLink } from './NodeBadges';
+import { realLength, SET_SCALE_EVENT } from '@/lib/units';
+import type { LengthUnit } from '@/lib/types';
 
 function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
   const snapshot = useDiagram((s) => s.snapshot);
@@ -401,6 +403,38 @@ function LinkField({ nodeId, value }: { nodeId: string; value?: string }) {
   );
 }
 
+/** Cable run length: typed, or measured from the drawing when the page has a scale. */
+function CableLength({ id, data }: { id: string; data: CableData }) {
+  const scale = useCurrentPage().scale;
+  const update = useDiagram((s) => s.updateEdgeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  // Length of the drawn path (whatever its routing), read from the canvas.
+  const drawn = (() => {
+    if (!scale || typeof document === 'undefined') return '';
+    const path = document.querySelector<SVGPathElement>(`.react-flow__edge[data-id="${CSS.escape(id)}"] path.react-flow__edge-path`);
+    const px = path?.getTotalLength?.();
+    return px ? realLength(px, scale) : '';
+  })();
+  return (
+    <div className="mb-2">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Length</span>
+      <div className="flex gap-1">
+        <input className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500" value={data.length ?? ''} placeholder={drawn || 'e.g. 42 ft'}
+          onFocus={snapshot} onChange={(e) => update(id, { length: e.target.value || undefined })} />
+        {drawn && (
+          <button className="shrink-0 rounded border border-gray-300 px-2 text-xs hover:bg-gray-50" onClick={() => { snapshot(); update(id, { length: drawn }); }} title="Use the length measured on the scaled drawing">
+            Use {drawn}
+          </button>
+        )}
+      </div>
+      <label className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+        <input type="checkbox" checked={!!data.showLength} onChange={(e) => { snapshot(); update(id, { showLength: e.target.checked || undefined }); }} /> Show length on the cable
+      </label>
+      {!scale && <p className="text-[10px] text-gray-400">Set the page scale (right panel, nothing selected) to measure runs from the drawing.</p>}
+    </div>
+  );
+}
+
 function CableProps({ edge }: { edge: CableEdge }) {
   const id = edge.id;
   const data = (edge.data ?? { cable: 'Cat6' }) as CableData;
@@ -426,6 +460,7 @@ function CableProps({ edge }: { edge: CableEdge }) {
       </label>
       <CableColorEditor edges={[edge]} />
       <Field label="Label" value={data.label} onChange={(v) => update(id, { label: v })} />
+      <CableLength id={id} data={data} />
       <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono />
       <div className="flex gap-2">
         <label className="mb-2 block flex-1">
@@ -561,7 +596,46 @@ function PageProps() {
         </button>
       )}
       <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.svg,image/*" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+      <ScaleProps />
     </>
+  );
+}
+
+/** Drawing scale of the page, for dimension lines and cable lengths on floor plans. */
+function ScaleProps() {
+  const pg = useCurrentPage();
+  const setPageScale = useDiagram((s) => s.setPageScale);
+  const sc = pg.scale;
+  // Per 100 diagram units, which is roughly one device width; easier to read than per pixel.
+  const per100 = sc ? +(sc.perPx * 100).toPrecision(4) : '';
+  return (
+    <div className="mt-3">
+      <span className="mb-1 block text-[11px] font-medium text-gray-500">Drawing scale</span>
+      {sc ? (
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center gap-1">
+            100 units =
+            <input className="w-16 rounded border border-gray-300 px-1 py-0.5" type="number" min={0} step="any" defaultValue={per100} key={`${per100}${sc.unit}`}
+              onBlur={(e) => { const v = Number(e.target.value); if (v > 0) setPageScale({ ...sc, perPx: v / 100 }); }} aria-label="Real distance per 100 diagram units" />
+            <select className="rounded border border-gray-300 px-1 py-0.5" value={sc.unit} onChange={(e) => setPageScale({ ...sc, unit: e.target.value as LengthUnit, perPx: e.target.value === sc.unit ? sc.perPx : e.target.value === 'm' ? sc.perPx * 0.3048 : sc.perPx / 0.3048 })} aria-label="Unit">
+              <option value="ft">feet</option>
+              <option value="m">metres</option>
+            </select>
+          </div>
+          <div className="flex gap-3">
+            <button className="text-blue-600 hover:underline" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))}>Set again from the drawing…</button>
+            <button className="text-gray-500 hover:underline" onClick={() => setPageScale(null)}>Remove</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <button className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))}>
+            Set scale… (click two points a known distance apart)
+          </button>
+          <p className="mt-1 text-[10px] text-gray-400">Lets dimension lines and cables show real lengths, e.g. for cable runs on a floor plan.</p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -662,6 +736,19 @@ export function PropertiesPanel() {
     body = <CableProps edge={selEdges[0]} />;
   } else if (selNodes[0]?.type === 'shape') {
     body = <ShapeProps node={selNodes[0]} />;
+  } else if (selNodes[0]?.type === 'measure') {
+    const m = selNodes[0];
+    const len = Math.hypot(m.data.dx, m.data.dy);
+    body = (
+      <>
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">Dimension line</div>
+        <p className="mb-2 text-sm">{p.scale ? realLength(len, p.scale) : `${Math.round(len)} units (no scale set)`}</p>
+        <Field label="Label (optional)" value={m.data.label} onChange={(v) => update(m.id, { label: v || undefined })} />
+        <p className="text-[10px] text-gray-400">Drag the line to move it; drag its blue ends to stretch it (hold Shift to keep it straight).</p>
+        <hr className="my-4 border-gray-200" />
+        <ScaleProps />
+      </>
+    );
   } else if (selNodes[0]?.type === 'backdrop') {
     body = <PageProps />;
   } else {

@@ -294,6 +294,10 @@ export function Palette() {
           <div className="grid grid-cols-2 gap-1">
             <div draggable onDragStart={(e) => drag(e, '__zone')} className="cursor-grab rounded border-2 border-dashed border-blue-400 bg-blue-50 p-2 text-center text-[11px] text-blue-700">Zone / room</div>
             <div draggable onDragStart={(e) => drag(e, '__note')} className="cursor-grab rounded bg-yellow-100 p-2 text-center text-[11px] text-gray-700 shadow-sm">Note</div>
+            <div draggable onDragStart={(e) => drag(e, '__measure')} className="col-span-2 flex cursor-grab items-center justify-center gap-1.5 rounded border border-gray-200 p-1.5 text-[11px] text-gray-700 hover:bg-gray-50" title="Drag onto a floor plan to measure a distance (set the page scale first)">
+              <svg width="40" height="10" viewBox="0 0 40 10" aria-hidden><path d="M2 1v8M38 1v8M3 5h34M3 5l4-3M3 5l4 3M37 5l-4-3M37 5l-4 3" stroke="#334155" fill="none" strokeWidth="1.2" /></svg>
+              Dimension line
+            </div>
           </div>
         </section>
       </div>

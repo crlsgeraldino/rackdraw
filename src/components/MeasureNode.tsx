@@ -1,0 +1,89 @@
+'use client';
+
+import { useReactFlow, type NodeProps } from '@xyflow/react';
+import { useRef } from 'react';
+import { realLength } from '@/lib/units';
+import type { MeasureNode } from '@/lib/types';
+import { useCurrentPage, useDiagram } from '@/store/useDiagramStore';
+
+const TICK = 7;
+
+/**
+ * Dimension line (Visio "Dimension" shape): an arrowed line with end ticks and its real length from the page's
+ * scale. Drag the line to move it; when selected, drag either end to stretch it.
+ */
+function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
+  const rf = useReactFlow();
+  const scale = useCurrentPage().scale;
+  const moveEnd = useDiagram((s) => s.moveMeasureEnd);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const drag = useRef<{ end: 'a' | 'b'; moved: boolean } | null>(null);
+  const { dx, dy } = data;
+  const len = Math.hypot(dx, dy);
+  const ux = len ? dx / len : 1, uy = len ? dy / len : 0;
+  // Ticks across the line at both ends.
+  const tx = -uy * TICK, ty = ux * TICK;
+  const text = [data.label, scale ? realLength(len, scale) : `${Math.round(len)} px`].filter(Boolean).join(' ');
+  const color = selected ? '#2563eb' : '#334155';
+  const marker = `nc-dim-${id}`;
+
+  const endHandle = (end: 'a' | 'b') => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.button !== 0 || data.locked) return;
+      e.stopPropagation();
+      drag.current = { end, moved: false };
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const d = drag.current;
+      if (!d) return;
+      if (!d.moved) {
+        d.moved = true;
+        snapshot();
+      }
+      let p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false });
+      // Shift keeps the line horizontal or vertical.
+      if (e.shiftKey) {
+        const other = end === 'b' ? { x: 0, y: 0 } : { x: dx, y: dy };
+        const base = rf.getInternalNode(id)?.internals.positionAbsolute ?? { x: 0, y: 0 };
+        const o = { x: base.x + other.x, y: base.y + other.y };
+        p = Math.abs(p.x - o.x) > Math.abs(p.y - o.y) ? { x: p.x, y: o.y } : { x: o.x, y: p.y };
+      }
+      moveEnd(id, end, { x: Math.round(p.x), y: Math.round(p.y) });
+    },
+    onPointerUp: () => { drag.current = null; },
+    onPointerCancel: () => { drag.current = null; },
+  });
+
+  return (
+    <div className="nc-measure relative" style={{ width: 1, height: 1 }}>
+      <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1}>
+        {/* Wide invisible stroke so the thin line is easy to click and drag. */}
+        <line x1={0} y1={0} x2={dx} y2={dy} stroke="transparent" strokeWidth={12} style={{ pointerEvents: 'stroke' }} />
+        <line x1={0} y1={0} x2={dx} y2={dy} stroke={color} strokeWidth={1.5} markerStart={`url(#${marker})`} markerEnd={`url(#${marker})`} />
+        <line x1={-tx} y1={-ty} x2={tx} y2={ty} stroke={color} strokeWidth={1.5} />
+        <line x1={dx - tx} y1={dy - ty} x2={dx + tx} y2={dy + ty} stroke={color} strokeWidth={1.5} />
+        <defs>
+          <marker id={marker} viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" fill={color} />
+          </marker>
+        </defs>
+      </svg>
+      <div
+        className="absolute whitespace-nowrap rounded bg-white/90 px-1 text-[11px] font-medium"
+        style={{ left: dx / 2, top: dy / 2, transform: 'translate(-50%, -50%)', color }}
+        title={scale ? undefined : 'Set the page scale (right panel, nothing selected) to see real lengths'}
+      >
+        {text}
+      </div>
+      {selected && !data.locked && (
+        <>
+          <span className="nodrag nopan absolute h-3 w-3 cursor-crosshair rounded-full border-2 border-blue-600 bg-white" style={{ left: -6, top: -6 }} {...endHandle('a')} />
+          <span className="nodrag nopan absolute h-3 w-3 cursor-crosshair rounded-full border-2 border-blue-600 bg-white" style={{ left: dx - 6, top: dy - 6 }} {...endHandle('b')} />
+        </>
+      )}
+    </div>
+  );
+}
+
+export default MeasureNodeView;

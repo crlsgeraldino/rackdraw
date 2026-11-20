@@ -21,6 +21,7 @@ import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { ArrangeMenu } from './ArrangeMenu';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
+import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { ContextMenu, editStencil, type MenuTarget } from './ContextMenu';
 import { FindBar } from './FindBar';
 import { PrintDialog } from './PrintDialog';
@@ -126,7 +127,7 @@ function Toolbar() {
   const contentBounds = (ids: string[]) => {
     const b = rf.getNodesBounds(ids);
     let [x0, y0, x1, y1] = [b.x, b.y, b.x + b.width, b.y + b.height];
-    document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label').forEach((el) => {
+    document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label, .react-flow__viewport .nc-measure *').forEach((el) => {
       const r = el.getBoundingClientRect();
       if (!r.width) return;
       const a = rf.screenToFlowPosition({ x: r.left, y: r.top }, { snapToGrid: false });
@@ -346,6 +347,32 @@ function Canvas() {
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
+  // "Set scale": the user clicks two points a known distance apart.
+  const [calib, setCalib] = useState<{ x: number; y: number }[] | null>(null);
+  useEffect(() => {
+    const start = () => setCalib([]);
+    window.addEventListener(SET_SCALE_EVENT, start);
+    return () => window.removeEventListener(SET_SCALE_EVENT, start);
+  }, []);
+  useEffect(() => {
+    if (!calib) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setCalib(null);
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [calib]);
+  const calibClick = (e: React.MouseEvent) => {
+    const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false });
+    const pts = [...(calib ?? []), p];
+    if (pts.length < 2) return setCalib(pts);
+    setCalib(null);
+    const px = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    const answer = prompt('How far apart are those two points in real life?\ne.g. 30 ft, 12\' 6", 9.5 m', '');
+    if (answer === null) return;
+    const d = parseLength(answer, page.scale?.unit ?? 'ft');
+    const scale = d && scaleFrom(px, d);
+    if (!scale) return alert('Could not read that distance. Try something like 30 ft or 9.5 m.');
+    useDiagram.getState().setPageScale(scale);
+  };
   const { selectItem } = useDiagram.getState();
   /** Right-click selects what's under the pointer (unless it's already part of the selection), then opens the menu. */
   const openMenu = (e: React.MouseEvent, target: MenuTarget) => {
@@ -369,6 +396,7 @@ function Canvas() {
     const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     if (id === '__zone') return addZone(pos);
     if (id === '__note') return addNote(pos);
+    if (id === '__measure') return useDiagram.getState().addMeasure({ x: pos.x - 100, y: pos.y });
     if (id.startsWith('__shape:')) return addShape(id.slice(8) as ShapeKind, pos);
     const s = getStencil(id);
     if (!s) return;
@@ -428,7 +456,7 @@ function Canvas() {
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
         <Panel position="top-left"><Legend /></Panel>
         <Controls />
-        <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />
+        <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />
       </ReactFlow>
       {page.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -442,6 +470,18 @@ function Canvas() {
       {find && <FindBar replaceMode={find.replace} onClose={() => setFind(null)} />}
       {checking && <CheckPanel onClose={() => setChecking(false)} />}
       {menu && <ContextMenu target={menu} onClose={() => setMenu(null)} />}
+      {calib && (
+        <div className="absolute inset-0 z-30 cursor-crosshair" onClick={calibClick}>
+          <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded bg-blue-600 px-3 py-1.5 text-sm text-white shadow">
+            {calib.length ? 'Now click the second point' : 'Set scale: click the first of two points a known distance apart (e.g. both sides of a door)'} · Esc cancels
+          </div>
+          {calib.map((p, i) => {
+            const host = (e: HTMLElement | null) => e?.parentElement?.getBoundingClientRect();
+            const s = rf.flowToScreenPosition(p);
+            return <span key={i} ref={(el) => { const r = host(el); if (el && r) { el.style.left = `${s.x - r.left - 5}px`; el.style.top = `${s.y - r.top - 5}px`; } }} className="pointer-events-none absolute h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-600 shadow" />;
+          })}
+        </div>
+      )}
       <button onClick={deleteSelected} className="sr-only">Delete selected</button>
     </div>
   );

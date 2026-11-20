@@ -191,11 +191,20 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
 }
 
 export type ShapeNode = Node<ShapeData, 'shape'>;
+
+/** A dimension line: from the node's position to position + (dx, dy). Its length is shown with the page scale. */
+export interface MeasureData extends Record<string, unknown>, NodeExtras {
+  dx: number;
+  dy: number;
+  /** Optional text shown instead of / before the measured length. */
+  label?: string;
+}
+export type MeasureNode = Node<MeasureData, 'measure'>;
 export type DeviceNode = Node<DeviceData, 'device'>;
 export type ZoneNode = Node<ZoneData, 'zone'>;
 export type NoteNode = Node<NoteData, 'note'>;
 export type BackdropNode = Node<BackdropData, 'backdrop'>;
-export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode | ShapeNode;
+export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode | ShapeNode | MeasureNode;
 
 export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' | 'Wireless' | 'VPN' | 'Line';
 
@@ -211,6 +220,10 @@ export interface CableData extends Record<string, unknown> {
   arrows?: CableArrows;
   /** Line color chosen for this cable; missing = color by type or VLAN (View menu). */
   color?: string;
+  /** Cable run length as text, e.g. "42 ft" (typed, or measured from a scaled drawing). */
+  length?: string;
+  /** Show the length on the cable's label. */
+  showLength?: boolean;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';
@@ -292,12 +305,21 @@ export interface TitleBlock {
 }
 
 /** One drawing in a client project (like a Visio page). Cables connect devices on the same page. */
+export type LengthUnit = 'ft' | 'm';
+
+/** Drawing scale of a page: how many real units one diagram unit (px) stands for. */
+export interface PageScale {
+  perPx: number;
+  unit: LengthUnit;
+}
+
 export interface Page {
   id: string;
   name: string;
   kind: PageKind;
   nodes: AppNode[];
   edges: CableEdge[];
+  scale?: PageScale;
 }
 
 export interface Project {

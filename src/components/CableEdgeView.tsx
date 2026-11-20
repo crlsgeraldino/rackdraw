@@ -98,7 +98,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   }, [route, pts, jumpsOn, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   const style = useDisplay().cable(data);
-  const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`].filter(Boolean).join(' · ');
+  const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`, data?.showLength && data.length].filter(Boolean).join(' · ');
 
   return (
     <>
