@@ -317,6 +317,10 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 ## Title block and printing
 
+- **Measurement units** (Design → Page Setup → Units): Automatic (centimetres on A4/A3, inches otherwise), Inches,
+  Centimetres or Pixels. Rulers, the status bar and Size & Position (X, Y, W, H — type values in those units) follow
+  it; a page with a drawing scale shows real lengths instead.
+
 - **Header & footer** (File → Print, or the right panel with nothing selected): left, centre and right text at the top
   and bottom of every printed and PDF sheet, with codes for page number, number of pages, date, client, site, sheet
   title and author. Without one, sheets show "Page n of m".

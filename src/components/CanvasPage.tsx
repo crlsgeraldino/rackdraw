@@ -2,7 +2,8 @@
 
 import { useNodesStore, useViewport, ViewportPortal, type NodesStore } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_SETUP, pageBounds, PX_PER_IN, rulerTicks, sheetSize } from '@/lib/pageSetup';
+import { DEFAULT_SETUP, pageBounds, rulerTicks, sheetSize } from '@/lib/pageSetup';
+import { pxPerUnit, useUnits } from '@/lib/measure';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { usePref } from '@/lib/prefs';
 import type { DeviceData } from '@/lib/types';
@@ -77,9 +78,9 @@ export function PageSheet() {
 /** Ruler units: the page's drawing scale (feet / metres) when set, else inches (cm on A-sizes). */
 function useRulerUnit() {
   const page = useCurrentPage();
+  const units = useUnits(page);
   if (page.scale) return { unitPx: 1 / page.scale.perPx, label: page.scale.unit === 'ft' ? 'ft' : 'm' };
-  const metric = page.setup?.paper === 'a4' || page.setup?.paper === 'a3';
-  return metric ? { unitPx: PX_PER_IN / 2.54, label: 'cm' } : { unitPx: PX_PER_IN, label: 'in' };
+  return { unitPx: pxPerUnit(units), label: units };
 }
 
 /** Top and left rulers that follow pan and zoom, like Visio's. */

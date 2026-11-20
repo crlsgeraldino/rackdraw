@@ -25,6 +25,8 @@ export interface Prefs {
   pageBreaks: boolean;
   /** Dynamic grid: snap to and show alignment with other items while dragging. */
   dynamicGrid: boolean;
+  /** Measurement units: automatic (cm on A-size paper, else inches), inches, centimetres or pixels. */
+  units: 'auto' | 'in' | 'cm' | 'px';
   /** Navigation pane (pages and their items). */
   navPane: boolean;
   /** Snap moved items to the 10px grid. */
@@ -34,7 +36,7 @@ export interface Prefs {
   /** Your name on comments. */
   author: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, navPane: false, favorites: [], author: '' };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, navPane: false, units: 'auto', favorites: [], author: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

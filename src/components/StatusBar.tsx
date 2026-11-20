@@ -1,5 +1,6 @@
 'use client';
 
+import { fmtLen, useUnits } from '@/lib/measure';
 import { useReactFlow, useViewport } from '@xyflow/react';
 import { setPref, usePref } from '@/lib/prefs';
 import { realLength } from '@/lib/units';
@@ -24,13 +25,14 @@ export function StatusBar() {
   const selEdges = page.edges.filter((e) => e.selected);
   const index = project.pages.findIndex((p) => p.id === page.id) + 1;
 
+  const units = useUnits(page);
   let selection = '';
   if (selNodes.length + selEdges.length > 1) selection = `${selNodes.length + selEdges.length} items selected`;
   else if (selNodes.length === 1) {
     const n = rf.getInternalNode(selNodes[0].id);
     const w = n?.measured.width ?? 0, h = n?.measured.height ?? 0;
-    const size = (v: number) => (page.scale ? realLength(v, page.scale) : `${Math.round(v)}`);
-    selection = n ? `Width: ${size(w)}   Height: ${size(h)}   X: ${Math.round(n.internals.positionAbsolute.x)}   Y: ${Math.round(n.internals.positionAbsolute.y)}` : '';
+    const size = (v: number) => (page.scale ? realLength(v, page.scale) : fmtLen(v, units));
+    selection = n ? `Width: ${size(w)}   Height: ${size(h)}   X: ${fmtLen(n.internals.positionAbsolute.x, units)}   Y: ${fmtLen(n.internals.positionAbsolute.y, units)}` : '';
   } else if (selEdges.length === 1) selection = '1 cable selected';
 
   const btn = 'flex h-5 w-5 items-center justify-center rounded text-gray-600 hover:bg-gray-200 disabled:opacity-40';

@@ -3,6 +3,7 @@
 import { HeaderFooterEditor } from './HeaderFooterEditor';
 
 import { turnedBox } from '@/lib/rotation';
+import { fmtNum, fromUnits, useUnits } from '@/lib/measure';
 import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
@@ -57,23 +58,29 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 /** X / Y of the selected item (Visio's Size & Position), in diagram units. */
 function PositionEditor({ id }: { id: string }) {
-  const node = useCurrentPage().nodes.find((n) => n.id === id);
+  const page = useCurrentPage();
+  const units = useUnits(page);
+  const node = page.nodes.find((n) => n.id === id);
   const setPositions = useDiagram((s) => s.setPositions);
   if (!node) return null;
-  const commitAxis = (axis: 'x' | 'y', v: string) => {
-    const n = Number(v);
-    if (Number.isFinite(n) && n !== Math.round(node.position[axis])) setPositions(new Map([[id, { ...node.position, [axis]: n }]]));
+  const read = (v: string) => {
+    const n = Number(v.replace(',', '.').replace(/[a-z\s]+$/i, ''));
+    return Number.isFinite(n) ? Math.round(fromUnits(n, units)) : null;
   };
-  const box = (axis: 'x' | 'y') => (
+  const commitAxis = (axis: 'x' | 'y', v: string) => {
+    const n = read(v);
+    if (n !== null && n !== Math.round(node.position[axis])) setPositions(new Map([[id, { ...node.position, [axis]: n }]]));
+  };
+  const field = (label: string, value: number, onCommit: (v: string) => void, aria: string) => (
     <label className="flex flex-1 items-center gap-1 text-xs">
-      <span className="w-3 text-gray-500">{axis.toUpperCase()}</span>
+      <span className="w-3 text-gray-500">{label}</span>
       <input
-        key={`${axis}${Math.round(node.position[axis])}`}
+        key={`${label}${value}${units}`}
         className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-mono outline-none focus:border-blue-500"
-        defaultValue={Math.round(node.position[axis])}
-        onBlur={(e) => commitAxis(axis, e.target.value)}
+        defaultValue={fmtNum(value, units)}
+        onBlur={(e) => onCommit(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        aria-label={`${axis.toUpperCase()} position`}
+        aria-label={aria}
       />
     </label>
   );
@@ -82,23 +89,24 @@ function PositionEditor({ id }: { id: string }) {
   const st = node.style as { width?: number; height?: number } | undefined;
   const w = Math.round(node.width ?? st?.width ?? node.measured?.width ?? 0), h = Math.round(node.height ?? st?.height ?? node.measured?.height ?? 0);
   const setSize = (which: 'w' | 'h', v: string) => {
-    const n = Math.round(Number(v));
-    if (!Number.isFinite(n) || n < 10 || n === (which === 'w' ? w : h)) return;
+    const n = read(v);
+    if (n === null || n < 10 || n === (which === 'w' ? w : h)) return;
     useDiagram.getState().snapshot();
     useDiagram.getState().setNodeBox(id, node.position, which === 'w' ? n : w, which === 'h' ? n : h);
   };
-  const sizeBox = (which: 'w' | 'h', v: number) => (
-    <label className="flex flex-1 items-center gap-1 text-xs">
-      <span className="w-3 text-gray-500">{which === 'w' ? 'W' : 'H'}</span>
-      <input key={`${which}${v}`} className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-mono outline-none focus:border-blue-500" defaultValue={v}
-        onBlur={(e) => setSize(which, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={which === 'w' ? 'Width' : 'Height'} />
-    </label>
-  );
   return (
     <div className="mt-1">
-      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Position{sizable ? ' and size' : ''}</span>
-      <div className="flex gap-2">{box('x')}{box('y')}</div>
-      {sizable && w > 0 && <div className="mt-1 flex gap-2">{sizeBox('w', w)}{sizeBox('h', h)}</div>}
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Position{sizable ? ' and size' : ''} ({units})</span>
+      <div className="flex gap-2">
+        {field('X', node.position.x, (v) => commitAxis('x', v), 'X position')}
+        {field('Y', node.position.y, (v) => commitAxis('y', v), 'Y position')}
+      </div>
+      {sizable && w > 0 && (
+        <div className="mt-1 flex gap-2">
+          {field('W', w, (v) => setSize('w', v), 'Width')}
+          {field('H', h, (v) => setSize('h', v), 'Height')}
+        </div>
+      )}
     </div>
   );
 }

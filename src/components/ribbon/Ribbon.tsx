@@ -892,6 +892,7 @@ function DesignTab() {
   const tb = project.titleBlock;
   const page = useCurrentPage();
   const setup = page.setup ?? DEFAULT_SETUP;
+  const unitsPref = usePref('units');
   const sel = 'rounded border border-gray-300 bg-white px-1 py-0 text-[11px]';
   return (
     <>
@@ -900,6 +901,11 @@ function DesignTab() {
           <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]">Size
             <select className={sel} value={setup.paper} onChange={(e) => s.setPageSetup({ ...setup, paper: e.target.value as PaperSize })}>
               {(Object.keys(PAPER) as PaperSize[]).map((k) => <option key={k} value={k}>{PAPER[k].label}</option>)}
+            </select>
+          </label>
+          <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]" title="Measurement units for the rulers, Size & Position and the status bar">Units
+            <select className={sel} value={unitsPref} onChange={(e) => setPref('units', e.target.value as typeof unitsPref)}>
+              <option value="auto">Automatic</option><option value="in">Inches</option><option value="cm">Centimetres</option><option value="px">Pixels</option>
             </select>
           </label>
           <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]">Orientation
