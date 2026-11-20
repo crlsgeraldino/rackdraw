@@ -1,6 +1,6 @@
 'use client';
 
-import { Handle, NodeResizer, Position, useInternalNode, type NodeProps } from '@xyflow/react';
+import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type NodeProps } from '@xyflow/react';
 import { memo, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
@@ -66,6 +66,9 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
   const update = useDiagram((s) => s.updateNodeData);
   const drag = useDragOffset(data.labelOffset, (labelOffset) => update(id, { labelOffset }), !!data.locked);
   const sizeRef = useOverlaySize<HTMLDivElement>(`${id}|label`);
+  const snapshot = useDiagram((s) => s.snapshot);
+  // Double-click the label to rename the device right there (like typing on a Visio shape).
+  const [editing, setEditing] = useState(false);
   const fields = data.labelFields ?? DEFAULT_LABEL_FIELDS;
   const lines = fields.map((f) => ({ f, v: f === 'name' ? data.name : (data[f] as string | undefined) })).filter((l) => l.v);
   if (!lines.length) return null;
@@ -79,10 +82,28 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
       ref={sizeRef}
       className={`nc-device-label nodrag nopan absolute top-full mt-1 cursor-move select-none text-[11px] leading-tight text-gray-800 ${variant === 'icon' ? 'flex w-40 flex-col items-center text-center' : 'left-0 flex gap-2 whitespace-nowrap'}`}
       style={{ translate: `${off.x}px ${off.y}px` }}
-      {...drag}
-      title={data.locked ? undefined : 'Drag to move the label'}
+      {...(editing ? {} : drag)}
+      onDoubleClick={(e) => { if (data.locked || id.startsWith('bg:')) return; e.stopPropagation(); setEditing(true); }}
+      title={data.locked ? undefined : 'Drag to move the label · double-click to rename'}
     >
-      {lines.map((l) => text(l.f, l.v!))}
+      {editing ? (
+        <input
+          autoFocus
+          className="nodrag w-40 rounded border border-blue-400 bg-white px-1 text-[11px] font-semibold outline-none"
+          defaultValue={data.name}
+          onFocus={(e) => e.currentTarget.select()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') { e.currentTarget.value = data.name; e.currentTarget.blur(); }
+          }}
+          onBlur={(e) => {
+            const v = e.currentTarget.value.trim();
+            if (v && v !== data.name) { snapshot(); update(id, { name: v }); }
+            setEditing(false);
+          }}
+        />
+      ) : lines.map((l) => text(l.f, l.v!))}
     </div>
   );
 }
@@ -314,9 +335,11 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   // Free rotation (Visio's rotation handle) for drawing shapes; doors turn in 90° steps, windows and callouts don't.
   const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout';
   const outer = useRef<HTMLDivElement>(null);
+  // A turned shape gets its own resize handles, turned with it (React Flow's only work square to the page).
+  const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (
     <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
-      <NodeResizer isVisible={selected && !data.locked} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
+      <NodeResizer isVisible={selected && !data.locked && !turned} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
       <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
@@ -339,11 +362,62 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
         </div>
       )}
       {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}
+      {turned && selected && !data.locked && !editing && <TurnedResizer id={id} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} rotation={data.rotation ?? 0} />}
       </div>
       {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
         <Handle key={side} id={side} type="source" position={SIDE[side]} className="nc-handle-side" />
       ))}
     </div>
+  );
+}
+
+const RESIZE_HANDLES: [number, number][] = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
+
+/**
+ * Resize handles for a rotated shape, drawn turned with it. Dragging one keeps the opposite side where it is: the
+ * pointer is measured in the shape's own (turned) axes, then the new box is placed back on the page.
+ */
+function TurnedResizer({ id, x, y, w, h, rotation }: { id: string; x: number; y: number; w: number; h: number; rotation: number }) {
+  const rf = useReactFlow();
+  const setBox = useDiagram((s) => s.setNodeBox);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const drag = useRef<{ ax: number; ay: number; sx: number; sy: number } | null>(null);
+  const t = (rotation * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  const turn = (vx: number, vy: number) => ({ x: vx * c - vy * s, y: vx * s + vy * c });
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 border border-dashed border-blue-500" />
+      {RESIZE_HANDLES.map(([sx, sy]) => (
+        <span
+          key={`${sx}${sy}`}
+          className="nodrag nopan absolute h-[9px] w-[9px] rounded-sm border border-white bg-blue-500"
+          style={{ left: w / 2 + (sx * w) / 2 - 4.5, top: h / 2 + (sy * h) / 2 - 4.5, cursor: 'move' }}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            snapshot();
+            // The fixed point: the opposite corner / side, on the page.
+            const a = turn((-sx * w) / 2, (-sy * h) / 2);
+            drag.current = { ax: x + w / 2 + a.x, ay: y + h / 2 + a.y, sx, sy };
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            if (!d) return;
+            const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false });
+            const vx = p.x - d.ax, vy = p.y - d.ay;
+            const lx = vx * c + vy * s, ly = -vx * s + vy * c; // pointer in the shape's axes
+            const nw = d.sx ? Math.max(30, Math.round(lx * d.sx)) : w;
+            const nh = d.sy ? Math.max(20, Math.round(ly * d.sy)) : h;
+            const off = turn((d.sx * nw) / 2, (d.sy * nh) / 2);
+            const cx = d.ax + off.x, cy = d.ay + off.y;
+            setBox(id, { x: cx - nw / 2, y: cy - nh / 2 }, nw, nh);
+          }}
+          onPointerUp={() => { drag.current = null; }}
+          onPointerCancel={() => { drag.current = null; }}
+        />
+      ))}
+    </>
   );
 }
 

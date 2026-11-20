@@ -61,6 +61,8 @@ interface DiagramState {
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
   /** Adds a dimension line (or a floor-plan wall) starting at `position`. */
   addMeasure: (position: { x: number; y: number }, variant?: 'dimension' | 'wall') => void;
+  /** Moves and resizes one node (rotated-shape resize handles). No undo step: the drag takes one at its start. */
+  setNodeBox: (id: string, position: { x: number; y: number }, width: number, height: number) => void;
   /** Line tool: a straight line from a to b. */
   addLine: (a: { x: number; y: number }, b: { x: number; y: number }) => void;
   /** Pencil tool: a freeform shape through these diagram points. */
@@ -477,6 +479,8 @@ export const useDiagram = create<DiagramState>()(
           const node: AppNode = { id: `m-${uid()}`, type: 'measure', position, data };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
+        setNodeBox: (id, position, width, height) =>
+          commit({ nodes: page().nodes.map((n) => (n.id === id ? { ...n, position, width, height, style: { ...n.style, width, height } } : n)) }),
         addLine: (a, b) => {
           get().snapshot();
           const node: AppNode = {

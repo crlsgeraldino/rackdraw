@@ -279,7 +279,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       });
       const text = [d.label, d.vlan && `VLAN ${d.vlan}`, d.showLength && d.length].filter(Boolean).join(' · ');
       if (text) {
-        const mid = path.getPointAtLength(total / 2);
+        const mid = path.getPointAtLength(total * (d.labelAt ?? 0.5));
         const w = Math.max(0.4, text.length * 0.055);
         texts.push({ kind: 'rect', box: { x: X(mid.x) - w / 2, y: Y(mid.y) - 0.08, w, h: 0.16 }, fill: '#FFFFFF', line: st.color, lineWeightPt: 0.5, text: { text, sizePt: 6.5, color: st.color } });
       }

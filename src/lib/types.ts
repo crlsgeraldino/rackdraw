@@ -267,6 +267,8 @@ export interface CableData extends Record<string, unknown> {
   length?: string;
   /** Show the length on the cable's label. */
   showLength?: boolean;
+  /** Where the cable's text sits along it, 0 (source) … 1 (target); missing = the middle. */
+  labelAt?: number;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';

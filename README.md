@@ -182,6 +182,10 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   and blue guides show the alignment. Turn it off under **View → Dynamic grid**.
 - **Rotate** drawing shapes, text and freehand drawings by dragging the round handle above the selected shape
   (whole degrees, 15° steps with Shift, snaps to 0/90/180/270), or type the **Angle** in the right panel.
+  A turned shape's resize handles turn with it, and the opposite side stays put while you drag one.
+- **Rename a device on the canvas**: double-click its label, type, Enter (Esc cancels).
+- **Cable text**: drag a cable's label along the cable to move it; double-click it to put it back in the middle.
+  The position is kept in exports and `.vsdx`.
 - **Home → Tools**: **Line** (drag to draw; Shift keeps it straight) and **Pencil** (freehand) stay on until you pick
   **Pointer** or press Esc. Lines get a colour, width, dashes and arrowheads in the right panel; both can go on
   layers and are saved to `.vsdx`.

@@ -1,11 +1,11 @@
 'use client';
 
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, useNodesStore, type EdgeProps, type NodesStore } from '@xyflow/react';
-import { memo, useEffect, useMemo } from 'react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, useNodesStore, useReactFlow, type EdgeProps, type NodesStore } from '@xyflow/react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/router';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import type { CableEdge, DeviceData } from '@/lib/types';
-import { getStencil, useCurrentProject } from '@/store/useDiagramStore';
+import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { findJumps, JUMP_R, otherRoutes, publishRoute, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
@@ -97,6 +97,13 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, pts, jumpsOn, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
+  // Text position along the cable (Visio lets you drag connector text); the middle unless moved.
+  const at = data?.labelAt;
+  const labelPt = useMemo(() => (at === undefined ? { x: labelX, y: labelY } : pointAlong(path, at)), [path, at, labelX, labelY]);
+  const rf = useReactFlow();
+  const update = useDiagram((s) => s.updateEdgeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const dragging = useRef(false);
   const style = useDisplay().cable(data);
   const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`, data?.showLength && data.length].filter(Boolean).join(' · ');
 
@@ -116,8 +123,24 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
       {text && (
         <EdgeLabelRenderer>
           <div
-            className="nodrag nopan pointer-events-auto absolute whitespace-nowrap rounded border bg-white px-1.5 py-0.5 text-[10px] shadow-sm"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, borderColor: style.color, color: style.color }}
+            className="nodrag nopan pointer-events-auto absolute cursor-move whitespace-nowrap rounded border bg-white px-1.5 py-0.5 text-[10px] shadow-sm"
+            style={{ transform: `translate(-50%, -50%) translate(${labelPt.x}px, ${labelPt.y}px)`, borderColor: style.color, color: style.color }}
+            title="Drag along the cable to move the text · double-click to centre it"
+            onPointerDown={(e) => {
+              if (e.button !== 0 || id.startsWith('bg:')) return;
+              e.stopPropagation();
+              snapshot();
+              dragging.current = true;
+              (e.currentTarget as Element).setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!dragging.current) return;
+              const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false });
+              update(id, { labelAt: Math.round(nearestAlong(path, p) * 1000) / 1000 });
+            }}
+            onPointerUp={() => { dragging.current = false; }}
+            onPointerCancel={() => { dragging.current = false; }}
+            onDoubleClick={(e) => { e.stopPropagation(); snapshot(); update(id, { labelAt: undefined }); }}
           >
             {text}
           </div>
@@ -125,6 +148,40 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
       )}
     </>
   );
+}
+
+/** A hidden SVG path for measuring cable paths (length, points along them). */
+let probe: SVGPathElement | null = null;
+function measurePath(d: string) {
+  if (!probe) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden');
+    probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    svg.appendChild(probe);
+    document.body.appendChild(svg);
+  }
+  probe.setAttribute('d', d);
+  return probe;
+}
+
+/** Point a fraction `t` of the way along an SVG path. */
+export function pointAlong(d: string, t: number) {
+  const p = measurePath(d);
+  const pt = p.getPointAtLength(Math.max(0, Math.min(1, t)) * p.getTotalLength());
+  return { x: pt.x, y: pt.y };
+}
+
+/** Fraction along the path of the point nearest to `q` (kept off the very ends). */
+function nearestAlong(d: string, q: { x: number; y: number }) {
+  const p = measurePath(d);
+  const len = p.getTotalLength();
+  let best = 0.5, bestD = Infinity;
+  for (let i = 0; i <= 200; i++) {
+    const pt = p.getPointAtLength((i / 200) * len);
+    const dd = (pt.x - q.x) ** 2 + (pt.y - q.y) ** 2;
+    if (dd < bestD) { bestD = dd; best = i / 200; }
+  }
+  return Math.max(0.05, Math.min(0.95, best));
 }
 
 export const edgeTypes = { cable: memo(CableEdgeView) };
