@@ -209,6 +209,20 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Review → Comments** lists every comment in the client, on every page; click an item's name to go to it, and
   **Resolve**, **Reopen** or **Delete** comments. Find (Ctrl+F) searches comments too.
 
+## Text formatting and callouts
+
+- **Home → Font**: **B**old, *Italic*, Underline, and A+ / A− for the text of the selected shapes, notes and
+  callouts. **Home → Paragraph**: align left / center / right and top / middle / bottom.
+- **Insert → Callout** (or the Callout tile in the Shapes pane): with a device or shape selected, the callout is
+  attached to it — a leader line points at it and the callout moves with it. Change what it points to under
+  **Points to** in the right panel. Callouts and text formatting carry over to `.vsdx`.
+
+## Word report (.docx)
+
+- **File → Export → Word report (.docx)** writes an editable Word document: client details and title block, a
+  picture of every page, every rack elevation, and the Devices, Connections, Rack contents and Port notes tables
+  (header rows repeat on each page). Opens in Word, LibreOffice and Google Docs.
+
 ## Tidy-up tools
 
 - **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).
