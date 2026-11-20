@@ -115,8 +115,9 @@ export function routeOrthogonal(
     if (grown.left === win.left && grown.top === win.top && grown.right === win.right && grown.bottom === win.bottom) break;
     win = grown;
   }
-  // A stub can still sit inside a neighbouring device (devices touching); then there is no clean route.
-  if (used.some((o) => inside(o, sa.x, sa.y) || inside(o, sb.x, sb.y))) return null;
+  // A stub can sit inside something next to the device (a touching device, its own label or info box):
+  // route over that item rather than not at all.
+  used = used.filter((o) => !inside(o, sa.x, sa.y) && !inside(o, sb.x, sb.y));
 
   const uniq = (v: number[]) => [...new Set(v.map((n) => Math.round(n * 2) / 2))].sort((p, q) => p - q);
   const xs = uniq([sa.x, sb.x, (sa.x + sb.x) / 2, win.left, win.right, ...used.flatMap((o) => [o.left, o.right])].filter((x) => x >= win.left && x <= win.right));

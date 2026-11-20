@@ -8,6 +8,7 @@ import { DEFAULT_LABEL_FIELDS, isDocumented, type BackdropNode, type DeviceData,
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
+import { useOverlaySize } from '@/lib/overlays';
 import { useDragOffset } from './useDragOffset';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
@@ -62,6 +63,7 @@ function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates:
 function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; variant: 'icon' | 'panel' }) {
   const update = useDiagram((s) => s.updateNodeData);
   const drag = useDragOffset(data.labelOffset, (labelOffset) => update(id, { labelOffset }), !!data.locked);
+  const sizeRef = useOverlaySize<HTMLDivElement>(`${id}|label`);
   const fields = data.labelFields ?? DEFAULT_LABEL_FIELDS;
   const lines = fields.map((f) => ({ f, v: f === 'name' ? data.name : (data[f] as string | undefined) })).filter((l) => l.v);
   if (!lines.length) return null;
@@ -72,6 +74,7 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
   );
   return (
     <div
+      ref={sizeRef}
       className={`nc-device-label nodrag nopan absolute top-full mt-1 cursor-move select-none text-[11px] leading-tight text-gray-800 ${variant === 'icon' ? 'flex w-40 flex-col items-center text-center' : 'left-0 flex gap-2 whitespace-nowrap'}`}
       style={{ translate: `${off.x}px ${off.y}px` }}
       {...drag}
