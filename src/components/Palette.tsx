@@ -9,6 +9,8 @@ import { STENCILS, StencilThumb } from '@/lib/stencils';
 import { STENCIL_CATEGORIES, type ShapeKind, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
 import { editableCopy } from '@/lib/shapeCopy';
+import { setPref } from '@/lib/prefs';
+import { Drop } from './ribbon/parts';
 import { PALETTE_EVENT, type PaletteAction } from '@/lib/events';
 import { EDIT_STENCIL_EVENT } from './ContextMenu';
 import { StencilEditor } from './StencilEditor';
@@ -48,6 +50,20 @@ const SHAPES: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
   { kind: 'diamond', label: 'Diamond', icon: <polygon points="17,2 32,11 17,20 2,11" {...ink} /> },
   { kind: 'arrow', label: 'Arrow', icon: <polygon points="2,7 20,7 20,2 32,11 20,20 20,15 2,15" fill="#93c5fd" stroke="#374151" strokeWidth="1.5" /> },
 ];
+
+/** A Visio-style stencil title bar that folds its shapes away. */
+function StencilBar({ title, count, open, onToggle, children }: { title: string; count?: number; open: boolean; onToggle: (open: boolean) => void; children: React.ReactNode }) {
+  return (
+    <section className="mb-1 rounded border border-gray-200">
+      <button className="flex w-full items-center gap-1 rounded-t bg-[#eef1f6] px-1.5 py-1 text-left text-xs font-medium text-gray-800 hover:bg-[#e3e8f1]" onClick={() => onToggle(!open)} aria-expanded={open}>
+        <span className="w-3 shrink-0 text-[10px] text-gray-500" aria-hidden>{open ? '▾' : '▸'}</span>
+        <span className="truncate">{title}</span>
+        {count !== undefined && <span className="ml-auto text-[10px] font-normal text-gray-400">{count}</span>}
+      </button>
+      {open && <div className="p-1">{children}</div>}
+    </section>
+  );
+}
 
 export function Palette() {
   const [q, setQ] = useState('');
@@ -213,35 +229,43 @@ export function Palette() {
   );
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-gray-200 bg-white">
-      <div className="border-b border-gray-200 p-2">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-gray-300 bg-white">
+      <div className="flex h-7 shrink-0 items-center justify-between border-b border-gray-300 bg-[#f3f3f3] px-2 text-[12px] font-semibold text-gray-700">
+        Shapes
+        <button className="rounded px-1 text-gray-500 hover:bg-gray-200" onClick={() => setPref('shapesPane', false)} title="Close (View → Task Panes to reopen)" aria-label="Close Shapes">×</button>
+      </div>
+      <div className="space-y-1.5 border-b border-gray-200 p-2">
         <input
           className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500"
-          placeholder="Search shapes…"
+          placeholder="Search shapes"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label="Search shapes"
         />
-      </div>
-
-      <div className="border-b border-gray-200 p-2">
-        <button
-          onClick={() => imageRef.current?.click()}
-          className="mb-1 w-full rounded border border-dashed border-blue-400 bg-blue-50 px-2 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
-          title="Import an SVG, PNG or JPG (vendor photo, Visio shape exported as SVG…) and mark its ports"
+        <Drop
+          width={260}
+          trigger={(open, isOpen) => (
+            <button className={`flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-[12px] text-gray-800 hover:bg-gray-100 ${isOpen ? 'bg-gray-100' : ''}`} onClick={open}>
+              More Shapes <span className="text-gray-400">▸</span>
+            </button>
+          )}
         >
-          + Import image as device
-        </button>
-        <button
-          onClick={() => visioRef.current?.click()}
-          className="mb-1 w-full rounded border border-dashed border-violet-400 bg-violet-50 px-2 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100"
-          title="Import shapes from a Visio stencil (.vssx), e.g. vendor stencils from Dell, Ubiquiti, Cisco. Each file becomes its own library."
-        >
-          + Import Visio stencil (.vssx)
-        </button>
-        <div className="flex gap-1 text-[11px]">
-          <button className="flex-1 rounded px-1 py-0.5 text-gray-600 hover:bg-gray-100" onClick={() => libRef.current?.click()} title="Add a library from a .netcraft-stencils.json file (or the stencils a project file carries)">Import library</button>
-          <button className="flex-1 rounded px-1 py-0.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40" disabled={!customList.length} onClick={() => saveStencilLibrary(customList, 'all-stencils')} title="Save every library to one file to share with techs (library names are kept)">Export all</button>
-        </div>
+          {(close) => (
+            <div className="-m-1 text-[12px]">
+              {[
+                { label: 'Import Visio stencil (.vssx)…', sub: 'Vendor stencils (Dell, Ubiquiti, Cisco…); each file becomes a library', run: () => visioRef.current?.click() },
+                { label: 'Import image as device…', sub: 'SVG, PNG or JPG, then mark its ports', run: () => imageRef.current?.click() },
+                { label: 'Open stencil library…', sub: '.netcraft-stencils.json from another tech', run: () => libRef.current?.click() },
+                { label: 'Save all libraries…', sub: 'One file with every library, to share', run: () => saveStencilLibrary(customList, 'all-stencils'), disabled: !customList.length },
+              ].map((it) => (
+                <button key={it.label} disabled={it.disabled} className="block w-full rounded px-2 py-1.5 text-left hover:bg-blue-50 disabled:opacity-40" onClick={() => { close(); it.run(); }}>
+                  <span className="block text-gray-900">{it.label}</span>
+                  <span className="block text-[10px] text-gray-500">{it.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Drop>
         <input ref={imageRef} type="file" hidden accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp" onChange={(e) => { onImage(e.target.files?.[0]); e.target.value = ''; }} />
         <input ref={visioRef} type="file" hidden accept=".vssx,.vsdx,.vstx,.vss,.vsd" onChange={(e) => { setVisioFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
         <input ref={libRef} type="file" hidden accept=".json,application/json" onChange={(e) => { onLibrary(e.target.files?.[0]); e.target.value = ''; }} />
@@ -285,13 +309,11 @@ export function Palette() {
           </section>
         )}
         {groups.map(({ c, items }) => (
-          <section key={c} className="mb-3">
-            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{c}</h3>
+          <StencilBar key={c} title={c} count={items.length} open={!!term || !isCollapsed(`builtin:${c}`)} onToggle={(o) => setFolderOpen(`builtin:${c}`, o)}>
             <div className="grid grid-cols-1 gap-1">{items.map(item)}</div>
-          </section>
+          </StencilBar>
         ))}
-        <section className="mb-3">
-          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Drawing</h3>
+        <StencilBar title="Drawing Tools" open={!isCollapsed('builtin:Drawing')} onToggle={(o) => setFolderOpen('builtin:Drawing', o)}>
           <div className="grid grid-cols-3 gap-1">
             {SHAPES.map((s) => (
               <div key={s.kind} draggable onDragStart={(e) => drag(e, `__shape:${s.kind}`)} className="flex cursor-grab flex-col items-center gap-0.5 rounded border border-gray-200 p-1 text-[10px] text-gray-600 hover:bg-gray-50" title={`Drag onto the canvas: ${s.label}`}>
@@ -300,9 +322,8 @@ export function Palette() {
               </div>
             ))}
           </div>
-        </section>
-        <section className="mb-3">
-          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Layout</h3>
+        </StencilBar>
+        <StencilBar title="Layout" open={!isCollapsed('builtin:Layout')} onToggle={(o) => setFolderOpen('builtin:Layout', o)}>
           <div className="grid grid-cols-2 gap-1">
             <div draggable onDragStart={(e) => drag(e, '__zone')} className="cursor-grab rounded border-2 border-dashed border-blue-400 bg-blue-50 p-2 text-center text-[11px] text-blue-700">Zone / room</div>
             <div draggable onDragStart={(e) => drag(e, '__note')} className="cursor-grab rounded bg-yellow-100 p-2 text-center text-[11px] text-gray-700 shadow-sm">Note</div>
@@ -311,7 +332,7 @@ export function Palette() {
               Dimension line
             </div>
           </div>
-        </section>
+        </StencilBar>
       </div>
       <p className="border-t border-gray-200 p-2 text-[10px] leading-snug text-gray-500">
         Drag a shape onto the canvas. Drag from one port to another to draw a cable.

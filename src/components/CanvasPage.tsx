@@ -3,7 +3,9 @@
 import { useNodesStore, useViewport, ViewportPortal, type NodesStore } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETUP, pageBounds, PX_PER_IN, rulerTicks, sheetSize } from '@/lib/pageSetup';
+import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { usePref } from '@/lib/prefs';
+import type { DeviceData } from '@/lib/types';
 import { useCurrentPage } from '@/store/useDiagramStore';
 
 export const RULER = 18;
@@ -17,6 +19,20 @@ function contentKey(s: NodesStore) {
     const { x, y } = n.internals.positionAbsolute;
     const w = n.measured?.width ?? 0, h = n.measured?.height ?? 0;
     x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h);
+    if (n.type !== 'device') continue;
+    // Info boxes and labels sit outside the device box; the page grows to hold them too.
+    const d = n.data as DeviceData;
+    const info = d.infoBox?.show ? overlaySize(`${n.id}|info`) : undefined;
+    if (info) {
+      const o = d.infoBox?.offset ?? { x: 0, y: 0 };
+      x1 = Math.max(x1, x + w + INFO_GAP + o.x + info.w); y1 = Math.max(y1, y + o.y + info.h); y0 = Math.min(y0, y + o.y);
+    }
+    const label = overlaySize(`${n.id}|label`);
+    if (label) {
+      const o = d.labelOffset ?? { x: 0, y: 0 };
+      y1 = Math.max(y1, y + h + 4 + o.y + label.h); y0 = Math.min(y0, y + h + 4 + o.y);
+      x1 = Math.max(x1, x + o.x + label.w);
+    }
   }
   return x0 === Infinity ? '' : `${Math.round(x0)},${Math.round(y0)},${Math.round(x1)},${Math.round(y1)}`;
 }
@@ -29,6 +45,7 @@ export function PageSheet() {
   const page = useCurrentPage();
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
+  useOverlayVersion(); // grow when an info box or label changes size
   const key = useNodesStore(contentKey);
   const sheet = sheetSize(page.setup ?? DEFAULT_SETUP);
   const [x0, y0, x1, y1] = key ? key.split(',').map(Number) : [];

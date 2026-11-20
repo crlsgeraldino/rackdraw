@@ -39,6 +39,24 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Print** (Ctrl+P) and PDF with a **title block** on every sheet: client, site, drawing, prepared by, revision,
   date, page X of Y.
 
+## The window (laid out like Visio)
+
+- **Ribbon** across the top, with the Quick Access Toolbar (Save, Undo, Redo) and the client picker in the title
+  bar. Tabs: **File** (new, open, save, print, export PDF/PNG/SVG/CSV, delete), **Home** (clipboard, format painter,
+  text/dimension/zone tools, fill and line colour, align/distribute/order/group/lock/auto-arrange, find/replace/
+  select all), **Insert** (pages, floor-plan picture, image/Visio/library imports, shapes, zone, note, dimension),
+  **Design** (page size and orientation, drawing scale, title block, line jumps, data colours, legend, info boxes),
+  **Data** (Shape Data pane, Excel link, layers, Check Diagram), **Review** and **View** (diagram/racks, zoom,
+  rulers, grid, page breaks, Pan & Zoom, task panes). Selecting something adds a **Shape** tab for it.
+  Ctrl+F1 collapses the ribbon.
+- **Shapes** window on the left: search, **More Shapes** (Visio stencil import, image import, stencil libraries),
+  your libraries and the built-in stencils as folding title bars.
+- **Drawing page**: a white page of the chosen paper size that grows by whole sheets to fit the drawing, with grid,
+  dashed page breaks and **rulers** (inches, cm, or the page's drawing scale).
+- **Shape Data** pane on the right with folding sections (Shape Data, Ports, Display, Size & Position); with nothing
+  selected it shows the page and client.
+- **Status bar**: page number, the selection's size and position, zoom slider, 100%, fit page, Pan & Zoom.
+
 ## Run locally
 
 Requires Node 18.18+.

@@ -9,6 +9,7 @@ import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
 import { ArrangeButtons } from './ArrangeMenu';
+import { setPref } from '@/lib/prefs';
 import { editStencil } from './ContextMenu';
 import { useFollowLink } from './NodeBadges';
 import { realLength, SET_SCALE_EVENT } from '@/lib/units';
@@ -26,6 +27,58 @@ function Field({ label, value, onChange, mono, area }: { label: string; value?: 
         <input className={cls} value={value ?? ''} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
       )}
     </label>
+  );
+}
+
+/** Remembers which sections are collapsed while the app is open (like Visio's pane sections). */
+const closedSections = new Set<string>();
+
+/** A collapsible section of the Shape Data pane. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const key = title.replace(/\s*\(.*\)$/, '');
+  const [open, setOpen] = useState(!closedSections.has(key));
+  return (
+    <section className="-mx-3 border-b border-gray-200">
+      <button
+        className="flex w-full items-center gap-1.5 bg-gray-50 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-100"
+        onClick={() => { if (open) closedSections.add(key); else closedSections.delete(key); setOpen(!open); }}
+        aria-expanded={open}
+      >
+        <span className="w-3 text-[10px] text-gray-400">{open ? '▾' : '▸'}</span>
+        {title}
+      </button>
+      {open && <div className="px-3 pb-2 pt-2">{children}</div>}
+    </section>
+  );
+}
+
+/** X / Y of the selected item (Visio's Size & Position), in diagram units. */
+function PositionEditor({ id }: { id: string }) {
+  const node = useCurrentPage().nodes.find((n) => n.id === id);
+  const setPositions = useDiagram((s) => s.setPositions);
+  if (!node) return null;
+  const commitAxis = (axis: 'x' | 'y', v: string) => {
+    const n = Number(v);
+    if (Number.isFinite(n) && n !== Math.round(node.position[axis])) setPositions(new Map([[id, { ...node.position, [axis]: n }]]));
+  };
+  const box = (axis: 'x' | 'y') => (
+    <label className="flex flex-1 items-center gap-1 text-xs">
+      <span className="w-3 text-gray-500">{axis.toUpperCase()}</span>
+      <input
+        key={`${axis}${Math.round(node.position[axis])}`}
+        className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-mono outline-none focus:border-blue-500"
+        defaultValue={Math.round(node.position[axis])}
+        onBlur={(e) => commitAxis(axis, e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        aria-label={`${axis.toUpperCase()} position`}
+      />
+    </label>
+  );
+  return (
+    <div className="mt-1">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Position</span>
+      <div className="flex gap-2">{box('x')}{box('y')}</div>
+    </div>
   );
 }
 
@@ -60,8 +113,8 @@ function DeviceProps({ node }: { node: DeviceNode }) {
           </button>
         )}
       </div>
+      <Section title="Shape Data">
       <Field label="Name / hostname" value={d.name} onChange={set('name')} />
-      <LabelEditor nodes={[node]} />
       <div className="flex gap-2">
         <label className="mb-2 block flex-1">
           <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Status</span>
@@ -76,6 +129,31 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />
       <Field label="Serial number" value={d.serial} onChange={set('serial')} mono />
       <ExtraFieldsEditor node={node} />
+      <Field label="Location" value={d.location} onChange={set('location')} />
+      <LinkField nodeId={node.id} value={d.link} />
+      <div className="flex gap-2">
+        <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
+        <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
+      </div>
+      {mount ? (
+        <p className="mb-2 text-xs text-gray-600">
+          Mounted in <button className="font-medium text-blue-600 hover:underline" onClick={() => { selectRack(mount.rack.id); selectRackItem(mount.item.id); setView('racks'); }}>{mount.rack.name} · {rackLabel(mount.item)}</button>
+        </p>
+      ) : (project.racks ?? []).length ? (
+        <p className="mb-2 text-xs text-gray-400">Not in a rack. Use the Racks view to mount it.</p>
+      ) : null}
+      <Field label="Notes" value={d.notes} onChange={set('notes')} area />
+      </Section>
+      {stencil && stencil.ports.length > 0 && (
+        <Section title={`Ports (${stencil.ports.length})`}>
+          <PortList node={node} ports={stencil.ports} peer={peer} />
+        </Section>
+      )}
+      <Section title="Display">
+        <LabelEditor nodes={[node]} />
+        <InfoBoxEditor nodes={[node]} />
+      </Section>
+      <Section title="Size & Position">
       {stencil && (() => {
         const base = baseSize(stencil);
         const pct = node.width ? Math.round((node.width / base.width) * 100) : 100;
@@ -93,23 +171,8 @@ function DeviceProps({ node }: { node: DeviceNode }) {
           </div>
         );
       })()}
-      <Field label="Location" value={d.location} onChange={set('location')} />
-      <LinkField nodeId={node.id} value={d.link} />
-      <div className="flex gap-2">
-        <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
-        <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
-      </div>
-      {mount ? (
-        <p className="mb-2 text-xs text-gray-600">
-          Mounted in <button className="font-medium text-blue-600 hover:underline" onClick={() => { selectRack(mount.rack.id); selectRackItem(mount.item.id); setView('racks'); }}>{mount.rack.name} · {rackLabel(mount.item)}</button>
-        </p>
-      ) : (project.racks ?? []).length ? (
-        <p className="mb-2 text-xs text-gray-400">Not in a rack. Use the Racks view to mount it.</p>
-      ) : null}
-      <Field label="Notes" value={d.notes} onChange={set('notes')} area />
-      <InfoBoxEditor nodes={[node]} />
-
-      {stencil && stencil.ports.length > 0 && <PortList node={node} ports={stencil.ports} peer={peer} />}
+        <PositionEditor id={node.id} />
+      </Section>
     </>
   );
 }
@@ -762,8 +825,14 @@ export function PropertiesPanel() {
   }
 
   const lockedOne = selNodes.length === 1 && selNodes[0].type !== 'backdrop' && selNodes[0].data.locked;
+  const title = selNodes.length + selEdges.length === 0 ? 'Page & Client' : selEdges.length && !selNodes.length ? 'Cable' : 'Shape Data';
   return (
-    <aside className="w-72 shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-3">
+    <aside className="flex w-72 shrink-0 flex-col border-l border-gray-300 bg-white">
+      <div className="flex h-7 shrink-0 items-center justify-between border-b border-gray-300 bg-[#f3f3f3] px-2 text-[12px] font-semibold text-gray-700">
+        {title}
+        <button className="rounded px-1 text-gray-500 hover:bg-gray-200" onClick={() => setPref('propsPane', false)} title="Close (View → Task Panes to reopen)" aria-label="Close pane">×</button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
       {lockedOne && (
         <div className="mb-3 flex items-center justify-between rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
           Locked: it can&apos;t be moved or deleted.
@@ -771,6 +840,7 @@ export function PropertiesPanel() {
         </div>
       )}
       {body}
+      </div>
     </aside>
   );
 }
