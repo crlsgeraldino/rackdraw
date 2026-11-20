@@ -11,8 +11,10 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Real front-panel stencils** — SonicWall TZ570/TZ670, 8/24/48-port switches, 24-port patch panel — where every
   port is a connection point. Plus symbols for ISP, modem/ONT, AP, server, NAS, UPS, workstation, laptop, printer,
   VoIP phone and IP camera.
-- **Cables** — drag from port to port. Pick the type (Cat6, Cat5e, Fiber, DAC, WAN, Console, Wireless, VPN), label and VLAN.
-  Connected ports light up.
+- **Cables** — drag from port to port. Pick the type (Cat6, Cat5e, Fiber, DAC, WAN, Console, Wireless, VPN), label,
+  VLAN and line color. Right-angle cables route **around devices** instead of through them. Connected ports light up.
+- **Device labels** — choose what each device shows (name, IP, model, location, serial, or nothing) and drag the label
+  wherever it reads best.
 - **Device data** — hostname, model, management IP, serial, location, notes, and per-port description/VLAN.
 - **Zones and notes** — resizable rooms/racks and sticky notes.
 - **One diagram per client**, switchable from the toolbar, auto-saved in the browser. Save/open `.netcraft.json` files
@@ -91,7 +93,13 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - Drag from a shape's blue edge dot to draw an arrow to another shape or device. Links that touch a shape are plain
   arrow lines; device-to-device links stay network cables.
 - Any line or cable can be routed with **right angles, straight or curved**, and get **arrowheads** at the start,
-  end or both.
+  end or both. Right-angle routes leave the port straight out of the device, then take the shortest path with the
+  fewest bends that keeps clear of every device, note and shape on the page, and re-route as you move things.
+- **Line color**: pick a color for a cable (or several selected cables) in the right panel; **Auto** goes back to
+  coloring by cable type or VLAN (View menu). Dashes and thickness still follow the cable type.
+- **Device labels**: in the right panel, *Show on the diagram* picks the fields under a device (name, IP, model,
+  location, serial; untick all to hide the label). Works on several selected devices at once. Drag a label on the
+  canvas to move it; *Reset position* puts it back.
 
 ## Editing like Visio
 

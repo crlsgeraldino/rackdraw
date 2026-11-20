@@ -59,6 +59,10 @@ interface DiagramState {
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
   updatePort: (nodeId: string, portId: string, patch: PortData) => void;
   updateEdgeData: (id: string, patch: Partial<CableData>) => void;
+  /** Applies one change to several devices on the active page (undoable). */
+  updateDevicesData: (ids: string[], patch: Partial<DeviceData>) => void;
+  /** Applies one change to several cables on the active page (undoable). */
+  updateEdgesData: (ids: string[], patch: Partial<CableData>) => void;
   deleteSelected: () => void;
   duplicateSelected: () => void;
 
@@ -366,6 +370,19 @@ export const useDiagram = create<DiagramState>()(
           }),
         updateEdgeData: (id, patch) =>
           commit({ edges: page().edges.map((e) => (e.id === id ? { ...e, data: { ...(e.data as CableData), ...patch } } : e)) }),
+
+        updateDevicesData: (ids, patch) => {
+          const set = new Set(ids);
+          if (!set.size) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => (set.has(n.id) && n.type === 'device' ? { ...n, data: { ...n.data, ...patch } } : n)) });
+        },
+        updateEdgesData: (ids, patch) => {
+          const set = new Set(ids);
+          if (!set.size) return;
+          get().snapshot();
+          commit({ edges: page().edges.map((e) => (set.has(e.id) ? { ...e, data: { ...(e.data as CableData), ...patch } } : e)) });
+        },
 
         deleteSelected: () => {
           const pg = page();

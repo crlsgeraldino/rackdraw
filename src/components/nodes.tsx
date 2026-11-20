@@ -1,10 +1,10 @@
 'use client';
 
-import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
-import { memo, useMemo, useState } from 'react';
+import { Handle, NodeResizer, Position, useReactFlow, type NodeProps } from '@xyflow/react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import type { BackdropNode, DeviceNode, NoteNode, PortDef, ShapeData, ShapeNode, StencilDef, ZoneNode } from '@/lib/types';
+import { DEFAULT_LABEL_FIELDS, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
@@ -48,6 +48,57 @@ function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates:
           return <rect key={p.id} x={p.x - pad} y={p.y - pad} width={p.w + pad * 2} height={p.h + pad * 2} rx={pad} fill={`${color}33`} stroke={color} strokeWidth={2 / k} />;
         })}
       </svg>
+    </div>
+  );
+}
+
+/**
+ * The device's text on the diagram (name, IP… as chosen in the properties panel). Drag it to move it;
+ * its offset is saved with the device.
+ */
+function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; variant: 'icon' | 'panel' }) {
+  const rf = useReactFlow();
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number; zoom: number; moved: boolean } | null>(null);
+  const fields = data.labelFields ?? DEFAULT_LABEL_FIELDS;
+  const lines = fields.map((f) => ({ f, v: f === 'name' ? data.name : (data[f] as string | undefined) })).filter((l) => l.v);
+  if (!lines.length) return null;
+  const off = data.labelOffset ?? { x: 0, y: 0 };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || data.locked) return;
+    e.stopPropagation();
+    drag.current = { x: e.clientX, y: e.clientY, ox: off.x, oy: off.y, zoom: rf.getZoom(), moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = (e.clientX - d.x) / d.zoom, dy = (e.clientY - d.y) / d.zoom;
+    if (!d.moved) {
+      if (Math.abs(dx) + Math.abs(dy) < 2) return;
+      d.moved = true;
+      snapshot(); // one undo step per drag
+    }
+    update(id, { labelOffset: { x: Math.round(d.ox + dx), y: Math.round(d.oy + dy) } });
+  };
+  const end = () => { drag.current = null; };
+
+  const text = (f: string, v: string) => (
+    <span key={f} className={f === 'name' ? 'font-semibold' : f === 'ip' ? 'font-mono text-gray-500' : 'text-gray-600'}>{v}</span>
+  );
+  return (
+    <div
+      className={`nodrag nopan absolute top-full mt-1 cursor-move select-none text-[11px] leading-tight text-gray-800 ${variant === 'icon' ? 'flex w-40 flex-col items-center text-center' : 'left-0 flex gap-2 whitespace-nowrap'}`}
+      style={{ translate: `${off.x}px ${off.y}px` }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={end}
+      onPointerCancel={end}
+      title={data.locked ? undefined : 'Drag to move the label'}
+    >
+      {lines.map((l) => text(l.f, l.v!))}
     </div>
   );
 }
@@ -127,10 +178,7 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
         </div>
-        <div className="pointer-events-none absolute top-full mt-1 w-40 text-center text-[11px] leading-tight text-gray-800">
-          <div className="font-semibold">{data.name}</div>
-          {data.ip && <div className="font-mono text-gray-500">{data.ip}</div>}
-        </div>
+        <DeviceLabel id={id} data={data} variant="icon" />
       </div>
     );
   }
@@ -145,10 +193,7 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
           : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
       </div>
       {handles}
-      <div className="pointer-events-none absolute left-0 top-full mt-1 flex gap-2 whitespace-nowrap text-[11px] text-gray-800">
-        <span className="font-semibold">{data.name}</span>
-        {data.ip && <span className="font-mono text-gray-500">{data.ip}</span>}
-      </div>
+      <DeviceLabel id={id} data={data} variant="panel" />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEVICE_STATUSES, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
+import { CABLE_STYLES, DEFAULT_LABEL_FIELDS, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
@@ -52,6 +52,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
     <>
       <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">{stencil?.name}</div>
       <Field label="Name / hostname" value={d.name} onChange={set('name')} />
+      <LabelEditor nodes={[node]} />
       <div className="flex gap-2">
         <label className="mb-2 block flex-1">
           <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Status</span>
@@ -136,6 +137,79 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   );
 }
 
+/** What the device label on the diagram shows, for one or several devices. */
+function LabelEditor({ nodes }: { nodes: DeviceNode[] }) {
+  const updateDevices = useDiagram((s) => s.updateDevicesData);
+  const ids = nodes.map((n) => n.id);
+  const fieldsOf = (n: DeviceNode) => n.data.labelFields ?? DEFAULT_LABEL_FIELDS;
+  const state = (f: DeviceLabelField) => {
+    const on = nodes.filter((n) => fieldsOf(n).includes(f)).length;
+    return on === nodes.length ? true : on === 0 ? false : null; // null = mixed
+  };
+  // One undoable change for all selected devices; a field shown on only some of them counts as shown.
+  const toggle = (f: DeviceLabelField, on: boolean) =>
+    updateDevices(ids, { labelFields: DEVICE_LABEL_FIELDS.map((x) => x.value).filter((x) => (x === f ? on : state(x) !== false)) });
+  const moved = nodes.some((n) => n.data.labelOffset && (n.data.labelOffset.x || n.data.labelOffset.y));
+  return (
+    <div className="mb-2">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Show on the diagram</span>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+        {DEVICE_LABEL_FIELDS.map(({ value, label }) => {
+          const st = state(value);
+          return (
+            <label key={value} className="flex items-center gap-1">
+              <input type="checkbox" checked={st === true} ref={(el) => { if (el) el.indeterminate = st === null; }} onChange={(e) => toggle(value, e.target.checked)} />
+              {label}
+            </label>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
+        <span>Drag the label on the canvas to move it.</span>
+        {moved && <button className="text-blue-600 hover:underline" onClick={() => updateDevices(ids, { labelOffset: undefined })}>Reset position</button>}
+      </div>
+    </div>
+  );
+}
+
+const CABLE_SWATCHES = ['#2563eb', '#0891b2', '#16a34a', '#65a30d', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#374151', '#9ca3af', '#000000'];
+
+/** Line color for one or several cables; "Auto" follows the cable type or VLAN coloring (View menu). */
+function CableColorEditor({ edges }: { edges: CableEdge[] }) {
+  const updateEdges = useDiagram((s) => s.updateEdgesData);
+  const ids = edges.map((e) => e.id);
+  const colors = new Set(edges.map((e) => e.data?.color ?? ''));
+  const current = colors.size === 1 ? [...colors][0] : null; // null = mixed
+  const set = (color: string | undefined) => updateEdges(ids, { color });
+  return (
+    <div className="mb-2">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Line color</span>
+      <div className="flex flex-wrap items-center gap-1">
+        <button
+          onClick={() => set(undefined)}
+          className={`h-5 rounded border px-1.5 text-[10px] ${current === '' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+          title="Color by cable type or VLAN (View menu)"
+        >
+          Auto
+        </button>
+        {CABLE_SWATCHES.map((c) => (
+          <button
+            key={c}
+            onClick={() => set(c)}
+            className={`h-5 w-5 rounded border ${current === c ? 'ring-2 ring-blue-500 ring-offset-1' : 'border-gray-300'}`}
+            style={{ background: c }}
+            aria-label={c}
+            title={c}
+          />
+        ))}
+        <label className="relative h-5 w-5 cursor-pointer overflow-hidden rounded border border-gray-300" title="Other color…" style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}>
+          <input type="color" className="absolute inset-0 cursor-pointer opacity-0" value={current || '#2563eb'} onChange={(e) => set(e.target.value)} aria-label="Other color" />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 /** Layer picker; layers are created in the View menu. */
 function LayerSelect({ value, onChange }: { value?: string; onChange: (layer: string | undefined) => void }) {
   const layers = useCurrentProject().layers ?? [];
@@ -191,7 +265,9 @@ function LinkField({ nodeId, value }: { nodeId: string; value?: string }) {
   );
 }
 
-function CableProps({ id, data }: { id: string; data: CableData }) {
+function CableProps({ edge }: { edge: CableEdge }) {
+  const id = edge.id;
+  const data = (edge.data ?? { cable: 'Cat6' }) as CableData;
   const update = useDiagram((s) => s.updateEdgeData);
   const snapshot = useDiagram((s) => s.snapshot);
   return (
@@ -212,13 +288,14 @@ function CableProps({ id, data }: { id: string; data: CableData }) {
           ))}
         </div>
       </label>
+      <CableColorEditor edges={[edge]} />
       <Field label="Label" value={data.label} onChange={(v) => update(id, { label: v })} />
       <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono />
       <div className="flex gap-2">
         <label className="mb-2 block flex-1">
           <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Route</span>
           <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={data.route ?? 'step'} onChange={(e) => { snapshot(); update(id, { route: e.target.value as CableRoute }); }}>
-            <option value="step">Right angles</option>
+            <option value="step">Right angles (around devices)</option>
             <option value="straight">Straight</option>
             <option value="curved">Curved</option>
           </select>
@@ -418,6 +495,10 @@ export function PropertiesPanel() {
       <>
         <p className="mb-3 text-sm text-gray-500">{selNodes.length + selEdges.length} items selected</p>
         {selNodes.length > 1 && <ArrangeButtons />}
+        {selNodes.some((n) => n.type === 'device') && (
+          <div className="mt-4"><LabelEditor nodes={selNodes.filter((n): n is DeviceNode => n.type === 'device')} /></div>
+        )}
+        {selEdges.length > 0 && <div className="mt-4"><CableColorEditor edges={selEdges} /></div>}
       </>
     );
   } else if (selNodes[0]?.type === 'device') {
@@ -439,7 +520,7 @@ export function PropertiesPanel() {
   } else if (selNodes[0]?.type === 'note') {
     body = <p className="text-sm text-gray-500">Edit the note text directly on the canvas.</p>;
   } else if (selEdges[0]) {
-    body = <CableProps id={selEdges[0].id} data={(selEdges[0].data ?? { cable: 'Cat6' }) as CableData} />;
+    body = <CableProps edge={selEdges[0]} />;
   } else if (selNodes[0]?.type === 'shape') {
     body = <ShapeProps node={selNodes[0]} />;
   } else if (selNodes[0]?.type === 'backdrop') {

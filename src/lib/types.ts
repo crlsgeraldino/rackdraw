@@ -90,7 +90,21 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras {
   /** Layer id (see Project.layers). */
   layer?: string;
   ports?: Record<string, PortData>;
+  /** Which fields the label on the diagram shows; missing = name and IP. Empty = no label. */
+  labelFields?: DeviceLabelField[];
+  /** Where the label was dragged to, relative to its default spot. */
+  labelOffset?: { x: number; y: number };
 }
+
+export type DeviceLabelField = 'name' | 'ip' | 'model' | 'location' | 'serial';
+export const DEVICE_LABEL_FIELDS: { value: DeviceLabelField; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'ip', label: 'IP' },
+  { value: 'model', label: 'Model' },
+  { value: 'location', label: 'Location' },
+  { value: 'serial', label: 'Serial' },
+];
+export const DEFAULT_LABEL_FIELDS: DeviceLabelField[] = ['name', 'ip'];
 
 export interface ZoneData extends Record<string, unknown>, NodeExtras {
   title: string;
@@ -146,6 +160,8 @@ export interface CableData extends Record<string, unknown> {
   layer?: string;
   route?: CableRoute;
   arrows?: CableArrows;
+  /** Line color chosen for this cable; missing = color by type or VLAN (View menu). */
+  color?: string;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';
