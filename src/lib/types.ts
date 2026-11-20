@@ -128,6 +128,20 @@ export interface ExtraField {
   value: string;
 }
 
+/** Define Shape Data (Visio): a field every device of the client gets, with a type and optional pick-list. */
+export type FieldType = 'text' | 'number' | 'date' | 'list' | 'yesno';
+export interface FieldDef {
+  id: string;
+  label: string;
+  type: FieldType;
+  /** Choices for a list field. */
+  options?: string[];
+  /** Check Diagram flags devices where it is empty. */
+  required?: boolean;
+  /** Only devices of this category (empty = every device). */
+  category?: StencilCategory;
+}
+
 /** Suggested names for extra fields. */
 export const EXTRA_FIELD_SUGGESTIONS = [
   'WAN IP', 'LAN subnet', 'Gateway', 'DNS', 'DHCP range', 'Public IP block', 'ISP', 'Circuit ID', 'Firmware',
@@ -412,6 +426,8 @@ export interface Project {
   /** The spreadsheet last imported, so it can be re-applied with Refresh. */
   dataLink?: DataLink;
   layers?: Layer[];
+  /** Define Shape Data: fields every device gets (values live in each device's extra fields, by name). */
+  fieldDefs?: FieldDef[];
   /** Header and footer on printed and PDF sheets. */
   headerFooter?: HeaderFooter;
   /** Design → Themes: colours for new drawing shapes, callouts and zones. */

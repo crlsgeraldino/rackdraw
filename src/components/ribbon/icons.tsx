@@ -45,6 +45,7 @@ const P: Record<string, React.ReactNode> = {
   shadow: <><rect x="6" y="6" width="11" height="11" rx="1" fill="#9ca3af" stroke="none" /><rect x="3" y="3" width="11" height="11" rx="1" fill="#fff" /></>,
   connector: <><rect x="2" y="2" width="5" height="5" /><rect x="13" y="13" width="5" height="5" /><path d="M7 4.5h4.5v11H13" /></>,
   fullscreen: <><path d="M2 7V2h5M13 2h5v5M18 13v5h-5M7 18H2v-5" /><rect x="6" y="6" width="8" height="8" fill="#93c5fd" /></>,
+  defineData: <><rect x="2" y="3" width="16" height="14" rx="1" /><path d="M2 7.5h16M7 3v14" /><path d="M10 11h5M10 14h3" stroke="#2563eb" /></>,
   pointer: <><path d="M5 2l10 9-4.5.8L13 17l-2 1-2.6-5.2L5 15z" /></>,
   lineTool: <><path d="M3 17L17 3" /><circle cx="3" cy="17" r="1.5" /><circle cx="17" cy="3" r="1.5" /></>,
   pencil: <><path d="M3 17l1-4L14 3l3 3L7 16z" /><path d="M12 5l3 3" /><path d="M3 17l4-1" stroke="#2563eb" /></>,

@@ -161,6 +161,8 @@ interface DiagramState {
   setDisplay: (patch: Partial<DisplaySettings>) => void;
   /** Design → Themes: recolours drawing shapes, callouts and zones (this page, or every page) and uses the theme for new ones. */
   applyTheme: (themeId: string, allPages: boolean) => void;
+  /** Define Shape Data: replaces the client's field definitions; a renamed field is renamed on every device. */
+  setFieldDefs: (defs: import('@/lib/types').FieldDef[], renamed?: { from: string; to: string }) => void;
   /** Print / PDF header and footer. */
   setHeaderFooter: (hf: import('@/lib/types').HeaderFooter | null) => void;
   /** Replaces the client's saved report definitions. */
@@ -1004,6 +1006,16 @@ export const useDiagram = create<DiagramState>()(
           commit({ pages: cur().pages.map((pg) => (allPages || pg.id === active ? { ...pg, nodes: recolor(pg.nodes) } : pg)) });
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, theme: themeId } } });
+        },
+        setFieldDefs: (defs, renamed) => {
+          if (renamed && renamed.from.trim() && renamed.from !== renamed.to) {
+            const from = renamed.from.trim().toLowerCase();
+            get().mapAllDevices((d) => (d.extraFields?.some((f) => f.label.trim().toLowerCase() === from)
+              ? { extraFields: d.extraFields.map((f) => (f.label.trim().toLowerCase() === from ? { ...f, label: renamed.to } : f)) }
+              : {}));
+          }
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, fieldDefs: defs.length ? defs : undefined, updatedAt: Date.now() } } });
         },
         setHeaderFooter: (hf) => {
           const p = cur();

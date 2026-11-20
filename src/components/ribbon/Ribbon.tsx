@@ -9,6 +9,7 @@ import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, rende
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
+import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { THEMES, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
 import { importVsdx } from '@/lib/visio/vsdxImport';
@@ -726,11 +727,14 @@ function DataTab() {
   const propsPane = usePref('propsPane');
   const quick = usePref('quickInfo');
   const [reports, setReports] = useState(false);
+  const [defining, setDefining] = useState(false);
   return (
     <>
       {reports && <ReportDialog onClose={() => setReports(false)} />}
+      {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Show/Hide">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
+        <Big icon="defineData" label="Define Shape Data" onClick={() => setDefining(true)} title="Fields every device of this client has: text, number, date, pick list, yes/no; required fields" />
         <Column>
           <Check label="Quick info on hover" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
         </Column>

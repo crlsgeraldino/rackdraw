@@ -306,6 +306,16 @@ The **View** menu works like Visio's layers and data graphics:
   when the drag starts, so it doesn't pick up items it passes over). **Fit to contents** (right-click the zone, or
   the right panel) resizes it around what it holds.
 
+## Define Shape Data (Data tab)
+
+- Like Visio's Define Shape Data: fields every device of the client gets — **Text**, **Number**, **Date**, **Pick list**
+  (e.g. ISP: Spectrum, Verizon, Pilot Fiber) or **Yes / No** — for all devices or one category (e.g. only WAN devices).
+  Quick-add ISP, Warranty expires, Firmware and Under contract.
+- Each device's Shape Data shows these fields first, with a drop-down, date picker or number box. Values work like your
+  own fields: info box, quick info, Reports columns, Excel, CSV, Word and `.vsdx`.
+- Tick **Required** and Check Diagram lists every device where that field is empty. Renaming a field renames it on
+  every device.
+
 ## Reports (Data → Reports)
 
 - Like Visio's Report wizard: choose the devices (every page or one, a layer, and a condition such as "Serial is

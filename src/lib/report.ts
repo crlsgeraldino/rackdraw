@@ -50,7 +50,7 @@ const BUILT_IN: (ReportField & { get: (r: Row, p: Project, stencilName: (id: str
 
 /** Every field a report can use: the built-in ones, then each "My fields" name used on any device. */
 export function reportFields(p: Project): ReportField[] {
-  const extra = new Set<string>();
+  const extra = new Set<string>((p.fieldDefs ?? []).map((d) => d.label.trim()).filter(Boolean));
   for (const pg of p.pages) for (const n of pg.nodes) if (n.type === 'device') for (const f of n.data.extraFields ?? []) if (f.label.trim()) extra.add(f.label.trim());
   return [...BUILT_IN.map(({ key, label }) => ({ key, label })), ...[...extra].sort((a, b) => a.localeCompare(b)).map((l) => ({ key: `x:${l}`, label: l }))];
 }

@@ -288,12 +288,51 @@ function ExtraFieldsEditor({ node }: { node: DeviceNode }) {
   const list = node.data.extraFields ?? [];
   const set = (next: ExtraField[]) => update(node.id, { extraFields: next.length ? next : undefined });
   const input = 'min-w-0 rounded border border-gray-300 px-1.5 py-1 text-sm outline-none focus:border-blue-500';
+  // Fields defined for the whole client (Data → Define Shape Data) come first, with the right kind of input.
+  const category = useStencil(node.data.stencilId)?.category;
+  const defs = (useCurrentProject().fieldDefs ?? []).filter((d) => d.label.trim() && (!d.category || d.category === category));
+  const key = (s: string) => s.trim().toLowerCase();
+  const defined = new Set(defs.map((d) => key(d.label)));
+  const valueOf = (label: string) => list.find((f) => key(f.label) === key(label))?.value ?? '';
+  const setValue = (label: string, value: string) => {
+    const has = list.some((f) => key(f.label) === key(label));
+    const next = has ? list.map((f) => (key(f.label) === key(label) ? { ...f, value } : f)) : [...list, { label, value }];
+    set(next.filter((f) => !(defined.has(key(f.label)) && !f.value)));
+  };
   return (
     <div className="mb-2">
+      {defs.length > 0 && (
+        <div className="mb-2 space-y-1">
+          {defs.map((d) => {
+            const v = valueOf(d.label);
+            const missing = d.required && !v.trim();
+            return (
+              <label key={d.id} className="flex items-center gap-1">
+                <span className={`w-24 shrink-0 truncate text-xs ${missing ? 'text-amber-700' : 'text-gray-600'}`} title={d.required ? `${d.label} (required)` : d.label}>{d.label}{d.required ? ' *' : ''}</span>
+                {d.type === 'list' ? (
+                  <select className={`${input} flex-1 text-xs`} value={v} onFocus={snapshot} onChange={(e) => setValue(d.label, e.target.value)}>
+                    <option value="">—</option>
+                    {[...new Set([...(d.options ?? []), ...(v && !(d.options ?? []).includes(v) ? [v] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : d.type === 'yesno' ? (
+                  <select className={`${input} flex-1 text-xs`} value={v} onFocus={snapshot} onChange={(e) => setValue(d.label, e.target.value)}>
+                    <option value="">—</option><option value="Yes">Yes</option><option value="No">No</option>
+                  </select>
+                ) : (
+                  <input
+                    className={`${input} flex-1 text-xs ${d.type === 'text' ? 'font-mono' : ''}`} type={d.type === 'number' ? 'number' : d.type === 'date' ? 'date' : 'text'}
+                    value={v} onFocus={snapshot} onChange={(e) => setValue(d.label, e.target.value)} aria-label={d.label}
+                  />
+                )}
+              </label>
+            );
+          })}
+        </div>
+      )}
       <span className="mb-0.5 block text-[11px] font-medium text-gray-500">My fields</span>
       <datalist id="nc-extra-field-names">{EXTRA_FIELD_SUGGESTIONS.map((x) => <option key={x} value={x} />)}</datalist>
       <div className="space-y-1">
-        {list.map((f, i) => (
+        {list.map((f, i) => defined.has(key(f.label)) ? null : (
           <div key={i} className="flex gap-1">
             <input className={`${input} w-24 shrink-0 text-xs`} list="nc-extra-field-names" placeholder="Name" value={f.label} onFocus={snapshot}
               onChange={(e) => set(list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} aria-label="Field name" />

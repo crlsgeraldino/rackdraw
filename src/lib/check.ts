@@ -130,6 +130,18 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
       }
     }
 
+    // Define Shape Data: required fields left empty.
+    const required = (p.fieldDefs ?? []).filter((d) => d.required && d.label.trim());
+    if (required.length) for (const n of pg.nodes) {
+      if (n.type !== 'device') continue;
+      const cat = stencilOf(n.data.stencilId)?.category;
+      for (const d of required) {
+        if (d.category && d.category !== cat) continue;
+        const v = n.data.extraFields?.find((f) => f.label.trim().toLowerCase() === d.label.trim().toLowerCase())?.value;
+        if (!v?.trim()) add('info', 'Required field', `${n.data.name}: ${d.label} is empty`, pg.id, 'node', n.id);
+      }
+    }
+
     // Links to pages that were deleted.
     for (const n of pg.nodes) {
       if (n.type === 'backdrop') continue;
