@@ -75,3 +75,9 @@ body {
 .react-flow__handle.nc-handle-side.connectingto {
   opacity: 1;
 }
+
+/* Items from a background page: drawn, but not interactive on the pages that use it. */
+.react-flow__node.nc-bg,
+.react-flow__edge.nc-bg {
+  pointer-events: none !important;
+}

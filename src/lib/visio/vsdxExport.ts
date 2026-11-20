@@ -67,6 +67,26 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
   const colors = displayColors(project);
   const hidden = hiddenLayers(project);
   const pages: VPage[] = [];
+  // Layers: the same list on every page; shapes refer to them by index.
+  const layerList = project.layers ?? [];
+  const vLayers = layerList.map((l) => ({ name: l.name, visible: l.visible, print: l.print !== false, lock: !!l.locked, active: !!l.active }));
+  const layerIdx = (id?: string) => {
+    const i = id ? layerList.findIndex((l) => l.id === id) : -1;
+    return i >= 0 ? [i] : undefined;
+  };
+  // A background page and the pages using it share one page size, so Visio lines them up (bottom-left origin).
+  const estimate = (pg: Page) => {
+    let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+    for (const n of pg.nodes) {
+      const st = n.style as { width?: number; height?: number } | undefined;
+      const w = n.measured?.width ?? n.width ?? st?.width ?? 100, h = n.measured?.height ?? n.height ?? st?.height ?? 100;
+      a = Math.min(a, n.position.x); b = Math.min(b, n.position.y); c = Math.max(c, n.position.x + w); d = Math.max(d, n.position.y + h);
+    }
+    return a === Infinity ? null : { x: a, y: b, w: c - a, h: d - b };
+  };
+  const related = (pg: Page) => (pg.background
+    ? project.pages.filter((x) => x.backgroundId === pg.id)
+    : project.pages.filter((x) => x.id === pg.backgroundId && x.background));
 
   for (const pg of project.pages) {
     await ctx.showPage(pg);
@@ -93,6 +113,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h);
     };
     pg.nodes.forEach((n) => grow(box(n.id)));
+    related(pg).forEach((x) => grow(estimate(x)));
     document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label').forEach((el) => grow(domBox(el)));
     const sheet = sheetSize(pg.setup ?? DEFAULT_SETUP);
     const pb = pageBounds(x0 === Infinity ? null : { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, sheet);
@@ -106,13 +127,14 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       if (!b || !b.w || !b.h) continue;
       const layer = n.type === 'device' || n.type === 'shape' ? n.data.layer : undefined;
       if (layer && hidden.has(layer)) continue;
+      const f0 = front.length, t0 = texts.length;
       switch (n.type) {
         case 'backdrop':
           back.push({ kind: 'image', name: 'Floor plan', box: ibox(b), media: await addMedia(`bd:${n.id}`, n.data.image, n.data.naturalWidth, n.data.naturalHeight) });
           break;
         case 'zone':
           zones.push({
-            kind: 'rect', name: n.data.title, box: ibox(b), line: n.data.color, dashed: true, lineWeightPt: 1.5, fill: n.data.color, fillTransparency: 0.93, rounding: inch(8),
+            kind: 'rect', name: n.data.title, container: true, box: ibox(b), line: n.data.color, dashed: true, lineWeightPt: 1.5, fill: n.data.color, fillTransparency: 0.93, rounding: inch(8),
             text: { text: n.data.title.toUpperCase(), color: n.data.color, sizePt: 7, bold: true, align: 'left', valign: 'top' },
           });
           break;
@@ -209,6 +231,9 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           break;
         }
       }
+      // Everything drawn for an item on a layer (picture, label, info box) goes on that Visio layer.
+      const li = layerIdx(layer);
+      if (li) [...front.slice(f0), ...texts.slice(t0)].forEach((v) => { v.layers = li; });
     }
 
     // Cables along their drawn path.
@@ -226,7 +251,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       const arrows = d.arrows ?? 'none';
       const ends = [pg.nodes.find((x) => x.id === e.source), pg.nodes.find((x) => x.id === e.target)].map((x) => (x?.type === 'device' ? x.data.name : x?.type === 'shape' ? x.data.text : ''));
       cables.push({
-        kind: 'line', name: `${d.cable} ${ends.join(' – ')}`, points: pts, line: st.color, lineWeightPt: pt(st.width), dashed: !!st.dash,
+        kind: 'line', name: `${d.cable} ${ends.join(' – ')}`, points: pts, layers: layerIdx(d.layer), line: st.color, lineWeightPt: pt(st.width), dashed: !!st.dash,
         arrowStart: arrows === 'start' || arrows === 'both', arrowEnd: arrows === 'end' || arrows === 'both',
         data: [['Cable', d.cable], ['From', ends[0] ?? ''], ['To', ends[1] ?? ''], ['VLAN', d.vlan ?? ''], ['Length', d.length ?? ''], ['Label', d.label ?? '']].filter(([, v]) => v !== '') as [string, string][],
       });
@@ -238,7 +263,12 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       }
     }
 
-    pages.push({ name: pg.name, width: inch(pb.w), height: inch(pb.h), shapes: [...back, ...zones, ...cables, ...front, ...texts] });
+    pages.push({ name: pg.name, width: inch(pb.w), height: inch(pb.h), shapes: [...back, ...zones, ...cables, ...front, ...texts], layers: vLayers, background: pg.background });
   }
+  // Background pages by index.
+  project.pages.forEach((pg, i) => {
+    const b = pg.backgroundId ? project.pages.findIndex((x) => x.id === pg.backgroundId && x.background) : -1;
+    if (b >= 0 && !pg.background) pages[i].backPage = b;
+  });
   return writeVsdx({ pages, media, title: project.name });
 }

@@ -2,7 +2,7 @@
 
 import { libraryNameFromFile } from '../libraries';
 import { newPage } from '../project';
-import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableEdge, type CableType, type DeviceData, type Page, type PortDef, type Project, type StencilDef } from '../types';
+import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableEdge, type CableType, type DeviceData, type Layer, type Page, type PortDef, type Project, type StencilDef } from '../types';
 import { canvasDibEncoder, VisioPackage, type PageItem } from './vssx';
 
 /**
@@ -51,6 +51,19 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
   const byMaster = new Map<string, StencilDef>();
   const pages: Page[] = [];
   const summary = { pages: 0, devices: 0, cables: 0, shapes: 0, skippedLines: 0, warnings: [] as string[] };
+  // Visio layers become client layers, matched by name across pages.
+  const layers: Layer[] = [];
+  const layerId = (vp: { layers?: { name: string; visible: boolean; print: boolean; lock: boolean }[] }, idx?: number[]) => {
+    const l = idx?.length ? vp.layers?.[idx[0]] : undefined;
+    if (!l) return undefined;
+    let hit = layers.find((x) => x.name.toLowerCase() === l.name.toLowerCase());
+    if (!hit) {
+      hit = { id: `l-${uid()}`, name: l.name, visible: l.visible, print: l.print ? undefined : false, locked: l.lock || undefined };
+      layers.push(hit);
+    }
+    return hit.id;
+  };
+  const pageIdOf = new Map<string, string>(); // Visio page ID → NetCraft page id
 
   for (const vp of pkg.pages) {
     const { items, connects, warnings } = pkg.readPage(vp, canvasDibEncoder);
@@ -94,6 +107,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         if (!data.name) data.name = it.text.split('\n')[0] || it.name || st.name;
         if (extra.length) data.extraFields = extra;
         if (infoFor.has(data.name)) data.infoBox = { show: true };
+        data.layer = layerId(vp, it.layers);
         const node: AppNode = { id: `n-${uid()}`, type: 'device', position: { x: it.x, y: it.y }, data };
         // Same shape drawn at another size: scale this device (proportions from the shape).
         const k = it.w / st.width;
@@ -104,7 +118,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         byName.set(data.name, ref);
         summary.devices++;
       } else {
-        const zone = it.kind === 'box' && it.dashed && (it.fillTransparency ?? 0) > 0.5;
+        const zone = it.container || (it.kind === 'box' && it.dashed && (it.fillTransparency ?? 0) > 0.5);
         let node: AppNode;
         if (zone) {
           node = { id: `z-${uid()}`, type: 'zone', position: { x: it.x, y: it.y }, zIndex: -1, style: { width: it.w, height: it.h }, data: { title: it.text.split('\n')[0] || 'Zone', color: it.stroke ?? '#3b82f6' } };
@@ -115,6 +129,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
             data: {
               kind, text: it.text, fill: it.fill ?? 'transparent', stroke: it.stroke ?? 'transparent', textColor: it.textColor,
               fontSize: Math.max(8, Math.min(48, Math.round(it.fontPx))), dashed: it.dashed || undefined, rotation: 0,
+              layer: layerId(vp, it.layers),
             },
           };
         }
@@ -163,6 +178,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
           cable, color, route: 'step',
           vlan: it.data.VLAN || undefined, length: it.data.Length || undefined, label: it.data.Label || undefined,
           arrows: it.arrows?.start && it.arrows?.end ? 'both' : it.arrows?.end ? 'end' : it.arrows?.start ? 'start' : undefined,
+          layer: layerId(vp, it.layers),
         },
       } as CableEdge);
       summary.cables++;
@@ -170,11 +186,17 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
 
     const pg = newPage(vp.name, 'network', nodes, edges);
     pg.setup = { paper: 'letter', landscape: vp.widthIn >= vp.heightIn };
+    if (vp.background) pg.background = true;
+    if (vp.id) pageIdOf.set(vp.id, pg.id);
+    if (vp.backPage) pg.backgroundId = vp.backPage; // Visio ID for now; mapped below
     pages.push(pg);
     summary.pages++;
   }
+  for (const pg of pages) if (pg.backgroundId) pg.backgroundId = pageIdOf.get(pg.backgroundId);
+  // Visio lists background pages last; keep a foreground page first so the drawing opens on it.
+  pages.sort((a, b) => Number(!!a.background) - Number(!!b.background));
   if (!pages.length) throw new Error('This Visio file has no pages to open.');
   const now = Date.now();
-  const project: Project = { id: uid(), name: file.name.replace(/\.vsdx$/i, ''), pages, activePageId: pages[0].id, createdAt: now, updatedAt: now };
+  const project: Project = { id: uid(), name: file.name.replace(/\.vsdx$/i, ''), pages, activePageId: pages[0].id, createdAt: now, updatedAt: now, ...(layers.length ? { layers } : {}) };
   return { project, stencils, summary };
 }

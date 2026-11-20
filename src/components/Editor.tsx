@@ -116,8 +116,21 @@ function Canvas() {
     }
     return { locked, noPrint };
   }, [project.layers]);
+  // Background page (Visio): its items are drawn behind this page's, and can't be selected or changed from here.
+  const bgPage = page.backgroundId ? project.pages.find((p) => p.id === page.backgroundId && p.background) : undefined;
+  const bg = useMemo(() => {
+    if (!bgPage) return { nodes: [] as AppNode[], edges: [] as CableEdge[] };
+    const fixed = { selected: false, selectable: false, draggable: false, connectable: false, deletable: false, focusable: false };
+    return {
+      nodes: bgPage.nodes.map((n) => ({
+        ...n, ...fixed, id: `bg:${n.id}`, zIndex: -1000 + (n.zIndex ?? 0), className: 'nc-bg',
+        ...(n.type === 'shape' && n.data.target ? { data: { ...n.data, target: `bg:${n.data.target}` } } : {}),
+      }) as AppNode),
+      edges: bgPage.edges.map((e) => ({ ...e, selected: false, selectable: false, deletable: false, focusable: false, id: `bg:${e.id}`, source: `bg:${e.source}`, target: `bg:${e.target}`, zIndex: -1000, className: 'nc-bg' })),
+    };
+  }, [bgPage]);
   const nodes = useMemo(
-    () => page.nodes.map((n) => {
+    () => [...bg.nodes, ...page.nodes].map((n) => {
       const layer = (n.type === 'device' || n.type === 'shape') ? n.data.layer : undefined;
       if (!layer) return n;
       if (display.hidden.has(layer)) return { ...n, hidden: true };
@@ -129,11 +142,11 @@ function Canvas() {
         ...(noPrint ? { className: [n.className, 'nc-noprint'].filter(Boolean).join(' ') } : {}),
       };
     }),
-    [page.nodes, display.hidden, layerProps],
+    [page.nodes, bg.nodes, display.hidden, layerProps],
   );
   const edges = useMemo(
     () =>
-      page.edges.map((e) => {
+      [...bg.edges, ...page.edges].map((e) => {
         const hidden = !!(e.data?.layer && display.hidden.has(e.data.layer));
         const locked = !!(e.data?.layer && layerProps.locked.has(e.data.layer));
         const noPrint = !!(e.data?.layer && layerProps.noPrint.has(e.data.layer));
@@ -150,7 +163,7 @@ function Canvas() {
           markerStart: arrows === 'start' || arrows === 'both' ? marker : undefined,
         };
       }),
-    [page.edges, display, layerProps],
+    [page.edges, bg.edges, display, layerProps],
   );
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);

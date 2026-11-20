@@ -12,6 +12,7 @@ import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
 import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
 import { replaceHits, type FindHit } from '@/lib/find';
+import { themeById } from '@/lib/themes';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
 
 /**
@@ -145,6 +146,8 @@ interface DiagramState {
   /** Puts the selected devices/cables on the active page onto a layer (null = no layer). Returns how many moved. */
   assignSelectionToLayer: (layerId: string | null) => number;
   setDisplay: (patch: Partial<DisplaySettings>) => void;
+  /** Design → Themes: recolours drawing shapes, callouts and zones (this page, or every page) and uses the theme for new ones. */
+  applyTheme: (themeId: string, allPages: boolean) => void;
   /** Replaces the client's saved report definitions. */
   saveReports: (reports: NonNullable<Project['reports']>) => void;
 
@@ -155,6 +158,12 @@ interface DiagramState {
   duplicatePage: (id: string) => void;
   deletePage: (id: string) => void;
   movePage: (id: string, dir: -1 | 1) => void;
+  /** Makes a page a background page (or a normal one again). */
+  setPageBackground: (id: string, background: boolean) => void;
+  /** Sets the background page shown behind a page (null = none). */
+  setBackgroundOf: (pageId: string, backgroundId: string | null) => void;
+  /** Adds a background page and uses it behind every page that has none. */
+  addBackgroundPage: () => void;
   /** Puts a floor plan / photo behind the active page (replacing any existing one). */
   setBackdrop: (image: string, naturalWidth: number, naturalHeight: number) => void;
   updateBackdrop: (patch: Partial<Pick<BackdropData, 'opacity' | 'locked'>> | null) => void;
@@ -274,6 +283,7 @@ export const useDiagram = create<DiagramState>()(
     (set, get) => {
       const cur = () => get().projects[get().currentId];
       const page = () => activePage(cur());
+      const theme = () => themeById(cur().theme);
 
       /** Applies a change: nodes/edges go to the active page, pages/racks to the project. */
       const commit = (patch: Patch) => {
@@ -423,7 +433,7 @@ export const useDiagram = create<DiagramState>()(
           const node: AppNode = {
             id: `z-${uid()}`, type: 'zone', position, zIndex: -1,
             style: { width: 420, height: 260 },
-            data: { title: 'Server room', color: '#3b82f6' },
+            data: { title: 'Server room', color: theme()?.zones[0] ?? '#3b82f6' },
           };
           commit({ nodes: [node, ...page().nodes] });
         },
@@ -486,9 +496,9 @@ export const useDiagram = create<DiagramState>()(
             data: {
               kind,
               text: kind === 'text' ? 'Text' : kind === 'arrow' || plan ? '' : 'Label',
-              fill: kind === 'text' || kind === 'door' ? 'transparent' : kind === 'arrow' ? '#93c5fd' : '#ffffff',
-              stroke: kind === 'text' ? 'transparent' : '#374151',
-              textColor: '#111827',
+              fill: kind === 'text' || kind === 'door' ? 'transparent' : kind === 'arrow' ? (theme()?.fill ?? '#93c5fd') : (theme()?.fill ?? '#ffffff'),
+              stroke: kind === 'text' ? 'transparent' : (theme()?.line ?? '#374151'),
+              textColor: theme()?.text ?? '#111827',
               fontSize: kind === 'text' ? 18 : 14,
               rotation: 0,
               layer: activeLayer(cur()),
@@ -687,7 +697,7 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           const node: AppNode = {
             id: `s-${uid()}`, type: 'shape', position, width: 160, height: 56,
-            data: { kind: 'callout', text: 'Callout', fill: '#fffbeb', stroke: '#d97706', textColor: '#111827', fontSize: 13, rotation: 0, target },
+            data: { kind: 'callout', text: 'Callout', fill: theme()?.calloutFill ?? '#fffbeb', stroke: theme()?.calloutLine ?? '#d97706', textColor: theme()?.text ?? '#111827', fontSize: 13, rotation: 0, target },
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
@@ -869,6 +879,27 @@ export const useDiagram = create<DiagramState>()(
           });
           return n;
         },
+        applyTheme: (themeId, allPages) => {
+          const t = themeById(themeId);
+          if (!t) return;
+          get().snapshot();
+          const active = cur().activePageId;
+          const recolor = (nodes: AppNode[]) => {
+            let z = 0;
+            return nodes.map((n): AppNode => {
+              if (n.type === 'zone') return { ...n, data: { ...n.data, color: t.zones[z++ % t.zones.length] } };
+              if (n.type !== 'shape') return n;
+              const d = n.data;
+              if (d.kind === 'callout') return { ...n, data: { ...d, fill: t.calloutFill, stroke: t.calloutLine, textColor: t.text } };
+              if (d.kind === 'text') return { ...n, data: { ...d, textColor: t.text } };
+              if (d.kind === 'door' || d.kind === 'window') return { ...n, data: { ...d, stroke: t.line } };
+              return { ...n, data: { ...d, fill: d.fill === 'transparent' ? d.fill : t.fill, stroke: d.stroke === 'transparent' ? d.stroke : t.line, textColor: t.text } };
+            });
+          };
+          commit({ pages: cur().pages.map((pg) => (allPages || pg.id === active ? { ...pg, nodes: recolor(pg.nodes) } : pg)) });
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, theme: themeId } } });
+        },
         saveReports: (reports) => {
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, reports, updatedAt: Date.now() } } });
@@ -906,13 +937,33 @@ export const useDiagram = create<DiagramState>()(
           const p = cur();
           if (p.pages.length <= 1) return;
           get().snapshot();
-          const pages = p.pages.filter((x) => x.id !== id);
+          const pages = p.pages.filter((x) => x.id !== id).map((x) => (x.backgroundId === id ? { ...x, backgroundId: undefined } : x));
           const idx = p.pages.findIndex((x) => x.id === id);
           commit({
             pages,
             racks: pruneRacks(p.racks, pages.flatMap((x) => x.nodes)),
             activePageId: p.activePageId === id ? pages[Math.max(0, idx - 1)].id : p.activePageId,
           });
+        },
+        setPageBackground: (id, background) => {
+          get().snapshot();
+          commit({
+            pages: cur().pages.map((p) => {
+              if (p.id === id) return { ...p, background: background || undefined, backgroundId: background ? undefined : p.backgroundId };
+              // A page that stops being a background is no longer anyone's background.
+              return !background && p.backgroundId === id ? { ...p, backgroundId: undefined } : p;
+            }),
+          });
+        },
+        setBackgroundOf: (pageId, backgroundId) => {
+          get().snapshot();
+          commit({ pages: cur().pages.map((p) => (p.id === pageId && !p.background ? { ...p, backgroundId: backgroundId ?? undefined } : p)) });
+        },
+        addBackgroundPage: () => {
+          get().snapshot();
+          const n = cur().pages.filter((p) => p.background).length + 1;
+          const bg: Page = { ...newPage(`Background-${n}`, 'network'), background: true };
+          commit({ pages: [...cur().pages.map((p) => (p.background || p.backgroundId ? p : { ...p, backgroundId: bg.id })), bg], activePageId: bg.id });
         },
         movePage: (id, dir) => {
           const pages = [...cur().pages];

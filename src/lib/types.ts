@@ -363,6 +363,10 @@ export interface Page {
   scale?: PageScale;
   /** Paper size and orientation of the drawing page (Design → Page Setup); missing = Letter landscape. */
   setup?: { paper: 'letter' | 'legal' | 'tabloid' | 'a4' | 'a3'; landscape: boolean };
+  /** A background page (Visio): drawn behind the pages that use it; not printed on its own. */
+  background?: boolean;
+  /** The background page shown behind this page. */
+  backgroundId?: string;
 }
 
 export interface Project {
@@ -379,6 +383,8 @@ export interface Project {
   /** The spreadsheet last imported, so it can be re-applied with Refresh. */
   dataLink?: DataLink;
   layers?: Layer[];
+  /** Design → Themes: colours for new drawing shapes, callouts and zones. */
+  theme?: string;
   /** Saved report definitions (Data → Reports). */
   reports?: import('./report').ReportDef[];
   display?: DisplaySettings;

@@ -113,6 +113,14 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   and **Show on diagram** jumps to the right page.
 - The PDF gets one picture per page; device and connection tables list the page each item is on.
 - Diagrams saved by v0.2 open as a single "Network" page.
+- **Background pages** (like Visio's): **＋ → Background page** adds one and puts it behind every page that has no
+  background yet. Draw the title block, logo or border there once. Each page picks its background in its tab menu
+  (▾ → Background), and any page can be turned into a background page and back. Background items show behind the
+  page, can't be selected from it, and appear in its prints, PDF, pictures and Word report; background pages aren't
+  printed on their own.
+- **Design → Themes** (Office, Slate, Ocean, Forest, Sunset, Monochrome): one click recolours this page's drawing
+  shapes, callouts and zones; the ▾ applies a theme to every page. New shapes use the theme. Devices and cables
+  keep their colours.
 - **Drawing scale and measuring** (floor plans): with nothing selected, **Set scale…** in the right panel, click two
   points a known distance apart on the plan (both sides of a door, a wall), and type the real distance
   (`30 ft`, `12' 6"`, `9.5 m`, `250 cm`). Or type it as *100 units = … feet/metres*.
@@ -325,8 +333,9 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   fields; the shapes go into a library named after the file), plain boxes/ellipses/text become drawing shapes,
   transparent dashed boxes become zones, and connectors glued to shapes become cables on the nearest ports. A
   drawing saved by NetCraft comes back with its devices, fields, ports, cables, labels and info boxes.
-- Not carried over yet: Visio themes, layers, containers and background pages; connectors that aren't glued to two
-  shapes are left out (the count is shown).
+- **Layers** (with visible / print / lock), **containers** (zones) and **background pages** go both ways: saved into
+  the `.vsdx` and read back from Visio drawings.
+- Not carried over yet: Visio themes; connectors that aren't glued to two shapes are left out (the count is shown).
 
 ## Your own stencils (no code needed)
 

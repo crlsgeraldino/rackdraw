@@ -19,7 +19,7 @@ function loadPrefs(): Pick<PrintOptions, 'paper' | 'landscape'> {
 export function PrintDialog({ onPrint, onClose }: { onPrint: (o: PrintOptions) => void; onClose: () => void }) {
   const p = useCurrentProject();
   const [prefs, setPrefs] = useState(loadPrefs);
-  const [pageIds, setPageIds] = useState(() => p.pages.filter((pg) => pg.nodes.length).map((pg) => pg.id));
+  const [pageIds, setPageIds] = useState(() => p.pages.filter((pg) => pg.nodes.length && !pg.background).map((pg) => pg.id));
   const [racks, setRacks] = useState(!!p.racks?.length);
   const [tables, setTables] = useState(true);
   const tb = p.titleBlock;

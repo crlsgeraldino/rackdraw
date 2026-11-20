@@ -9,13 +9,14 @@ import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, rende
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
+import { THEMES, type Theme } from '@/lib/themes';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { allNodes } from '@/lib/project';
 import { SET_SCALE_EVENT } from '@/lib/units';
-import type { AppNode, CableColorBy, DeviceColorBy, ShapeKind, ShapeNode } from '@/lib/types';
+import type { AppNode, CableColorBy, DeviceColorBy, Page, ShapeKind, ShapeNode } from '@/lib/types';
 import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
@@ -65,11 +66,16 @@ function useDocument() {
   };
 
   /** For the PDF and printing: show each page in turn and capture it. */
+  // Background pages print behind the pages that use them, not on their own (as in Visio).
+  const withBackground = (pg: Page) => {
+    const bg = pg.backgroundId ? project.pages.find((x) => x.id === pg.backgroundId) : undefined;
+    return [...pg.nodes.map((n) => n.id), ...(bg?.nodes ?? []).map((n) => `bg:${n.id}`)];
+  };
   const renderPage: PageRenderer = async (pg) => {
-    if (!pg.nodes.length) return null;
+    if (!pg.nodes.length || pg.background) return null;
     useDiagram.getState().setActivePage(pg.id);
     await new Promise((r) => setTimeout(r, 700));
-    return renderCanvasPng(contentBounds(pg.nodes.map((n) => n.id)));
+    return renderCanvasPng(contentBounds(withBackground(pg)));
   };
 
   const run = async (fn: () => Promise<void> | void, needsCanvas = true) => {
@@ -93,8 +99,8 @@ function useDocument() {
   return {
     busy,
     pdf: () => run(async () => { try { await exportPdf(project, renderPage); } finally { back(); } }),
-    png: () => run(() => (page.nodes.length ? exportImage('png', project, contentBounds(page.nodes.map((n) => n.id)), page.name) : alert('This page is empty.'))),
-    svg: () => run(() => (page.nodes.length ? exportImage('svg', project, contentBounds(page.nodes.map((n) => n.id)), page.name) : alert('This page is empty.'))),
+    png: () => run(() => (page.nodes.length ? exportImage('png', project, contentBounds(withBackground(page)), page.name) : alert('This page is empty.'))),
+    svg: () => run(() => (page.nodes.length ? exportImage('svg', project, contentBounds(withBackground(page)), page.name) : alert('This page is empty.'))),
     csv: () => run(() => exportCsv(project), false),
     docx: () => run(async () => {
       try {
@@ -557,6 +563,50 @@ const DEVICE_COLOR: { value: DeviceColorBy; label: string }[] = [
   { value: 'none', label: 'No colour' }, { value: 'status', label: 'Status' }, { value: 'location', label: 'Location' }, { value: 'model', label: 'Model' }, { value: 'layer', label: 'Layer' },
 ];
 
+/** Design → Themes: a row of theme swatches; click applies to this page, the menu applies to every page. */
+function ThemeGallery() {
+  const project = useCurrentProject();
+  const { applyTheme } = useDiagram.getState();
+  const swatch = (t: Theme, big: boolean) => (
+    <span className={`grid ${big ? 'h-9 w-12' : 'h-6 w-8'} grid-cols-3 overflow-hidden rounded border`} style={{ borderColor: t.line, background: t.fill }}>
+      <span className="col-span-3" style={{ background: t.zones[0], opacity: 0.85 }} />
+      <span style={{ background: t.zones[1] }} /><span style={{ background: t.calloutLine }} /><span style={{ background: t.zones[2] }} />
+    </span>
+  );
+  return (
+    <div className="flex items-center gap-1 pt-1">
+      {THEMES.slice(0, 4).map((t) => (
+        <button key={t.id} className={`flex flex-col items-center rounded p-0.5 text-[10px] hover:bg-blue-50 ${project.theme === t.id ? 'bg-blue-100' : ''}`} title={`${t.name}: apply to this page`} onClick={() => applyTheme(t.id, false)}>
+          {swatch(t, true)}
+          <span>{t.name}</span>
+        </button>
+      ))}
+      <Drop width={260} trigger={(open, isOpen) => <button className={`self-stretch rounded px-1 text-xs text-gray-600 hover:bg-gray-100 ${isOpen ? 'bg-gray-100' : ''}`} onClick={open} title="All themes">▾</button>}>
+        {(close) => (
+          <div className="p-2">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Themes</div>
+            <div className="grid grid-cols-3 gap-1">
+              {THEMES.map((t) => (
+                <button key={t.id} className={`flex flex-col items-center rounded p-1 text-[11px] hover:bg-blue-50 ${project.theme === t.id ? 'bg-blue-100' : ''}`} onClick={() => { applyTheme(t.id, false); close(); }}>
+                  {swatch(t, true)}
+                  {t.name}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 border-t border-gray-100 pt-1.5 text-[11px] text-gray-500">Apply to every page:</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {THEMES.map((t) => (
+                <button key={t.id} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] hover:bg-gray-50" onClick={() => { applyTheme(t.id, true); close(); }}>{t.name}</button>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] text-gray-400">Recolours drawing shapes, callouts and zones; new ones use the theme. Devices and cables keep their colours.</p>
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
 function DesignTab() {
   const project = useCurrentProject();
   const s = useDiagram.getState();
@@ -583,6 +633,9 @@ function DesignTab() {
         </Column>
         <Big icon="scale" label="Set Scale" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))} title={page.scale ? 'Set the drawing scale again' : 'Set the drawing scale from two points on a floor plan'} active={!!page.scale} />
         <Big icon="titleBlock" label="Title Block" active={!!tb?.show} onClick={() => s.updateTitleBlock({ show: !tb?.show })} title="Title block on every printed / PDF sheet (edit it in the panel with nothing selected)" />
+      </Group>
+      <Group label="Themes">
+        <ThemeGallery />
       </Group>
       <Group label="Connectors">
         <Column>

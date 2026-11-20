@@ -35,7 +35,15 @@ export interface VText {
   valign?: 'top' | 'middle' | 'bottom';
 }
 
-export type VShape = { name?: string; data?: [string, string][]; text?: VText } & (
+export type VShape = {
+  name?: string;
+  data?: [string, string][];
+  text?: VText;
+  /** Indexes into the page's layers. */
+  layers?: number[];
+  /** A Visio container (NetCraft zone). */
+  container?: boolean;
+} & (
   /** `ports`: connection points (cables glue here in Visio), inches from the picture's top-left. */
   | { kind: 'image'; box: VBox; media: string; ports?: { x: number; y: number; name: string }[] }
   | ({ kind: 'rect' | 'ellipse'; box: VBox } & VStyle)
@@ -51,6 +59,20 @@ export interface VPage {
   width: number;
   height: number;
   shapes: VShape[];
+  /** Visio layers on this page, in index order. */
+  layers?: VLayer[];
+  /** A background page. */
+  background?: boolean;
+  /** Index (in VDocument.pages) of the background page shown behind this one. */
+  backPage?: number;
+}
+
+export interface VLayer {
+  name: string;
+  visible: boolean;
+  print: boolean;
+  lock: boolean;
+  active?: boolean;
 }
 
 export interface VDocument {
@@ -137,6 +159,7 @@ function pageXml(page: VPage): PageOut {
     const name = s.name ? ` NameU="${esc(s.name)}" Name="${esc(s.name)}"` : '';
     let box: VBox;
     let body = '';
+    let foreign = '';
     if (s.kind === 'line') {
       const xs = s.points.map((p) => p.x), ys = s.points.map((p) => p.y);
       const x0 = Math.min(...xs), y0 = Math.min(...ys);
@@ -154,8 +177,9 @@ function pageXml(page: VPage): PageOut {
           ? `<Section N="Connection">${s.ports.map((p, k) => `<Row N="${rowName(p.name, used)}" IX="${k}">${cell('X', p.x)}${cell('Y', box.h - p.y)}${cell('DirX', 0)}${cell('DirY', 0)}${cell('Type', 0)}</Row>`).join('')}</Section>`
           : '';
         body = cell('ImgOffsetX', 0) + cell('ImgOffsetY', 0) + cell('ImgWidth', box.w) + cell('ImgHeight', box.h) +
-          cell('LinePattern', 0) + cell('FillPattern', 0) + textXml(s.text) + dataXml(s.data) + conns +
-          `<ForeignData ForeignType="Bitmap" CompressionType="PNG"><Rel r:id="${relFor(s.media)}"/></ForeignData>`;
+          cell('LinePattern', 0) + cell('FillPattern', 0) + textXml(s.text) + dataXml(s.data) + conns;
+        // Schema order: cells, sections, Text, then ForeignData.
+        foreign = `<ForeignData ForeignType="Bitmap" CompressionType="PNG"><Rel r:id="${relFor(s.media)}"/></ForeignData>`;
       } else {
         const { w, h } = box;
         let geo: string;
@@ -172,12 +196,21 @@ function pageXml(page: VPage): PageOut {
     const pin = cell('PinX', box.x + box.w / 2) + cell('PinY', H - (box.y + box.h / 2)) + cell('Width', box.w) + cell('Height', box.h) +
       cell('LocPinX', box.w / 2, ' F="Width*0.5"') + cell('LocPinY', box.h / 2, ' F="Height*0.5"') + cell('Angle', 0);
     const text = s.text?.text ? `<Text>${esc(s.text.text)}</Text>` : '';
-    return `<Shape ID="${id}"${name} Type="${s.kind === 'image' ? 'Foreign' : 'Shape'}" LineStyle="0" FillStyle="0" TextStyle="0">${pin}${body}${text}</Shape>`;
+    if (s.layers?.length) body += `<Section N="LayerMem"><Row IX="0">${cell('LayerMember', s.layers.join(';'))}</Row></Section>`;
+    if (s.container) body += `<Section N="User"><Row N="msvStructureType">${cell('Value', 'Container', ' U="STR"')}</Row><Row N="msvSDContainerMargin">${cell('Value', 0.125, ' U="IN"')}</Row></Section>`;
+    return `<Shape ID="${id}"${name} Type="${s.kind === 'image' ? 'Foreign' : 'Shape'}" LineStyle="0" FillStyle="0" TextStyle="0">${pin}${body}${text}${foreign}</Shape>`;
   });
   return {
     xml: `${XML}<PageContents xmlns="${NS}" xmlns:r="${R}" xml:space="preserve"><Shapes>${shapes.join('')}</Shapes></PageContents>`,
     rels,
   };
+}
+
+function layersXml(layers?: VLayer[]) {
+  if (!layers?.length) return '';
+  return `<Section N="Layer">${layers.map((l, i) => `<Row IX="${i}">${cell('Name', l.name)}${cell('NameUniv', l.name)}${cell('Color', 255)}${cell('Status', 0)}` +
+    `${cell('Visible', l.visible ? 1 : 0)}${cell('Print', l.print ? 1 : 0)}${cell('Active', l.active ? 1 : 0)}${cell('Lock', l.lock ? 1 : 0)}` +
+    `${cell('Snap', 1)}${cell('Glue', 1)}${cell('ColorTrans', 0)}</Row>`).join('')}</Section>`;
 }
 
 function relsXml(rels: { id: string; type: string; target: string }[]) {
@@ -219,11 +252,12 @@ export function writeVsdx(doc: VDocument): Uint8Array {
     pageRels.push({ id: `rId${i + 1}`, type: `${T}/page`, target: file });
     overrides.push(`<Override PartName="/visio/pages/${file}" ContentType="application/vnd.ms-visio.page+xml"/>`);
     pageEntries.push(
-      `<Page ID="${i}" NameU="Page-${i + 1}" Name="${esc(page.name || `Page-${i + 1}`)}" ViewScale="-1">` +
+      `<Page ID="${i}" NameU="${page.background ? 'Background' : 'Page'}-${i + 1}" Name="${esc(page.name || `Page-${i + 1}`)}" ViewScale="-1"` +
+      `${page.background ? ' Background="1"' : ''}${page.backPage !== undefined ? ` BackPage="${page.backPage}"` : ''}>` +
       `<PageSheet LineStyle="0" FillStyle="0" TextStyle="0">${cell('PageWidth', page.width)}${cell('PageHeight', page.height)}` +
       `${cell('PageScale', 1, ' U="IN_F"')}${cell('DrawingScale', 1, ' U="IN_F"')}${cell('DrawingSizeType', 0)}${cell('DrawingScaleType', 0)}` +
       `${cell('PageLeftMargin', 0.25)}${cell('PageRightMargin', 0.25)}${cell('PageTopMargin', 0.25)}${cell('PageBottomMargin', 0.25)}` +
-      `${cell('PrintPageOrientation', page.width >= page.height ? 2 : 1)}</PageSheet><Rel r:id="rId${i + 1}"/></Page>`,
+      `${cell('PrintPageOrientation', page.width >= page.height ? 2 : 1)}${layersXml(page.layers)}</PageSheet><Rel r:id="rId${i + 1}"/></Page>`,
     );
   });
   files['visio/pages/pages.xml'] = strToU8(`${XML}<Pages xmlns="${NS}" xmlns:r="${R}" xml:space="preserve">${pageEntries.join('')}</Pages>`);

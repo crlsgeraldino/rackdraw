@@ -100,7 +100,12 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   // Only a size the user set (resize handles / properties panel) scales the device. React Flow's `width` prop falls
   // back to the measured size, which would feed back into the drawing: one bad measurement (e.g. taken while the
   // canvas remounts at another zoom) would then stick and grow the device.
-  const width = useDiagram((s) => activePage(s.projects[s.currentId]).nodes.find((n) => n.id === id)?.width);
+  const width = useDiagram((s) => {
+    const p = s.projects[s.currentId];
+    // Devices from a background page are shown with an id prefixed "bg:".
+    if (id.startsWith('bg:')) return p.pages.flatMap((pg) => pg.nodes).find((n) => n.id === id.slice(3))?.width;
+    return activePage(p).nodes.find((n) => n.id === id)?.width;
+  });
   const states = usePortStates(id);
   const snapshot = useDiagram((s) => s.snapshot);
   const display = useDisplay();

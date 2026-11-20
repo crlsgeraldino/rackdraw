@@ -87,12 +87,20 @@ export class VisioPackage {
       if (!pagesXml) throw new Error('This Visio file has no drawing pages.');
       const prels = pkg.rels('visio/pages/pages.xml');
       for (const pg of Array.from(new DOMParser().parseFromString(pagesXml, 'application/xml').getElementsByTagNameNS(NS, 'Page'))) {
-        if (pg.getAttribute('Background') === '1') continue;
         const relId = pg.getElementsByTagNameNS(NS, 'Rel')[0]?.getAttributeNS(REL_NS, 'id');
         const target = relId && prels.get(relId);
         if (!target) continue;
         const sheet = pg.getElementsByTagNameNS(NS, 'PageSheet')[0];
+        const layerSec = sheet ? section(sheet, 'Layer') : undefined;
+        const layers = layerSec ? children(layerSec, 'Row').map((r) => ({
+          name: cell(r, 'Name') || cell(r, 'NameUniv') || 'Layer',
+          visible: cell(r, 'Visible') !== '0', print: cell(r, 'Print') !== '0', lock: cell(r, 'Lock') === '1',
+        })) : undefined;
         pkg.pages.push({
+          id: pg.getAttribute('ID') ?? undefined,
+          background: pg.getAttribute('Background') === '1',
+          backPage: pg.getAttribute('BackPage') ?? undefined,
+          layers,
           name: pg.getAttribute('Name') || pg.getAttribute('NameU') || `Page ${pkg.pages.length + 1}`,
           file: `visio/pages/${target}`,
           widthIn: num(sheet ? cell(sheet, 'PageWidth') : null, 11),
@@ -289,7 +297,13 @@ export class VisioPackage {
       const charRow = charSec ? children(charSec, 'Row')[0] : undefined;
       const textColor = color(charRow ? cell(charRow, 'Color') : null) ?? '#000000';
       const fontPx = num(charRow ? cell(charRow, 'Size') : get('Size', 'text'), 0.1111) * PX;
-      const base = { id, name, text, data, ...bbox, textColor, fontPx };
+      // Layer membership ("0;2") and Visio containers (User.msvStructureType = Container).
+      const memRow = section(s, 'LayerMem') ? children(section(s, 'LayerMem')!, 'Row')[0] : undefined;
+      const layerMember = memRow ? cell(memRow, 'LayerMember') : null;
+      const layers = layerMember ? layerMember.split(';').map(Number).filter((x) => Number.isFinite(x)) : undefined;
+      const userSec = section(s, 'User');
+      const container = !!userSec && children(userSec, 'Row').some((r) => r.getAttribute('N') === 'msvStructureType' && /container/i.test(cell(r, 'Value') ?? ''));
+      const base = { id, name, text, data, ...bbox, textColor, fontPx, layers, container };
 
       const geos = sections(s, 'Geometry').filter((g) => cell(g, 'NoShow') !== '1');
       const sub = s.getElementsByTagNameNS(NS, 'Shapes')[0];
@@ -454,6 +468,13 @@ export interface VisioPageInfo {
   file: string;
   widthIn: number;
   heightIn: number;
+  /** Visio page ID. */
+  id?: string;
+  background?: boolean;
+  /** ID of the background page behind this one. */
+  backPage?: string;
+  /** The page's layers, in index order. */
+  layers?: { name: string; visible: boolean; print: boolean; lock: boolean }[];
 }
 
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
@@ -482,6 +503,10 @@ export interface PageItem {
   lineColor?: string;
   lineWidthPx?: number;
   arrows?: { start: boolean; end: boolean };
+  /** Indexes into the page's layers. */
+  layers?: number[];
+  /** A Visio container. */
+  container?: boolean;
 }
 
 export interface PageConnect {
