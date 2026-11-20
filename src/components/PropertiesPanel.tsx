@@ -77,10 +77,28 @@ function PositionEditor({ id }: { id: string }) {
       />
     </label>
   );
+  // Width / height for drawing shapes, zones and notes (devices size by percentage above).
+  const sizable = node.type === 'shape' || node.type === 'zone' || node.type === 'note';
+  const st = node.style as { width?: number; height?: number } | undefined;
+  const w = Math.round(node.width ?? st?.width ?? node.measured?.width ?? 0), h = Math.round(node.height ?? st?.height ?? node.measured?.height ?? 0);
+  const setSize = (which: 'w' | 'h', v: string) => {
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n) || n < 10 || n === (which === 'w' ? w : h)) return;
+    useDiagram.getState().snapshot();
+    useDiagram.getState().setNodeBox(id, node.position, which === 'w' ? n : w, which === 'h' ? n : h);
+  };
+  const sizeBox = (which: 'w' | 'h', v: number) => (
+    <label className="flex flex-1 items-center gap-1 text-xs">
+      <span className="w-3 text-gray-500">{which === 'w' ? 'W' : 'H'}</span>
+      <input key={`${which}${v}`} className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-mono outline-none focus:border-blue-500" defaultValue={v}
+        onBlur={(e) => setSize(which, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={which === 'w' ? 'Width' : 'Height'} />
+    </label>
+  );
   return (
     <div className="mt-1">
-      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Position</span>
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Position{sizable ? ' and size' : ''}</span>
       <div className="flex gap-2">{box('x')}{box('y')}</div>
+      {sizable && w > 0 && <div className="mt-1 flex gap-2">{sizeBox('w', w)}{sizeBox('h', h)}</div>}
     </div>
   );
 }
@@ -691,6 +709,7 @@ function ShapeProps({ node }: { node: ShapeNode }) {
         </div>
       )}
       <LayerSelect value={d.layer} onChange={(layer) => set({ layer })} />
+      <div className="mb-2"><PositionEditor id={node.id} /></div>
       <LinkField nodeId={node.id} value={d.link} />
       <p className="mt-2 text-[10px] text-gray-400">Drag from a blue dot on its edge to draw an arrow to another shape or device.</p>
     </>
@@ -885,6 +904,7 @@ export function PropertiesPanel() {
             <button key={c} onClick={() => update(z.id, { color: c })} className={`h-6 w-6 rounded ${z.data.color === c ? 'ring-2 ring-offset-1' : ''}`} style={{ background: c }} aria-label={c} />
           ))}
         </div>
+        <PositionEditor id={z.id} />
         <p className="mt-3 text-xs text-gray-500">A zone is a container: dragging it moves everything inside it.</p>
         <button className="mt-1 rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50" onClick={() => useDiagram.getState().fitZoneToContents(z.id)}>
           Fit to contents

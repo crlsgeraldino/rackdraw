@@ -213,6 +213,9 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Favorites**: hover a shape in the Shapes window and click ☆ to pin it to **★ Favorites** at the top (per computer).
 - **Connector tool** (Home → Tools): drag from one device or shape to another and a cable joins them at the nearest
   free ports (on a 48-port switch, the free port closest to the other device). Stays on until Esc / Pointer.
+- **Shape Style → Quick Styles** (like Visio): 30 ready-made fill / line / text looks — subtle to intense, plus outline
+  — in the current theme's colours, for the selected shapes. Shapes and zones also get **W / H** boxes under
+  *Position and size* in the right panel.
 - **Shape Style → Weight** (0.5–6 px, or Automatic) for cables, shapes and lines, and **Shadow** for shapes. Both are
   saved to `.vsdx`.
 - **View → Full Screen** (or **F5**): only the drawing, fitted to the screen; ← / → (or Page Up / Page Down, Space)
@@ -269,6 +272,11 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Insert → Callout** (or the Callout tile in the Shapes pane): with a device or shape selected, the callout is
   attached to it — a leader line points at it and the callout moves with it. Change what it points to under
   **Points to** in the right panel. Callouts and text formatting carry over to `.vsdx`.
+
+## PowerPoint slides (.pptx)
+
+- **File → Export → PowerPoint slides**: a title slide (client, site, date), then one 16:9 slide per page and per rack,
+  each with its title and a footer — ready for a quarterly review. Opens in PowerPoint, Keynote and Google Slides.
 
 ## Word report (.docx)
 

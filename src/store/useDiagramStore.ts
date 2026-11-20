@@ -135,7 +135,7 @@ interface DiagramState {
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
    */
-  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean }) => void;
+  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean; textColor?: string }) => void;
   /** Adds a callout; with `target` its leader line points at that item and it moves with it. */
   addCallout: (position: { x: number; y: number }, target?: string) => void;
   /** Moves nodes on the active page to new positions (one undo step). */
@@ -940,7 +940,7 @@ export const useDiagram = create<DiagramState>()(
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
-        styleSelection: ({ fill, line, text, weight, shadow }) => {
+        styleSelection: ({ fill, line, text, weight, shadow, textColor }) => {
           const pg = page();
           if (!pg.nodes.some((n) => n.selected) && !pg.edges.some((e) => e.selected)) return;
           get().snapshot();
@@ -954,6 +954,7 @@ export const useDiagram = create<DiagramState>()(
                   data: {
                     ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}), ...fmt,
                     ...(weight !== undefined ? { lineWidth: weight ?? undefined } : {}), ...(shadow !== undefined ? { shadow: shadow || undefined } : {}),
+                    ...(textColor ? { textColor } : {}),
                     ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
                   },
                 };

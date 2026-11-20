@@ -8,13 +8,14 @@ import { openFind, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
+import { exportDeck } from '@/lib/deck';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
-import { THEMES, type Theme } from '@/lib/themes';
+import { THEMES, themeById, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
@@ -108,6 +109,14 @@ function useDocument() {
     png: () => run(() => (page.nodes.length ? exportImage('png', project, contentBounds(withBackground(page)), page.name) : alert('This page is empty.'))),
     svg: () => run(() => (page.nodes.length ? exportImage('svg', project, contentBounds(withBackground(page)), page.name) : alert('This page is empty.'))),
     csv: () => run(() => exportCsv(project), false),
+    pptx: () => run(async () => {
+      try {
+        const bytes = await exportDeck(project, renderPage);
+        downloadBlob(`${safeName(project.name)}.pptx`, new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }));
+      } finally {
+        back();
+      }
+    }),
     docx: () => run(async () => {
       try {
         const bytes = await exportWordReport(project, renderPage);
@@ -292,7 +301,7 @@ export function Ribbon() {
           onOpen={() => { setFile(false); openRef.current?.click(); }}
           onSave={() => { setFile(false); doc.save(); }}
           onPrint={() => { setFile(false); setPrinting(true); }}
-          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx })[kind](); }}
+          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx })[kind](); }}
         />
       )}
       <input ref={openRef} type="file" accept=".json,application/json,.vsdx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
@@ -357,7 +366,7 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
 /** The File tab's full-window page (Office "backstage"). */
 function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onClose: () => void; onNew: () => void; onOpen: () => void; onSave: () => void; onPrint: () => void;
-  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx') => void;
+  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx') => void;
 }) {
   const project = useCurrentProject();
   useEffect(() => {
@@ -370,7 +379,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <Icon name={icon} size={18} /> {label}
     </button>
   );
-  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx') => (
+  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx') => (
     <button key={kind} className="flex items-start gap-3 rounded border border-gray-200 p-3 text-left hover:border-blue-400 hover:bg-blue-50" onClick={() => onExport(kind)}>
       <Icon name={icon} size={28} className="shrink-0 text-gray-700" />
       <span><span className="block text-sm font-medium text-gray-900">{title}</span><span className="text-xs text-gray-500">{sub}</span></span>
@@ -395,6 +404,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Export</h2>
         <div className="grid max-w-3xl grid-cols-2 gap-3">
           {exp('visio', 'Visio drawing (.vsdx)', 'Every page as a Visio drawing: devices with their Shape Data, cables, zones, labels and info boxes', 'vsdx')}
+          {exp('fullscreen', 'PowerPoint slides (.pptx)', 'A title slide, then one slide per page and per rack, for client reviews', 'pptx')}
           {exp('page', 'Word report (.docx)', 'An editable report: client details, every page, rack elevations and all the tables', 'docx')}
           {exp('pdf', 'PDF report', 'Every page, rack elevations and the device, connection and port tables, with the title block', 'pdf')}
           {exp('image', 'PNG picture of this page', 'For Word documents and email', 'png')}
@@ -520,6 +530,7 @@ function HomeTab() {
           </Drop>
         </Column>
         <Column>
+          <QuickStyles disabled={!shapeSel.length} />
           <Small icon="shadow" label="Shadow" active={shadowOn} onClick={() => s.styleSelection({ shadow: !shadowOn })} disabled={!shapeSel.length} title="Drop shadow on the selected shapes" />
         </Column>
       </Group>
@@ -745,6 +756,48 @@ export async function editScreenTip() {
 const DEVICE_COLOR: { value: DeviceColorBy; label: string }[] = [
   { value: 'none', label: 'No colour' }, { value: 'status', label: 'Status' }, { value: 'location', label: 'Location' }, { value: 'model', label: 'Model' }, { value: 'layer', label: 'Layer' },
 ];
+
+/** Mixes a colour with white: amount 0 = the colour, 1 = white. */
+const tint = (hex: string, amount: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.round(v + (255 - v) * amount).toString(16).padStart(2, '0');
+  return `#${ch(n >> 16)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+};
+
+/** Home → Shape Style → Quick Styles (Visio): ready-made fill / line / text combinations in the theme's colours. */
+function QuickStyles({ disabled }: { disabled: boolean }) {
+  const project = useCurrentProject();
+  const colors = (themeById(project.theme) ?? THEMES[0]).zones.slice(0, 6);
+  const s = useDiagram.getState();
+  const STYLES = [
+    { name: 'Subtle', make: (c: string) => ({ fill: tint(c, 0.85), line: c, textColor: '#111827' }) },
+    { name: 'Light', make: (c: string) => ({ fill: tint(c, 0.6), line: c, textColor: '#111827' }) },
+    { name: 'Moderate', make: (c: string) => ({ fill: tint(c, 0.25), line: c, textColor: '#ffffff' }) },
+    { name: 'Intense', make: (c: string) => ({ fill: c, line: c, textColor: '#ffffff' }) },
+    { name: 'Outline', make: (c: string) => ({ fill: '#ffffff', line: c, textColor: c }) },
+  ];
+  return (
+    <Drop width={236} trigger={(open) => <Small icon="fill" label="Quick Styles ▾" onClick={open} disabled={disabled} title="Ready-made fill, line and text colours for the selected shapes" />}>
+      {(close) => (
+        <div className="p-2">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Quick Styles</div>
+          <div className="grid grid-cols-6 gap-1">
+            {STYLES.flatMap((st) => colors.map((c) => {
+              const v = st.make(c);
+              return (
+                <button key={`${st.name}${c}`} title={`${st.name}`} className="flex h-7 items-center justify-center rounded border-2 text-[11px] font-semibold hover:scale-110"
+                  style={{ background: v.fill, borderColor: v.line, color: v.textColor }}
+                  onClick={() => { s.styleSelection({ fill: v.fill, line: v.line, textColor: v.textColor }); close(); }}
+                >Abc</button>
+              );
+            }))}
+          </div>
+          <p className="mt-1.5 text-[10px] text-gray-400">Colours follow Design → Themes.</p>
+        </div>
+      )}
+    </Drop>
+  );
+}
 
 const FONTS = ['Segoe UI', 'Arial', 'Calibri', 'Cambria', 'Consolas', 'Courier New', 'Georgia', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
 
