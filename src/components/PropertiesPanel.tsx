@@ -1,5 +1,6 @@
 'use client';
 
+import { turnedBox } from '@/lib/rotation';
 import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
@@ -155,7 +156,9 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       </Section>
       <Section title="Size & Position">
       {stencil && (() => {
-        const base = baseSize(stencil);
+        const b0 = baseSize(stencil);
+        // A turned device's box surrounds the turned drawing.
+        const base = stencil.style === 'icon' ? b0 : (({ w, h }) => ({ width: w, height: h }))(turnedBox(b0.width, b0.height, node.data.rotation ?? 0));
         const pct = node.width ? Math.round((node.width / base.width) * 100) : 100;
         const setPct = (p: number) => setNodeSize(node.id, p === 100 ? null : { width: (base.width * p) / 100, height: (base.height * p) / 100 });
         return (
@@ -172,6 +175,21 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         );
       })()}
         <PositionEditor id={node.id} />
+        <div className="mt-2">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Angle</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number" min={0} max={359} className="w-20 rounded border border-gray-300 px-1.5 py-1 text-sm" value={Math.round(d.rotation ?? 0)}
+              onFocus={() => useDiagram.getState().snapshot()}
+              onChange={(e) => useDiagram.getState().setDeviceRotation(node.id, Number(e.target.value) || 0)}
+            />
+            <span className="text-sm text-gray-500">°</span>
+            {[0, 90, 180, 270].map((a) => (
+              <button key={a} className={`rounded border px-1.5 py-0.5 text-xs ${Math.round(d.rotation ?? 0) === a ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`} onClick={() => { useDiagram.getState().snapshot(); useDiagram.getState().setDeviceRotation(node.id, a); }}>{a}°</button>
+            ))}
+          </div>
+          <span className="text-[10px] text-gray-400">Or drag the round handle above the selected device (Shift: 15° steps).</span>
+        </div>
       </Section>
     </>
   );

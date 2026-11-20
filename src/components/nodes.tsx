@@ -10,6 +10,7 @@ import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
 import { useDragOffset } from './useDragOffset';
+import { normDeg, turnedBox } from '@/lib/rotation';
 import { useIconPortOffsets } from './iconPorts';
 import MeasureNodeView from './MeasureNode';
 import { NodeBadges } from './NodeBadges';
@@ -145,19 +146,20 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   }
   // Resizing sets the node's width; everything (art, ports, highlights) scales from it, keeping proportions.
   const base = baseSize(stencil);
-  // Quarter turns (Visio's Rotate 90°): the box swaps width and height, the drawing turns inside it.
-  const rot = ((data.rotation ?? 0) % 360 + 360) % 360;
-  const quarter = rot % 180 === 90;
-  const zoom = width ? width / (quarter ? base.height : base.width) : 1;
-  const k = (stencil.style === 'icon' ? 1 : stencil.scale) * zoom;
+  // Turned devices: the box is the one around the turned drawing; the drawing turns inside it. Icons turn in place.
+  const rot = normDeg(data.rotation ?? 0);
+  const icon = stencil.style === 'icon';
+  const tb = icon ? { w: base.width, h: base.height } : turnedBox(base.width, base.height, rot);
+  const zoom = width ? width / tb.w : 1;
+  const k = (icon ? 1 : stencil.scale) * zoom;
   const resizer = (
     <NodeResizer
       isVisible={selected && !data.locked}
       keepAspectRatio
-      minWidth={quarter ? Math.min(base.height, Math.max(8, base.height * 0.2)) : Math.min(base.width, Math.max(24, base.width * 0.2))}
-      minHeight={quarter ? Math.min(base.width, Math.max(24, base.width * 0.2)) : Math.min(base.height, Math.max(8, base.height * 0.2))}
-      maxWidth={(quarter ? base.height : base.width) * 6}
-      maxHeight={(quarter ? base.width : base.height) * 6}
+      minWidth={Math.min(tb.w, Math.max(24, tb.w * 0.2))}
+      minHeight={Math.min(tb.h, Math.max(8, tb.h * 0.2))}
+      maxWidth={tb.w * 6}
+      maxHeight={tb.h * 6}
       color="#3b82f6"
       handleStyle={{ width: 9, height: 9, borderRadius: 2 }}
       lineStyle={{ borderWidth: 0 }}
@@ -224,7 +226,8 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   }
 
   const aw = stencil.width * k, ah = stencil.height * k;
-  const box = quarter ? { width: ah, height: aw } : { width: aw, height: ah };
+  const tbk = turnedBox(aw, ah, rot);
+  const box = { width: tbk.w, height: tbk.h };
   return (
     <div className={`relative ${selected ? 'nc-selected-panel' : ''}`} style={rot ? box : undefined} {...hover.bind}>
       {resizer}
@@ -438,7 +441,7 @@ function TurnedResizer({ id, x, y, w, h, rotation }: { id: string; x: number; y:
   );
 }
 
-/** Rotate handle for a device: drag it round to turn the device in quarter turns. */
+/** Rotate handle for a device: drag it round to turn the device (whole degrees, 15° with Shift, catches 0/90/180/270). */
 function DeviceRotateHandle({ id }: { id: string }) {
   const setRotation = useDiagram((s) => s.setDeviceRotation);
   const snapshot = useDiagram((s) => s.snapshot);
@@ -451,13 +454,18 @@ function DeviceRotateHandle({ id }: { id: string }) {
         ref={node}
         className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
         style={{ top: -26 }}
-        title="Drag to rotate in 90° steps"
+        title="Drag to rotate (Shift: 15° steps)"
         onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
         onPointerMove={(e) => {
           if (!active.current) return;
           const r = (node.current!.parentElement as HTMLElement).getBoundingClientRect();
           let a = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI + 90;
-          a = ((Math.round(a / 90) * 90) % 360 + 360) % 360;
+          if (e.shiftKey) a = Math.round(a / 15) * 15;
+          else {
+            a = Math.round(a);
+            const right = Math.round(a / 90) * 90;
+            if (Math.abs(a - right) <= 4) a = right;
+          }
           setRotation(id, a);
         }}
         onPointerUp={() => { active.current = false; }}

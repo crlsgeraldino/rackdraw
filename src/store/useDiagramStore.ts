@@ -15,6 +15,7 @@ import { replaceHits, type FindHit } from '@/lib/find';
 import { themeById } from '@/lib/themes';
 import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
+import { normDeg, turnedBox } from '@/lib/rotation';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
 
 /**
@@ -61,7 +62,7 @@ interface DiagramState {
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
   /** Adds a dimension line (or a floor-plan wall) starting at `position`. */
   addMeasure: (position: { x: number; y: number }, variant?: 'dimension' | 'wall') => void;
-  /** Turns a device to 0/90/180/270° (its box turns with it). No undo step. */
+  /** Turns a device to any angle (its box grows to fit the turned drawing). No undo step. */
   setDeviceRotation: (id: string, rotation: number) => void;
   /** Rotate Left / Right 90° for the selection: devices and drawing shapes (undoable). */
   rotateSelection: (delta: 90 | -90) => void;
@@ -283,18 +284,20 @@ function zoneMembers(z: AppNode, nodes: AppNode[]) {
 }
 
 /** A device turned to `rotation` (quarter turns): a set size swaps width and height on a quarter turn, around the same centre. */
-function turnDevice(n: AppNode, rotation: number): AppNode {
+function turnDevice(n: AppNode, rotation: number, stencil?: StencilDef): AppNode {
   if (n.type !== 'device') return n;
-  const r = ((Math.round(rotation / 90) * 90) % 360 + 360) % 360;
-  const old = n.data.rotation ?? 0;
-  const swap = (old % 180) !== (r % 180);
-  const s = nodeSize(n);
-  let out: AppNode = { ...n, data: { ...n.data, rotation: r || undefined } };
-  if (swap && s.w && s.h) {
-    const position = { x: n.position.x + (s.w - s.h) / 2, y: n.position.y + (s.h - s.w) / 2 };
-    out = { ...out, position, ...(n.width ? { width: n.height ?? s.h, height: n.width } : {}), measured: undefined };
-  }
-  return out;
+  const r = normDeg(rotation);
+  const out: AppNode = { ...n, data: { ...n.data, rotation: r || undefined } };
+  // Icons turn inside their square; other devices' boxes become the box around the turned drawing.
+  if (!stencil || stencil.style === 'icon') return out;
+  const bw = stencil.width * stencil.scale, bh = stencil.height * stencil.scale;
+  const old = turnedBox(bw, bh, n.data.rotation ?? 0);
+  const zoom = n.width ? n.width / old.w : 1;
+  const now = turnedBox(bw * zoom, bh * zoom, r);
+  const cur = n.measured?.width ? { w: n.measured.width, h: n.measured.height ?? 0 } : { w: old.w * zoom, h: old.h * zoom };
+  // Same centre.
+  const position = { x: n.position.x + cur.w / 2 - now.w / 2, y: n.position.y + cur.h / 2 - now.h / 2 };
+  return { ...out, position, ...(n.width ? { width: now.w, height: now.h, style: { ...n.style, width: now.w, height: now.h } } : {}), measured: undefined };
 }
 
 /** Contents of the zones being dragged, captured when each drag starts. */
@@ -499,7 +502,7 @@ export const useDiagram = create<DiagramState>()(
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
         setDeviceRotation: (id, rotation) =>
-          commit({ nodes: page().nodes.map((n) => (n.id === id && n.type === 'device' ? turnDevice(n, rotation) : n)) }),
+          commit({ nodes: page().nodes.map((n) => (n.id === id && n.type === 'device' ? turnDevice(n, rotation, findStencil(n.data.stencilId, get().customStencils)) : n)) }),
         rotateSelection: (delta) => {
           const sel = page().nodes.filter((n) => n.selected && !extras(n).locked && (n.type === 'device' || (n.type === 'shape' && n.data.kind !== 'window' && n.data.kind !== 'callout')));
           if (!sel.length) return;
@@ -509,7 +512,7 @@ export const useDiagram = create<DiagramState>()(
             nodes: page().nodes.map((n) => {
               if (!ids.has(n.id)) return n;
               const r = ((((n.data as { rotation?: number }).rotation ?? 0) + delta) % 360 + 360) % 360;
-              return n.type === 'device' ? turnDevice(n, Math.round(r / 90) * 90) : ({ ...n, data: { ...n.data, rotation: r } } as AppNode);
+              return n.type === 'device' ? turnDevice(n, r, findStencil(n.data.stencilId, get().customStencils)) : ({ ...n, data: { ...n.data, rotation: r } } as AppNode);
             }),
           });
         },

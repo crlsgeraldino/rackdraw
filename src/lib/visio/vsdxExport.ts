@@ -5,6 +5,7 @@ import { displayColors, hiddenLayers } from '../display';
 import { DEFAULT_SETUP, pageBounds, PX_PER_IN, sheetSize } from '../pageSetup';
 import { editableCopy } from '../shapeCopy';
 import { realLength } from '../units';
+import { turnedBox } from '../rotation';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -236,8 +237,13 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           // Ports become Visio connection points (named after the port), so cables can be glued to them in Visio.
           // A turned device: the picture at its own size around the same centre, with Visio's Angle (counter-clockwise).
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
-          const quarter = rot % 180 === 90;
-          const ub = quarter ? { x: b.x + (b.w - b.h) / 2, y: b.y + (b.h - b.w) / 2, w: b.h, h: b.w } : b;
+          // The drawn box surrounds the turned picture; recover the picture's own size around the same centre.
+          let ub = b;
+          if (rot && s.style !== 'icon') {
+            const bw = s.width * s.scale, bh = s.height * s.scale;
+            const z = b.w / turnedBox(bw, bh, rot).w;
+            ub = { x: b.x + b.w / 2 - (bw * z) / 2, y: b.y + b.h / 2 - (bh * z) / 2, w: bw * z, h: bh * z };
+          }
           const k = ub.w / (s.width * (s.style === 'icon' ? 1 : s.scale));
           const kk = (s.style === 'icon' ? 1 : s.scale) * k;
           const ports = s.ports.map((p) => ({ x: inch((p.x + p.w / 2) * kk), y: inch((p.y + p.h / 2) * kk), name: d.ports?.[p.id]?.label || p.label }));
