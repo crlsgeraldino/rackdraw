@@ -67,3 +67,69 @@ export function findJumps(pts: Pt[], others: Pt[][]): Map<number, number[]> {
   }
   return out;
 }
+
+export const otherRouteEntries = (id: string) => [...routes.entries()].filter(([k]) => k !== id);
+
+/** Gap between parallel cables that would otherwise run on the same line (Visio spaces them apart too). */
+export const LANE = 7;
+
+/**
+ * Spreads this cable's middle segments that lie on top of other cables' (same line, overlapping) into separate
+ * lanes. Every cable computes the same order for a shared run, so each takes its own lane. The order keeps the bundle
+ * from crossing itself: for a run fed from above heading right, the cable that comes in further right takes the
+ * higher lane (and mirrored for the other directions). First and last segments (at the ports) never move.
+ */
+export function separateParallel(id: string, pts: Pt[], others: [string, Pt[]][]): Pt[] {
+  if (pts.length < 4) return pts;
+  const out = pts.map((p) => ({ ...p }));
+  type Seg = { a: Pt; b: Pt; prev: Pt };
+  const middle = (o: Pt[]) => {
+    const segs: Seg[] = [];
+    for (let k = 1; k <= o.length - 3; k++) segs.push({ a: o[k], b: o[k + 1], prev: o[k - 1] });
+    return segs;
+  };
+  const horiz = (s: Seg) => Math.abs(s.a.y - s.b.y) < 0.5 && Math.abs(s.a.x - s.b.x) > 0.5;
+  const vert = (s: Seg) => Math.abs(s.a.x - s.b.x) < 0.5 && Math.abs(s.a.y - s.b.y) > 0.5;
+  // Order key: lower key → lower lane offset (up for horizontal runs, left for vertical ones).
+  const key = (s: Seg, h: boolean) => {
+    if (h) {
+      const right = s.b.x > s.a.x ? -1 : 1;
+      const fromAbove = s.a.y > s.prev.y ? 1 : -1;
+      return s.a.x * right * fromAbove;
+    }
+    const down = s.b.y > s.a.y ? -1 : 1;
+    const fromLeft = s.a.x > s.prev.x ? 1 : -1;
+    return s.a.y * down * fromLeft;
+  };
+  const span = (t: Seg, h: boolean) => [Math.min(h ? t.a.x : t.a.y, h ? t.b.x : t.b.y), Math.max(h ? t.a.x : t.a.y, h ? t.b.x : t.b.y)] as const;
+  const mine = middle(pts);
+  mine.forEach((s, i) => {
+    const h = horiz(s);
+    if (!h && !vert(s)) return;
+    const c = h ? s.a.y : s.a.x;
+    // Everything on the same line, then the chain of runs that overlap (directly or through one another): every
+    // cable in the chain computes the same group and order.
+    const cands: { id: string; seg: Seg }[] = [];
+    for (const [oid, o] of others) {
+      for (const t of middle(o)) if ((h ? horiz(t) : vert(t)) && Math.abs((h ? t.a.y : t.a.x) - c) <= 1) cands.push({ id: oid, seg: t });
+    }
+    const group: { id: string; seg: Seg }[] = [{ id, seg: s }];
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const cnd of cands) {
+        if (group.some((g) => g.id === cnd.id)) continue;
+        const [lo, hi] = span(cnd.seg, h);
+        if (group.some((g) => { const [glo, ghi] = span(g.seg, h); return Math.min(hi, ghi) - Math.max(lo, glo) > -1; })) {
+          group.push(cnd);
+          grew = true;
+        }
+      }
+    }
+    if (group.length < 2) return;
+    const order = group.map((g) => ({ id: g.id, k: key(g.seg, h) })).sort((x, y) => x.k - y.k || (x.id < y.id ? -1 : 1));
+    const off = (order.findIndex((g) => g.id === id) - (order.length - 1) / 2) * LANE;
+    const k = i + 1; // the segment runs from pts[k] to pts[k + 1]
+    if (h) { out[k].y += off; out[k + 1].y += off; } else { out[k].x += off; out[k + 1].x += off; }
+  });
+  return out;
+}

@@ -6,7 +6,7 @@ import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/ro
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import type { CableEdge, DeviceData } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
-import { findJumps, JUMP_R, otherRoutes, publishRoute, useRoutesVersion } from '@/lib/jumps';
+import { findJumps, JUMP_R, otherRouteEntries, otherRoutes, publishRoute, separateParallel, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
 /** Items cables steer around: devices, notes and drawing shapes (not zones or the backdrop). */
@@ -77,9 +77,10 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
 
   // Line jumps: share this route with the other cables and hop over the ones crossing it.
   const jumpsOn = useCurrentProject().display?.lineJumps !== false;
+  // Every right-angle route is shared: for line jumps and for spacing parallel cables apart.
   useEffect(() => {
-    publishRoute(id, jumpsOn ? pts : null);
-  }, [id, pts, jumpsOn]);
+    publishRoute(id, pts);
+  }, [id, pts]);
   useEffect(() => () => publishRoute(id, null), [id]);
   const routesVersion = useRoutesVersion();
 
@@ -88,7 +89,8 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
     if (route === 'straight') return getStraightPath(pos).slice(0, 3) as [string, number, number];
     if (route === 'curved') return getBezierPath(pos).slice(0, 3) as [string, number, number];
     if (pts) {
-      const { d, mid } = roundedPath(pts, 8, jumpsOn ? findJumps(pts, otherRoutes(id)) : undefined, JUMP_R);
+      const laned = separateParallel(id, pts, otherRouteEntries(id));
+      const { d, mid } = roundedPath(laned, 8, jumpsOn ? findJumps(laned, otherRoutes(id)) : undefined, JUMP_R);
       return [d, mid.x, mid.y];
     }
     // No clear path (e.g. devices overlapping): fall back to a plain right-angle line.

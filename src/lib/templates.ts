@@ -22,21 +22,22 @@ const cable = (a: string, ah: string, b: string, bh: string, extra: Record<strin
 
 function smallOffice(): Template['project'] {
   const nodes = [
-    dev({ id: 'n-isp', stencil: 'internet', name: 'Internet', x: 513, y: -260 }),
-    dev({ id: 'n-ont', stencil: 'modem', name: 'ISP modem', x: 513, y: -120 }),
+    dev({ id: 'n-isp', stencil: 'internet', name: 'Internet', x: 494, y: -260 }),
+    dev({ id: 'n-ont', stencil: 'modem', name: 'ISP modem', x: 494, y: -120 }),
     dev({ id: 'n-fw', stencil: 'sonicwall-tz570-670', name: 'Firewall', x: 200, y: 20 }),
-    dev({ id: 'n-sw', stencil: 'switch-24-poe', name: 'Core switch', x: 160, y: 220 }),
-    dev({ id: 'n-ap1', stencil: 'access-point', name: 'AP-1', x: 40, y: 420 }),
-    dev({ id: 'n-ap2', stencil: 'access-point', name: 'AP-2', x: 180, y: 420 }),
-    dev({ id: 'n-ws1', stencil: 'workstation', name: 'Workstation 1', x: 320, y: 420 }),
-    dev({ id: 'n-ws2', stencil: 'workstation', name: 'Workstation 2', x: 460, y: 420 }),
-    dev({ id: 'n-prn', stencil: 'printer', name: 'Printer', x: 600, y: 420 }),
-    dev({ id: 'n-nas', stencil: 'nas', name: 'NAS', x: 740, y: 420 }),
+    dev({ id: 'n-sw', stencil: 'switch-24-poe', name: 'Core switch', x: 441, y: 220 }),
+    dev({ id: 'n-ap1', stencil: 'access-point', name: 'AP-1', x: 300, y: 440 }),
+    dev({ id: 'n-ap2', stencil: 'access-point', name: 'AP-2', x: 440, y: 440 }),
+    dev({ id: 'n-ws1', stencil: 'workstation', name: 'Workstation 1', x: 580, y: 440 }),
+    dev({ id: 'n-ws2', stencil: 'workstation', name: 'Workstation 2', x: 720, y: 440 }),
+    dev({ id: 'n-prn', stencil: 'printer', name: 'Printer', x: 860, y: 440 }),
+    dev({ id: 'n-nas', stencil: 'nas', name: 'NAS', x: 1000, y: 440 }),
   ];
   const edges = [
     cable('n-isp', 'WAN', 'n-ont', 'UPLINK', { cable: 'Fiber' }),
-    cable('n-ont', 'LAN', 'n-fw', 'X1', { label: 'WAN' }),
-    cable('n-fw', 'X0', 'n-sw', 'P1', { label: 'LAN' }),
+    // X2 (top) faces the modem above and X3 (bottom) the switch below, so both runs are straight.
+    cable('n-ont', 'LAN', 'n-fw', 'X2', { label: 'WAN' }),
+    cable('n-fw', 'X3', 'n-sw', 'P1', { label: 'LAN' }),
     cable('n-sw', 'P2', 'n-ap1', 'ETH'),
     cable('n-sw', 'P4', 'n-ap2', 'ETH'),
     cable('n-sw', 'P6', 'n-ws1', 'NIC'),
