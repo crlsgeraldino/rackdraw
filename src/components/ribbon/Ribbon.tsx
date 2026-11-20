@@ -14,6 +14,7 @@ import { askText } from '../PromptHost';
 import { reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
+import { HF_CODES } from '@/lib/headerFooter';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { openChangeShape } from '../ChangeShapeDialog';
 import { openVersions } from '../VersionsDialog';
@@ -706,6 +707,20 @@ function InsertTab() {
         <Big icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Dimension line (uses the page scale)" />
       </Group>
       <Group label="Text">
+        <div className="flex items-start pt-1">
+          <Drop width={230} trigger={(open) => <Big icon="text" label="Field" onClick={open} title="Put a live value (client, date, page…) into the selected text box, or a new one" />}>
+            {(close) => (
+              <div className="py-1">
+                {HF_CODES.map((c) => (
+                  <button key={c.code} className="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-xs hover:bg-blue-50" onClick={() => { insertField(c.code); close(); }}>
+                    <span>{c.label}</span><span className="font-mono text-[10px] text-gray-400">{c.code}</span>
+                  </button>
+                ))}
+                <p className="px-3 pt-1 text-[10px] text-gray-400">Shows the current value; double-click the text to see the codes.</p>
+              </div>
+            )}
+          </Drop>
+        </div>
         <Big icon="screenTip" label="ScreenTip" onClick={() => editScreenTip()} title="Text shown when you hover the selected items" />
       </Group>
     </>
@@ -766,6 +781,21 @@ async function saveTemplate() {
   const description = (await askText('Description (optional)', '')) ?? '';
   st.saveAsTemplate(name, description.trim());
   alert(`Saved. Choose "${name}" under File → New client.`);
+}
+
+/** Insert → Field: adds a field code to the selected text box / shape, or a new text box with it. */
+function insertField(code: string) {
+  const st = useDiagram.getState();
+  const pg = activePage(st.projects[st.currentId]);
+  const shape = pg.nodes.find((n) => n.selected && n.type === 'shape');
+  if (shape && shape.type === 'shape') {
+    st.snapshot();
+    st.updateNodeData(shape.id, { text: shape.data.text ? `${shape.data.text} ${code}` : code });
+    return;
+  }
+  st.addShape('text', { x: 200, y: 120 });
+  const made = activePage(useDiagram.getState().projects[st.currentId]).nodes.at(-1);
+  if (made?.type === 'shape') st.updateNodeData(made.id, { text: code });
 }
 
 /** Insert → ScreenTip: asks for the hover text of the selected items. */

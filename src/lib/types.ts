@@ -95,6 +95,8 @@ export interface ItemComment {
   /** Epoch ms. */
   at: number;
   resolved?: boolean;
+  /** Replies, oldest first (a comment thread). */
+  replies?: { id: string; author?: string; text: string; at: number }[];
 }
 
 export interface DeviceData extends Record<string, unknown>, NodeExtras {

@@ -18,7 +18,15 @@ export function CommentsPanel({ onClose, startAdding }: { onClose: () => void; s
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
   const page = useCurrentPage();
-  const { addComment, updateComment, selectItem } = useDiagram.getState();
+  const { addComment, updateComment, replyToComment, selectItem } = useDiagram.getState();
+  const [replying, setReplying] = useState<string | null>(null); // comment id
+  const [reply, setReply] = useState('');
+  const postReply = (nodeId: string, commentId: string) => {
+    if (!reply.trim()) return;
+    replyToComment(nodeId, commentId, reply, author);
+    setReply('');
+    setReplying(null);
+  };
   const author = usePref('author');
   const [text, setText] = useState('');
   const [showResolved, setShowResolved] = useState(false);
@@ -87,9 +95,29 @@ export function CommentsPanel({ onClose, startAdding }: { onClose: () => void; s
                   <div className="whitespace-pre-wrap">{c.text}</div>
                   <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-500">
                     <span>{c.author || 'Someone'} · {new Date(c.at).toLocaleString()}</span>
-                    <button className="ml-auto hidden text-blue-600 hover:underline group-hover:inline" onClick={() => updateComment(n.id, c.id, { resolved: !c.resolved })}>{c.resolved ? 'Reopen' : 'Resolve'}</button>
+                    <button className="ml-auto text-blue-600 hover:underline" onClick={() => { setReplying(replying === c.id ? null : c.id); setReply(''); }}>Reply{c.replies?.length ? ` (${c.replies.length})` : ''}</button>
+                    <button className="hidden text-blue-600 hover:underline group-hover:inline" onClick={() => updateComment(n.id, c.id, { resolved: !c.resolved })}>{c.resolved ? 'Reopen' : 'Resolve'}</button>
                     <button className="hidden text-red-600 hover:underline group-hover:inline" onClick={() => updateComment(n.id, c.id, null)}>Delete</button>
                   </div>
+                  {(c.replies ?? []).map((r) => (
+                    <div key={r.id} className="mt-1 border-l-2 border-amber-300 pl-2">
+                      <div className="whitespace-pre-wrap">{r.text}</div>
+                      <div className="text-[10px] text-gray-500">{r.author || 'Someone'} · {new Date(r.at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                  {replying === c.id && (
+                    <div className="mt-1 flex gap-1">
+                      <textarea
+                        autoFocus rows={2}
+                        className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs outline-none focus:border-blue-500"
+                        placeholder="Reply… (Ctrl+Enter)"
+                        value={reply}
+                        onChange={(e) => setReply(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postReply(n.id, c.id); } if (e.key === 'Escape') setReplying(null); }}
+                      />
+                      <button className="self-end rounded bg-blue-600 px-2 py-0.5 text-[11px] text-white hover:bg-blue-700 disabled:opacity-50" disabled={!reply.trim()} onClick={() => postReply(n.id, c.id)}>Reply</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </li>

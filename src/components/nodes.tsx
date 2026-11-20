@@ -7,6 +7,7 @@ import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
+import { expandFields } from '@/lib/headerFooter';
 import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
@@ -392,6 +393,12 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   // Free rotation (Visio's rotation handle) for drawing shapes; doors turn in 90° steps, windows and callouts don't.
   const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout';
   const outer = useRef<HTMLDivElement>(null);
+  // Insert → Field: codes like &[Client] or &[Page] show their values (the codes stay in the text while editing).
+  const fieldText = useDiagram((s) => {
+    if (!data.text?.includes('&[')) return data.text;
+    const p = s.projects[s.currentId];
+    return expandFields(data.text, p, p.activePageId);
+  });
   useEffect(() => {
     const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked) { snapshot(); setEditing(true); } };
     window.addEventListener(EDIT_TEXT_EVENT, on);
@@ -420,7 +427,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
         />
       ) : (
         <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={textStyle}>
-          {data.text}
+          {fieldText}
         </div>
       )}
       {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}

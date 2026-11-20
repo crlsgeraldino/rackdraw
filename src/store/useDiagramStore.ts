@@ -103,6 +103,8 @@ interface DiagramState {
   addFreeform: (points: { x: number; y: number }[]) => void;
   /** Adds a review comment to an item on the active page. */
   addComment: (nodeId: string, text: string, author?: string) => void;
+  /** Adds a reply to a comment's thread (on any page of the client). */
+  replyToComment: (nodeId: string, commentId: string, text: string, author?: string) => void;
   /** Changes or removes a comment (on any page of the client). */
   updateComment: (nodeId: string, commentId: string, patch: { resolved?: boolean; text?: string } | null) => void;
   /** Moves one end of a dimension line to a diagram point (no undo step; the drag takes one at its start). */
@@ -732,6 +734,17 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           const c = { id: `c-${uid()}`, text: text.trim(), author: author || undefined, at: Date.now() };
           commit({ nodes: page().nodes.map((n) => (n.id === nodeId && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, comments: [...(n.data.comments ?? []), c] } } as AppNode) : n)) });
+        },
+        replyToComment: (nodeId, commentId, text, author) => {
+          if (!text.trim()) return;
+          get().snapshot();
+          const r = { id: `r-${uid()}`, text: text.trim(), author: author || undefined, at: Date.now() };
+          const fix = (n: AppNode): AppNode => {
+            if (n.id !== nodeId || n.type === 'backdrop' || !n.data.comments) return n;
+            // A reply reopens a resolved thread, as in Visio.
+            return { ...n, data: { ...n.data, comments: n.data.comments.map((c) => (c.id === commentId ? { ...c, resolved: undefined, replies: [...(c.replies ?? []), r] } : c)) } } as AppNode;
+          };
+          commit({ pages: cur().pages.map((pg) => ({ ...pg, nodes: pg.nodes.map(fix) })) });
         },
         updateComment: (nodeId, commentId, patch) => {
           get().snapshot();

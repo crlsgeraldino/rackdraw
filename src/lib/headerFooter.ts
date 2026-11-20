@@ -25,6 +25,14 @@ export function expandHF(text: string, p: Project, ctx: { page: number; pages: n
     .replace(/&\[Author\]/gi, p.titleBlock?.author ?? '');
 }
 
+/** Text with field codes filled in for a page of the client (Insert → Field on a text box or shape). */
+export function expandFields(text: string, p: Project, pageId: string) {
+  if (!text.includes('&[')) return text;
+  const pages = p.pages.filter((x) => !x.background);
+  const i = pages.findIndex((x) => x.id === pageId);
+  return expandHF(text, p, { page: i + 1, pages: pages.length, sheet: pages[i]?.name ?? p.pages.find((x) => x.id === pageId)?.name ?? '' });
+}
+
 /**
  * The same text as CSS `content` for printed page margins: page numbers become counters; the sheet title isn't
  * known there, so it is left out.

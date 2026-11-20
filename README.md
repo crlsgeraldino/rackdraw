@@ -101,6 +101,12 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Fields (Insert → Field)
+
+- Put live values into a text box or drawing shape: client name, site, date, sheet (page) name, page number, number
+  of pages, and "drawn by". The text shows the current value and updates on its own (rename the page and the title
+  follows); double-click the text to see the codes (`&[Client]`, `&[Page]`, …). Visio exports get the filled-in text.
+
 ## Version History (File → Version History)
 
 - Like Visio's: **Save a version now** before a big change (e.g. "Before firewall swap"), then **Restore** it or
@@ -278,6 +284,8 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 ## Comments (Review tab)
 
+- **Reply** to a comment to keep the conversation in one thread (Ctrl+Enter to post). Replying reopens a resolved
+  thread; Find also searches replies.
 - Select a device or shape and click **Review → New Comment**; type and **Post** (Ctrl+Enter). Your name is
   remembered on this computer. Shapes with open comments show a 💬 badge; click it to open the comments.
 - **Review → Comments** lists every comment in the client, on every page; click an item's name to go to it, and

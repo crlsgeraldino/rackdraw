@@ -22,7 +22,10 @@ const DEVICE_FIELDS: [string, string][] = [
 /** Every searchable text field of a node, with its path in `data` and a label. */
 function nodeFields(n: AppNode): { item: string; fields: { path: string[]; label: string; value: string }[] } {
   const base = ownFields(n);
-  const comments = n.type === 'backdrop' ? [] : (n.data.comments ?? []).map((c, i) => ({ path: ['comments', String(i), 'text'], label: 'Comment', value: c.text }));
+  const comments = n.type === 'backdrop' ? [] : (n.data.comments ?? []).flatMap((c, i) => [
+    { path: ['comments', String(i), 'text'], label: 'Comment', value: c.text },
+    ...(c.replies ?? []).map((r, j) => ({ path: ['comments', String(i), 'replies', String(j), 'text'], label: 'Reply', value: r.text })),
+  ]);
   return { item: base.item, fields: [...base.fields, ...comments] };
 }
 

@@ -6,6 +6,7 @@ import { DEFAULT_SETUP, pageBounds, PX_PER_IN, sheetSize } from '../pageSetup';
 import { editableCopy } from '../shapeCopy';
 import { realLength } from '../units';
 import { turnedBox } from '../rotation';
+import { expandFields } from '../headerFooter';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -145,7 +146,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'shape': {
           const d = n.data;
           const style = { fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
-          const text = d.text ? { text: d.text, color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign, font: d.fontFamily } : undefined;
+          const text = d.text ? { text: expandFields(d.text, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign, font: d.fontFamily } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
