@@ -294,6 +294,8 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Design → Re-Layout Page** (like Visio): lay out the selection or the whole page **Top to bottom**, **Left to
   right**, as a **Compact tree**, **Radial** (core in the middle) or **Circular**, with Tight / Normal / Wide spacing.
   Devices under a switch are put in the order of the ports they use, so their cables don't cross.
+- **Icon labels move out of the way**: when a cable leaves an icon from its bottom (Internet → modem), the icon's name
+  moves to its left so the cable doesn't run through the text (unless you've dragged the label yourself).
 - **Parallel cables get their own lanes**: where several right-angle cables would run on the same line (e.g. a switch
   feeding a row of workstations), they're spread a few pixels apart, ordered so the bundle doesn't cross itself.
 - **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).

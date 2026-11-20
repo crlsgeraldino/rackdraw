@@ -135,8 +135,21 @@ function Canvas() {
       edges: bgPage.edges.map((e) => ({ ...e, selected: false, selectable: false, deletable: false, focusable: false, id: `bg:${e.id}`, source: `bg:${e.source}`, target: `bg:${e.target}`, zIndex: -1000, className: 'nc-bg' })),
     };
   }, [bgPage]);
+  // Icons with a cable on their bottom port: their label goes beside them (the cable would cross it below).
+  const labelBeside = useMemo(() => {
+    const out = new Set<string>();
+    const byId = new Map(page.nodes.map((n) => [n.id, n]));
+    for (const e of page.edges) for (const [id, h] of [[e.source, e.sourceHandle], [e.target, e.targetHandle]] as const) {
+      const n = byId.get(id);
+      if (n?.type !== 'device' || n.data.labelOffset || !h) continue;
+      const st = getStencil(n.data.stencilId);
+      if (st?.style === 'icon' && st.ports.find((p) => p.id === h)?.side === 'bottom') out.add(id);
+    }
+    return out;
+  }, [page.nodes, page.edges]);
   const nodes = useMemo(
     () => [...bg.nodes, ...page.nodes].map((n) => {
+      if (n.type === 'device' && (labelBeside.has(n.id) || n.data.labelBeside)) n = { ...n, data: { ...n.data, labelBeside: labelBeside.has(n.id) || undefined } };
       const layer = (n.type === 'device' || n.type === 'shape' || n.type === 'measure') ? n.data.layer : undefined;
       // ScreenTip (Insert → ScreenTip): hover text. Devices show theirs in the quick info card instead.
       if (n.type !== 'device' && n.type !== 'backdrop' && n.data.tip) n = { ...n, domAttributes: { title: n.data.tip } } as AppNode;
@@ -150,7 +163,7 @@ function Canvas() {
         ...(noPrint ? { className: [n.className, 'nc-noprint'].filter(Boolean).join(' ') } : {}),
       };
     }),
-    [page.nodes, bg.nodes, display.hidden, layerProps],
+    [page.nodes, bg.nodes, display.hidden, layerProps, labelBeside],
   );
   const edges = useMemo(
     () =>

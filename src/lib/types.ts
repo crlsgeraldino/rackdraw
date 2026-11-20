@@ -121,6 +121,11 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras {
   extraFields?: ExtraField[];
   /** The printable info box drawn beside the device. */
   infoBox?: InfoBoxSettings;
+  /**
+   * Set while drawing (never saved): an icon whose bottom port is cabled shows its label to the left, so the cable
+   * doesn't run through the text.
+   */
+  labelBeside?: boolean;
   /** Turned clockwise by this many degrees (0–359). */
   rotation?: number;
 }

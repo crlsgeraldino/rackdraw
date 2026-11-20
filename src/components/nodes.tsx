@@ -86,7 +86,9 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
   return (
     <div
       ref={sizeRef}
-      className={`nc-device-label nodrag nopan absolute top-full mt-1 cursor-move select-none text-[11px] leading-tight text-gray-800 ${variant === 'icon' ? 'flex w-40 flex-col items-center text-center' : 'left-0 flex gap-2 whitespace-nowrap'}`}
+      className={`nc-device-label nodrag nopan absolute cursor-move select-none text-[11px] leading-tight text-gray-800 ${
+        variant === 'icon' && data.labelBeside ? 'right-full top-1/2 mr-2 flex -translate-y-1/2 flex-col items-end whitespace-nowrap text-right'
+          : variant === 'icon' ? 'top-full mt-1 flex w-40 flex-col items-center text-center' : 'left-0 top-full mt-1 flex gap-2 whitespace-nowrap'}`}
       style={{ translate: `${off.x}px ${off.y}px` }}
       {...(editing ? {} : drag)}
       onDoubleClick={(e) => { if (data.locked || id.startsWith('bg:')) return; e.stopPropagation(); setEditing(true); }}
