@@ -187,6 +187,11 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   Shift, catches 0/90/180/270), type the **Angle** under Size & Position, or use **Home → Arrange → Rotate Right /
   Rotate Left** (90°) or right-click → Rotate. The ports turn with the picture, so cables leave from the right
   place; the label stays upright below. Saved to `.vsdx` with Visio's angle.
+- **Select by type** (Home → Editing → Select ▾): Select All, same type as the selection (e.g. every Pro Max 48),
+  all devices, all cables, all drawing shapes, all text, all zones, or everything on a layer.
+- **ScreenTips** (Insert → ScreenTip, or right-click): hover text for any item; a device's tip shows at the top of its
+  quick info card.
+- In **Full Screen**, clicking an item with a hyperlink follows it (another page or a web address).
 - **One cable per port**: a device port that already has a cable turns red when you drag another one over it and won't
   take it (drawing shapes still take any number of lines). Check Diagram lists ports used twice in older drawings.
 - **Move a cable's end**: select the cable and drag either end onto another port (like moving a glued Visio connector).

@@ -115,6 +115,10 @@ interface DiagramState {
   setSelectionLocked: (locked: boolean) => void;
   /** Selects every visible item on the active page (Ctrl+A). */
   selectAll: () => void;
+  /** Select by Type (Home → Editing → Select): what to select on the active page. */
+  selectWhere: (what: 'devices' | 'cables' | 'shapes' | 'text' | 'zones' | 'same' | `layer:${string}`) => number;
+  /** Sets (or clears) the ScreenTip of the selected items. */
+  setTipOnSelection: (tip: string) => void;
   /**
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
@@ -851,6 +855,35 @@ export const useDiagram = create<DiagramState>()(
           return targets.length;
         },
         formatKind: () => formatClip?.kind ?? null,
+        selectWhere: (what) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected);
+          // "Same type as selected": same stencil for devices, same drawing kind for shapes, same node type otherwise.
+          const sig = (n: AppNode) => (n.type === 'device' ? `d:${n.data.stencilId}` : n.type === 'shape' ? `s:${n.data.kind}` : n.type);
+          const same = new Set(sel.map(sig));
+          const layerOf = (x: { data?: Record<string, unknown> }) => x.data?.layer as string | undefined;
+          const pickNode = (n: AppNode): boolean => {
+            if (n.type === 'backdrop' || n.hidden) return false;
+            if (what === 'devices') return n.type === 'device';
+            if (what === 'shapes') return n.type === 'shape' || n.type === 'measure' || n.type === 'note';
+            if (what === 'text') return (n.type === 'shape' && n.data.kind === 'text') || n.type === 'note';
+            if (what === 'zones') return n.type === 'zone';
+            if (what === 'same') return same.has(sig(n));
+            if (what.startsWith('layer:')) return layerOf(n) === what.slice(6);
+            return false;
+          };
+          const pickEdge = (e: CableEdge) => what === 'cables' || (what.startsWith('layer:') && layerOf(e) === what.slice(6)) || (what === 'same' && pg.edges.some((x) => x.selected) && sel.length === 0);
+          const nodes = pg.nodes.map((n) => ({ ...n, selected: pickNode(n) }));
+          const edges = pg.edges.map((e) => ({ ...e, selected: pickEdge(e) }));
+          commit({ nodes, edges });
+          return nodes.filter((n) => n.selected).length + edges.filter((e) => e.selected).length;
+        },
+        setTipOnSelection: (tip) => {
+          const pg = page();
+          if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, tip: tip.trim() || undefined } } as AppNode) : n)) });
+        },
         selectAll: () =>
           commit({
             nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected ? n : { ...n, selected: true })),

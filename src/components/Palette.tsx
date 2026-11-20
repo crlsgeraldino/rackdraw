@@ -11,6 +11,7 @@ import { useDiagram } from '@/store/useDiagramStore';
 import { editableCopy } from '@/lib/shapeCopy';
 import { setPref, usePref } from '@/lib/prefs';
 import { Drop } from './ribbon/parts';
+import { askText } from './PromptHost';
 import { PALETTE_EVENT, type PaletteAction } from '@/lib/events';
 import { EDIT_STENCIL_EVENT } from './ContextMenu';
 import { StencilEditor } from './StencilEditor';
@@ -208,8 +209,8 @@ export function Palette() {
     }
   };
 
-  const rename = (l: StencilLibrary) => {
-    const to = prompt('Rename library', l.name)?.trim().replace(/\s+/g, ' ');
+  const rename = async (l: StencilLibrary) => {
+    const to = (await askText('Rename library', l.name))?.trim().replace(/\s+/g, ' ');
     if (!to || to === l.name) return;
     const other = libraries.find((x) => !sameLibrary(x.name, l.name) && sameLibrary(x.name, to));
     if (other && !confirm(`There is already a library named "${other.name}". Move the ${plural(l.stencils.length, 'stencil')} from "${l.name}" into it?`)) return;

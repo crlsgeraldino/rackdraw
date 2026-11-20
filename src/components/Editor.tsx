@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
+import { askText, PromptHost } from './PromptHost';
+import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, usePresenting } from '@/lib/tools';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
@@ -135,6 +137,8 @@ function Canvas() {
   const nodes = useMemo(
     () => [...bg.nodes, ...page.nodes].map((n) => {
       const layer = (n.type === 'device' || n.type === 'shape' || n.type === 'measure') ? n.data.layer : undefined;
+      // ScreenTip (Insert → ScreenTip): hover text. Devices show theirs in the quick info card instead.
+      if (n.type !== 'device' && n.type !== 'backdrop' && n.data.tip) n = { ...n, domAttributes: { title: n.data.tip } } as AppNode;
       if (!layer) return n;
       if (display.hidden.has(layer)) return { ...n, hidden: true };
       const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);
@@ -184,6 +188,7 @@ function Canvas() {
   }, []);
   const presenting = usePresenting((s) => s.on);
   const reconnecting = useRef<string | null>(null); // cable whose end is being moved
+  const follow = useFollowLink();
   const minimap = usePref('minimap') && !presenting;
   const rulers = usePref('rulers') && !presenting;
   // Full Screen: fit each page to the screen.
@@ -206,13 +211,13 @@ function Canvas() {
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
   }, [calib]);
-  const calibClick = (e: React.MouseEvent) => {
+  const calibClick = async (e: React.MouseEvent) => {
     const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false });
     const pts = [...(calib ?? []), p];
     if (pts.length < 2) return setCalib(pts);
     setCalib(null);
     const px = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
-    const answer = prompt('How far apart are those two points in real life?\ne.g. 30 ft, 12\' 6", 9.5 m', '');
+    const answer = await askText('How far apart are those two points in real life?\ne.g. 30 ft, 12\' 6", 9.5 m');
     if (answer === null) return;
     const d = parseLength(answer, page.scale?.unit ?? 'ft');
     const scale = d && scaleFrom(px, d);
@@ -301,6 +306,7 @@ function Canvas() {
         nodesConnectable={!presenting}
         elementsSelectable={!presenting}
         onNodeDragStart={snapshot}
+        onNodeClick={(_, n) => { if (presenting && n.type !== 'backdrop' && n.data.link) follow(n.data.link); }}
         onNodeContextMenu={(e, n) => openMenu(e, { kind: 'node', id: n.id, x: e.clientX, y: e.clientY })}
         onEdgeContextMenu={(e, ed) => openMenu(e, { kind: 'edge', id: ed.id, x: e.clientX, y: e.clientY })}
         onPaneContextMenu={(e) => openMenu(e as React.MouseEvent, { kind: 'pane', x: e.clientX, y: e.clientY })}
@@ -420,6 +426,7 @@ export default function Editor() {
           </div>
         )}
         {!presenting && <StatusBar />}
+        <PromptHost />
       </div>
     </ReactFlowProvider>
   );

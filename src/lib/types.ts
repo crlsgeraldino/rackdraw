@@ -84,6 +84,8 @@ export interface NodeExtras {
   link?: string;
   /** Review comments on this item (Review → New Comment). */
   comments?: ItemComment[];
+  /** ScreenTip (Insert → ScreenTip): text shown when hovering the item. */
+  tip?: string;
 }
 
 export interface ItemComment {

@@ -107,6 +107,7 @@ function Card({ id, data, stencil, card }: { id: string; data: DeviceData; stenc
           <div className="truncate text-[11px] text-gray-500">{[stencil?.name, status.label].filter(Boolean).join(' · ')}</div>
         </div>
       </div>
+      {data.tip && <p className="mb-2 whitespace-pre-wrap rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-900">{data.tip}</p>}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         {data.model && <Row label="Model">{data.model}</Row>}
         {data.ip && (

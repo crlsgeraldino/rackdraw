@@ -9,6 +9,7 @@ import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, rende
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
+import { askText } from '../PromptHost';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { THEMES, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
@@ -16,7 +17,7 @@ import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
-import { allNodes } from '@/lib/project';
+import { activePage, allNodes } from '@/lib/project';
 import { SET_SCALE_EVENT } from '@/lib/units';
 import type { AppNode, CableColorBy, DeviceColorBy, Page, ShapeKind, ShapeNode } from '@/lib/types';
 import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -514,7 +515,30 @@ function HomeTab() {
         <Column>
           <Small icon="find" label="Find" onClick={() => openFind(false)} title="Find (Ctrl+F)" />
           <Small icon="replace" label="Replace" onClick={() => openFind(true)} title="Replace (Ctrl+H)" />
-          <Small icon="selectAll" label="Select All" onClick={s.selectAll} title="Select everything on this page (Ctrl+A)" />
+          <Drop width={230} trigger={(open) => <Small icon="selectAll" label="Select ▾" onClick={open} title="Select all, or select by type (like Visio)" />}>
+            {(close) => {
+              const pick = (w: Parameters<typeof s.selectWhere>[0]) => { s.selectWhere(w); close(); };
+              const layers = useDiagram.getState().projects[useDiagram.getState().currentId].layers ?? [];
+              const btn = (label: string, run: () => void, disabled = false) => (
+                <button key={label} disabled={disabled} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-blue-50 disabled:opacity-40" onClick={run}>{label}</button>
+              );
+              return (
+                <div className="py-1">
+                  {btn('Select All (Ctrl+A)', () => { s.selectAll(); close(); })}
+                  <div className="my-1 border-t border-gray-100" />
+                  <div className="px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Select by type</div>
+                  {btn('Same type as selected', () => pick('same'), !st.count)}
+                  {btn('All devices', () => pick('devices'))}
+                  {btn('All cables and lines', () => pick('cables'))}
+                  {btn('All drawing shapes and notes', () => pick('shapes'))}
+                  {btn('All text', () => pick('text'))}
+                  {btn('All zones', () => pick('zones'))}
+                  {layers.length > 0 && <div className="mt-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">On layer</div>}
+                  {layers.map((l) => btn(l.name, () => pick(`layer:${l.id}`)))}
+                </div>
+              );
+            }}
+          </Drop>
         </Column>
       </Group>
     </>
@@ -608,8 +632,22 @@ function InsertTab() {
         <Big icon="info" label="Callout" onClick={() => insertCallout()} title="A callout pointing at the selected item (or a free one)" />
         <Big icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Dimension line (uses the page scale)" />
       </Group>
+      <Group label="Text">
+        <Big icon="screenTip" label="ScreenTip" onClick={() => editScreenTip()} title="Text shown when you hover the selected items" />
+      </Group>
     </>
   );
+}
+
+/** Insert → ScreenTip: asks for the hover text of the selected items. */
+export async function editScreenTip() {
+  const st = useDiagram.getState();
+  const pg = activePage(st.projects[st.currentId]);
+  const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
+  if (!sel.length) return alert('Select the item(s) to add a ScreenTip to first.');
+  const first = sel[0].type !== 'backdrop' ? sel[0].data.tip ?? '' : '';
+  const tip = await askText('ScreenTip\nShown when the pointer rests on the item. Leave empty to remove it. (Ctrl+Enter = OK)', first, { multiline: true });
+  if (tip !== null) st.setTipOnSelection(tip);
 }
 
 const DEVICE_COLOR: { value: DeviceColorBy; label: string }[] = [
