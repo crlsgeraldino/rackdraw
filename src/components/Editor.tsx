@@ -106,27 +106,51 @@ function Canvas() {
   const project = useCurrentProject();
   const page = useCurrentPage();
   const display = useDisplay();
-  // Items on hidden layers are hidden on the canvas (and so in picture exports).
+  // Layer Properties: hidden layers are hidden on the canvas (and so in exports); locked layers can't be selected or
+  // moved; non-printing layers are tagged so prints and picture exports leave them out.
+  const layerProps = useMemo(() => {
+    const locked = new Set<string>(), noPrint = new Set<string>();
+    for (const l of project.layers ?? []) {
+      if (l.locked) locked.add(l.id);
+      if (l.print === false) noPrint.add(l.id);
+    }
+    return { locked, noPrint };
+  }, [project.layers]);
   const nodes = useMemo(
-    () => page.nodes.map((n) => ((n.type === 'device' || n.type === 'shape') && n.data.layer && display.hidden.has(n.data.layer) ? { ...n, hidden: true } : n)),
-    [page.nodes, display.hidden],
+    () => page.nodes.map((n) => {
+      const layer = (n.type === 'device' || n.type === 'shape') ? n.data.layer : undefined;
+      if (!layer) return n;
+      if (display.hidden.has(layer)) return { ...n, hidden: true };
+      const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);
+      if (!locked && !noPrint) return n;
+      return {
+        ...n,
+        ...(locked ? { selectable: false, draggable: false, deletable: false, selected: false } : {}),
+        ...(noPrint ? { className: [n.className, 'nc-noprint'].filter(Boolean).join(' ') } : {}),
+      };
+    }),
+    [page.nodes, display.hidden, layerProps],
   );
   const edges = useMemo(
     () =>
       page.edges.map((e) => {
         const hidden = !!(e.data?.layer && display.hidden.has(e.data.layer));
+        const locked = !!(e.data?.layer && layerProps.locked.has(e.data.layer));
+        const noPrint = !!(e.data?.layer && layerProps.noPrint.has(e.data.layer));
         const arrows = e.data?.arrows ?? 'none';
-        if (!hidden && arrows === 'none') return e;
+        const lp = { ...(locked ? { selectable: false, deletable: false, selected: false } : {}), ...(noPrint ? { className: 'nc-noprint' } : {}) };
+        if (!hidden && arrows === 'none') return locked || noPrint ? { ...e, ...lp } : e;
         // Arrowheads take the line's color.
         const marker = { type: MarkerType.ArrowClosed, color: display.cable(e.data).color, width: 16, height: 16 };
         return {
           ...e,
+          ...lp,
           hidden,
           markerEnd: arrows === 'end' || arrows === 'both' ? marker : undefined,
           markerStart: arrows === 'start' || arrows === 'both' ? marker : undefined,
         };
       }),
-    [page.edges, display],
+    [page.edges, display, layerProps],
   );
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);

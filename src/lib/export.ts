@@ -208,7 +208,8 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect) {
     pixelRatio: 2,
     style: { width: `${width}px`, height: `${height}px`, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})` },
     // Leave out resize handles and connection dots (shown on selected items).
-    filter: (node: Element) => !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle') || node.classList?.contains('react-flow__node-toolbar') || node.classList?.contains('nc-page-sheet'))),
+    // Non-printing layers (Layer Properties → Print) are tagged nc-noprint; their cables are SVG elements.
+    filter: (node: Element) => !(node instanceof Element && node.classList?.contains('nc-noprint')) && !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle') || node.classList?.contains('react-flow__node-toolbar') || node.classList?.contains('nc-page-sheet'))),
   };
   return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
 }

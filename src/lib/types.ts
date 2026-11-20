@@ -274,6 +274,12 @@ export interface Layer {
   id: string;
   name: string;
   visible: boolean;
+  /** Printed and exported (default true). Visio's "Print" column. */
+  print?: boolean;
+  /** Items can't be selected, moved or deleted. */
+  locked?: boolean;
+  /** New devices, shapes and cables go on the active layer. */
+  active?: boolean;
 }
 
 export type DeviceColorBy = 'none' | 'status' | 'location' | 'model' | 'layer';
@@ -373,6 +379,8 @@ export interface Project {
   /** The spreadsheet last imported, so it can be re-applied with Refresh. */
   dataLink?: DataLink;
   layers?: Layer[];
+  /** Saved report definitions (Data → Reports). */
+  reports?: import('./report').ReportDef[];
   display?: DisplaySettings;
   titleBlock?: TitleBlock;
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */

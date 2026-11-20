@@ -46,6 +46,9 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
       items.push({ label: node.data.infoBox?.show ? 'Hide info box' : 'Show info box', run: () => s.mapDevices([node.id], (d) => ({ infoBox: { ...d.infoBox, show: !d.infoBox?.show } })) });
       items.push('sep');
     }
+    if (node.type === 'zone') {
+      items.push({ label: 'Fit to contents', run: () => s.fitZoneToContents(node.id) }, 'sep');
+    }
     items.push(
       { label: 'Cut', keys: 'Ctrl+X', run: () => { if (!document.execCommand('cut')) s.cutSelected(); }, disabled: locked },
       { label: 'Copy', keys: 'Ctrl+C', run: () => { if (!document.execCommand('copy')) s.copySelected(); } },

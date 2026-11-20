@@ -8,6 +8,7 @@ import { openFind, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
+import { ReportDialog } from '../ReportDialog';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
@@ -617,8 +618,10 @@ function DesignTab() {
 function DataTab() {
   const propsPane = usePref('propsPane');
   const quick = usePref('quickInfo');
+  const [reports, setReports] = useState(false);
   return (
     <>
+      {reports && <ReportDialog onClose={() => setReports(false)} />}
       <Group label="Show/Hide">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
         <Column>
@@ -630,6 +633,9 @@ function DataTab() {
       </Group>
       <Group label="Layers & Colours">
         <div className="flex items-start pt-1"><ViewMenu label="Layers" /></div>
+      </Group>
+      <Group label="Reports">
+        <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />
       </Group>
       <Group label="Validate">
         <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} title="Find duplicate IPs, unconnected uplinks, missing details…" />

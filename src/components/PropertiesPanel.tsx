@@ -814,6 +814,10 @@ export function PropertiesPanel() {
             <button key={c} onClick={() => update(z.id, { color: c })} className={`h-6 w-6 rounded ${z.data.color === c ? 'ring-2 ring-offset-1' : ''}`} style={{ background: c }} aria-label={c} />
           ))}
         </div>
+        <p className="mt-3 text-xs text-gray-500">A zone is a container: dragging it moves everything inside it.</p>
+        <button className="mt-1 rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50" onClick={() => useDiagram.getState().fitZoneToContents(z.id)}>
+          Fit to contents
+        </button>
         <div className="mt-3"><LinkField nodeId={z.id} value={z.data.link} /></div>
       </>
     );

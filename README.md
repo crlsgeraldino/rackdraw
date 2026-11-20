@@ -262,6 +262,24 @@ The **View** menu works like Visio's layers and data graphics:
 - **Layers** group devices and cables (e.g. Cameras, Wi-Fi, Power, Planned work). Create them in the View menu, put
   the selection on a layer (or set it in the properties panel), and tick a layer off to hide everything on it, on the
   canvas and in picture/PDF exports. Tables in the PDF/CSV still list everything.
+- **Layer properties** (Data → Layers), like Visio's: per layer **Visible**, **Print** (untick to leave it out of
+  prints, PDF, pictures and the Word report while still showing it on screen), **Lock** (its devices, shapes and
+  cables can't be selected, moved or deleted) and **Active** (new devices, shapes and cables go on it). Shapes can
+  be put on layers too.
+
+## Containers
+
+- A **zone** works like a Visio container: drag it and everything inside it moves along (what's inside is decided
+  when the drag starts, so it doesn't pick up items it passes over). **Fit to contents** (right-click the zone, or
+  the right panel) resizes it around what it holds.
+
+## Reports (Data → Reports)
+
+- Like Visio's Report wizard: choose the devices (every page or one, a layer, and a condition such as "Serial is
+  empty" or "Model contains TZ"), tick the fields — built-in ones and your own **My fields** — order the columns,
+  sort, and add a totals row (device count, power, connections). The preview updates as you go.
+- Export to **Excel (.xlsx)** with a bold frozen header and filters, **Word (.docx)**, **CSV**, or **Copy table** to
+  paste into Excel, Word or an email. Report definitions are saved with the client.
 
 ## Spreadsheet data (Excel / CSV)
 

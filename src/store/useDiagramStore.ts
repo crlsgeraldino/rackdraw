@@ -136,9 +136,17 @@ interface DiagramState {
   renameLayer: (id: string, name: string) => void;
   deleteLayer: (id: string) => void;
   toggleLayer: (id: string) => void;
+  /** Layer Properties: visible / print / lock / name. */
+  updateLayer: (id: string, patch: Partial<Omit<Layer, 'id'>>) => void;
+  /** Makes a layer the active one (new items go on it), or none. */
+  setActiveLayer: (id: string | null) => void;
+  /** Resizes a zone (container) around the items inside it. */
+  fitZoneToContents: (id: string) => void;
   /** Puts the selected devices/cables on the active page onto a layer (null = no layer). Returns how many moved. */
   assignSelectionToLayer: (layerId: string | null) => number;
   setDisplay: (patch: Partial<DisplaySettings>) => void;
+  /** Replaces the client's saved report definitions. */
+  saveReports: (reports: NonNullable<Project['reports']>) => void;
 
   // pages (current project)
   setActivePage: (id: string) => void;
@@ -235,6 +243,32 @@ const lockFlags = (locked: boolean) => ({ draggable: !locked, deletable: !locked
 const HISTORY_LIMIT = 100;
 const first = blankProject('New client');
 
+/** Size of a node on the canvas: as measured by React Flow, else its set size. */
+function nodeSize(n: AppNode) {
+  const st = n.style as { width?: number; height?: number } | undefined;
+  return { w: n.measured?.width ?? n.width ?? st?.width ?? 0, h: n.measured?.height ?? n.height ?? st?.height ?? 0 };
+}
+
+/** Items whose centre lies inside a zone: the zone's contents, as in a Visio container. */
+function zoneMembers(z: AppNode, nodes: AppNode[]) {
+  const s = nodeSize(z);
+  return nodes.filter((n) => {
+    if (n.id === z.id || n.type === 'backdrop') return false;
+    const m = nodeSize(n);
+    if (n.type === 'zone' && m.w * m.h >= s.w * s.h) return false;
+    const cx = n.position.x + m.w / 2, cy = n.position.y + m.h / 2;
+    return cx > z.position.x && cx < z.position.x + s.w && cy > z.position.y && cy < z.position.y + s.h;
+  });
+}
+
+/** Contents of the zones being dragged, captured when each drag starts. */
+const zoneDrag = new Map<string, string[]>();
+
+/** The active layer's id, for new items. */
+function activeLayer(p: Project) {
+  return p.layers?.find((l) => l.active)?.id;
+}
+
 export const useDiagram = create<DiagramState>()(
   persist(
     (set, get) => {
@@ -320,6 +354,7 @@ export const useDiagram = create<DiagramState>()(
               });
             }
           }
+          for (const c of arr) if (c.type === 'position' && !c.dragging) zoneDrag.delete(c.id);
           // Callouts follow the item they point to (unless they are being dragged themselves).
           const dragged = new Map<string, { dx: number; dy: number }>();
           for (const c of arr) {
@@ -328,9 +363,20 @@ export const useDiagram = create<DiagramState>()(
             if (old) dragged.set(c.id, { dx: c.position.x - old.position.x, dy: c.position.y - old.position.y });
           }
           if (dragged.size) {
+            // Zones are containers (like Visio's): dragging one moves what sits inside it.
+            // Membership is fixed when the drag starts, so a zone doesn't pick up what it passes over.
+            const follow = new Map(dragged);
+            for (const z of before) {
+              const d = z.type === 'zone' ? dragged.get(z.id) : undefined;
+              if (!d) continue;
+              let members = zoneDrag.get(z.id);
+              if (!members) zoneDrag.set(z.id, (members = zoneMembers(z, before).map((m) => m.id)));
+              if (d.dx || d.dy) for (const m of members) if (!dragged.has(m) && !follow.has(m)) follow.set(m, d);
+            }
             nodes = nodes.map((n) => {
+              if (dragged.has(n.id)) return n;
               const t = n.type === 'shape' && n.data.kind === 'callout' ? n.data.target : undefined;
-              const d = t && !dragged.has(n.id) ? dragged.get(t) : undefined;
+              const d = follow.get(n.id) ?? (t ? follow.get(t) : undefined);
               return d && (d.dx || d.dy) ? { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } } : n;
             });
           }
@@ -354,7 +400,7 @@ export const useDiagram = create<DiagramState>()(
             ...c,
             id: `e-${uid()}`,
             type: 'cable',
-            data: cable ? { cable: 'Cat6' } : { cable: 'Line', arrows: 'end', route: 'step' },
+            data: { ...(cable ? { cable: 'Cat6' } : { cable: 'Line', arrows: 'end', route: 'step' }), layer: activeLayer(cur()) },
           } as CableEdge;
           commit({ edges: addEdge(edge, page().edges) });
         },
@@ -368,7 +414,7 @@ export const useDiagram = create<DiagramState>()(
             id: `n-${uid()}`,
             type: 'device',
             position,
-            data: { stencilId, name: count ? `${s.name} ${count + 1}` : s.name, ...s.defaults } as DeviceData,
+            data: { stencilId, name: count ? `${s.name} ${count + 1}` : s.name, ...s.defaults, layer: activeLayer(cur()) } as DeviceData,
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
@@ -445,6 +491,7 @@ export const useDiagram = create<DiagramState>()(
               textColor: '#111827',
               fontSize: kind === 'text' ? 18 : 14,
               rotation: 0,
+              layer: activeLayer(cur()),
             },
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
@@ -787,17 +834,44 @@ export const useDiagram = create<DiagramState>()(
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)) } } });
         },
+        updateLayer: (id, patch) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => (l.id === id ? { ...l, ...patch } : l)), updatedAt: Date.now() } } });
+        },
+        setActiveLayer: (id) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => ({ ...l, active: l.id === id ? true : undefined })) } } });
+        },
+        fitZoneToContents: (id) => {
+          const pg = page();
+          const z = pg.nodes.find((n) => n.id === id && n.type === 'zone');
+          if (!z) return;
+          const members = zoneMembers(z, pg.nodes);
+          if (!members.length) return;
+          get().snapshot();
+          const pad = 24, title = 28;
+          const xs = members.flatMap((m) => [m.position.x, m.position.x + nodeSize(m).w]);
+          const ys = members.flatMap((m) => [m.position.y, m.position.y + nodeSize(m).h]);
+          const x = Math.min(...xs) - pad, y = Math.min(...ys) - pad - title;
+          const width = Math.max(...xs) + pad - x, height = Math.max(...ys) + pad - y;
+          commit({ nodes: pg.nodes.map((n) => (n.id === id ? { ...n, position: { x, y }, width, height, style: { ...n.style, width, height } } : n)) });
+        },
         assignSelectionToLayer: (layerId) => {
           const pg = page();
-          const n = pg.nodes.filter((x) => x.selected && x.type === 'device').length + pg.edges.filter((e) => e.selected).length;
+          const onLayer = (x: AppNode) => x.selected && (x.type === 'device' || x.type === 'shape');
+          const n = pg.nodes.filter(onLayer).length + pg.edges.filter((e) => e.selected).length;
           if (!n) return 0;
           get().snapshot();
           const layer = layerId ?? undefined;
           commit({
-            nodes: pg.nodes.map((x) => (x.selected && x.type === 'device' ? { ...x, data: { ...x.data, layer } } : x)),
+            nodes: pg.nodes.map((x) => (onLayer(x) ? ({ ...x, data: { ...x.data, layer } } as AppNode) : x)),
             edges: pg.edges.map((e) => (e.selected ? { ...e, data: { ...(e.data as CableData), layer } } : e)),
           });
           return n;
+        },
+        saveReports: (reports) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, reports, updatedAt: Date.now() } } });
         },
         setDisplay: (patch) => {
           const p = cur();
