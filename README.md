@@ -281,6 +281,8 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 - Cables end on an icon's picture (the modem's body, the cloud's outline) instead of the empty box around it.
 
+- **Parallel cables get their own lanes**: where several right-angle cables would run on the same line (e.g. a switch
+  feeding a row of workstations), they're spread a few pixels apart, ordered so the bundle doesn't cross itself.
 - **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).
   Turn off under **View → Line jumps where cables cross**.
 - **Arrange → Auto-arrange (top down)** lays out the selected devices (or the whole page) in rows by cabling:
