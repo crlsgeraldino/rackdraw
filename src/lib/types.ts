@@ -320,6 +320,8 @@ export interface Page {
   nodes: AppNode[];
   edges: CableEdge[];
   scale?: PageScale;
+  /** Paper size and orientation of the drawing page (Design → Page Setup); missing = Letter landscape. */
+  setup?: { paper: 'letter' | 'legal' | 'tabloid' | 'a4' | 'a3'; landscape: boolean };
 }
 
 export interface Project {

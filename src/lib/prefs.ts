@@ -19,8 +19,12 @@ export interface Prefs {
   propsPane: boolean;
   /** Ribbon collapsed to its tab names (Ctrl+F1). */
   ribbonCollapsed: boolean;
+  rulers: boolean;
+  grid: boolean;
+  /** Dashed lines where one printed sheet ends and the next begins. */
+  pageBreaks: boolean;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

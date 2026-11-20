@@ -3,6 +3,7 @@
 import { useReactFlow } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
+import { DEFAULT_SETUP, PAPER, type PaperSize } from '@/lib/pageSetup';
 import { openFind, paletteAction } from '@/lib/events';
 import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { loadImageFile } from '@/lib/imageImport';
@@ -456,10 +457,24 @@ function DesignTab() {
   const d = project.display ?? DEFAULT_DISPLAY;
   const tb = project.titleBlock;
   const page = useCurrentPage();
+  const setup = page.setup ?? DEFAULT_SETUP;
   const sel = 'rounded border border-gray-300 bg-white px-1 py-0 text-[11px]';
   return (
     <>
       <Group label="Page Setup">
+        <Column>
+          <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]">Size
+            <select className={sel} value={setup.paper} onChange={(e) => s.setPageSetup({ ...setup, paper: e.target.value as PaperSize })}>
+              {(Object.keys(PAPER) as PaperSize[]).map((k) => <option key={k} value={k}>{PAPER[k].label}</option>)}
+            </select>
+          </label>
+          <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]">Orientation
+            <select className={sel} value={setup.landscape ? 'l' : 'p'} onChange={(e) => s.setPageSetup({ ...setup, landscape: e.target.value === 'l' })}>
+              <option value="l">Landscape</option>
+              <option value="p">Portrait</option>
+            </select>
+          </label>
+        </Column>
         <Big icon="scale" label="Set Scale" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))} title={page.scale ? 'Set the drawing scale again' : 'Set the drawing scale from two points on a floor plan'} active={!!page.scale} />
         <Big icon="titleBlock" label="Title Block" active={!!tb?.show} onClick={() => s.updateTitleBlock({ show: !tb?.show })} title="Title block on every printed / PDF sheet (edit it in the panel with nothing selected)" />
       </Group>
@@ -541,6 +556,9 @@ function ViewTab() {
   const shapes = usePref('shapesPane');
   const props = usePref('propsPane');
   const quick = usePref('quickInfo');
+  const rulers = usePref('rulers');
+  const grid = usePref('grid');
+  const breaks = usePref('pageBreaks');
   const d = project.display ?? DEFAULT_DISPLAY;
   const diagram = view === 'diagram';
   return (
@@ -558,6 +576,11 @@ function ViewTab() {
         </Column>
       </Group>
       <Group label="Show">
+        <Column>
+          <Check label="Rulers" checked={rulers} onChange={(v) => setPref('rulers', v)} />
+          <Check label="Grid" checked={grid} onChange={(v) => setPref('grid', v)} />
+          <Check label="Page Breaks" checked={breaks} onChange={(v) => setPref('pageBreaks', v)} />
+        </Column>
         <Column>
           <Check label="Pan & Zoom" checked={minimap} onChange={(v) => setPref('minimap', v)} />
           <Check label="Legend" checked={d.showLegend} onChange={(v) => useDiagram.getState().setDisplay({ showLegend: v })} />

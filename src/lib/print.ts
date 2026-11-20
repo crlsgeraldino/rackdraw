@@ -1,16 +1,9 @@
 import { connectionRows, deviceRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
 import type { Project } from './types';
 
-export type PaperSize = 'letter' | 'legal' | 'tabloid' | 'a4' | 'a3';
+import { PAPER, type PaperSize } from './pageSetup';
 
-/** Paper sizes in inches (portrait). */
-export const PAPER: Record<PaperSize, { label: string; w: number; h: number }> = {
-  letter: { label: 'Letter (8.5 × 11 in)', w: 8.5, h: 11 },
-  legal: { label: 'Legal (8.5 × 14 in)', w: 8.5, h: 14 },
-  tabloid: { label: 'Tabloid (11 × 17 in)', w: 11, h: 17 },
-  a4: { label: 'A4', w: 8.27, h: 11.69 },
-  a3: { label: 'A3', w: 11.69, h: 16.54 },
-};
+export { PAPER, type PaperSize };
 
 export interface PrintOptions {
   paper: PaperSize;

@@ -60,6 +60,8 @@ interface DiagramState {
   addMeasure: (position: { x: number; y: number }) => void;
   /** Moves one end of a dimension line to a diagram point (no undo step; the drag takes one at its start). */
   moveMeasureEnd: (id: string, end: 'a' | 'b', point: { x: number; y: number }) => void;
+  /** Paper size / orientation of the active page (Design → Page Setup). */
+  setPageSetup: (setup: NonNullable<Page['setup']>) => void;
   /** Sets or clears the active page's drawing scale (undoable). */
   setPageScale: (scale: PageScale | null) => void;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
@@ -373,6 +375,11 @@ export const useDiagram = create<DiagramState>()(
               return { ...n, position: point, data: { ...n.data, dx: b.x - point.x, dy: b.y - point.y } };
             }),
           }),
+        setPageSetup: (setup) => {
+          get().snapshot();
+          const id = page().id;
+          commit({ pages: cur().pages.map((pg) => (pg.id === id ? { ...pg, setup } : pg)) });
+        },
         setPageScale: (scale) => {
           get().snapshot();
           const id = page().id;

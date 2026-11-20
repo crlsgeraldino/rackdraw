@@ -1,8 +1,6 @@
 'use client';
 
 import {
-  Background,
-  BackgroundVariant,
   ConnectionMode,
   MarkerType,
   MiniMap,
@@ -19,6 +17,7 @@ import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { edgeTypes } from './CableEdgeView';
+import { PageSheet, RULER, Rulers } from './CanvasPage';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
 import { ContextMenu, editStencil, type MenuTarget } from './ContextMenu';
 import { FindBar } from './FindBar';
@@ -137,6 +136,7 @@ function Canvas() {
     return () => window.removeEventListener(FIND_EVENT, open);
   }, []);
   const minimap = usePref('minimap');
+  const rulers = usePref('rulers');
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   // "Set scale": the user clicks two points a known distance apart.
   const [calib, setCalib] = useState<{ x: number; y: number }[] | null>(null);
@@ -219,6 +219,8 @@ function Canvas() {
 
   return (
     <div className="relative flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
+      {rulers && <Rulers />}
+      <div className="absolute inset-0" style={rulers ? { left: RULER, top: RULER } : undefined}>
       <ReactFlow<AppNode, CableEdge>
         key={page.id}
         nodes={nodes}
@@ -244,11 +246,13 @@ function Canvas() {
         minZoom={0.1}
         maxZoom={4}
         proOptions={{ hideAttribution: false }}
+        style={{ background: '#d9dde3' }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
+        <PageSheet />
         <Panel position="top-left"><Legend /></Panel>
         {minimap && <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />}
       </ReactFlow>
+      </div>
       {page.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-lg border border-dashed border-gray-300 bg-white/80 px-6 py-4 text-center text-sm text-gray-500">
