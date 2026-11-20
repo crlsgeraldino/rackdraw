@@ -119,6 +119,8 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras {
   extraFields?: ExtraField[];
   /** The printable info box drawn beside the device. */
   infoBox?: InfoBoxSettings;
+  /** Turned in quarter turns: 0, 90, 180 or 270 degrees (clockwise). */
+  rotation?: number;
 }
 
 export interface ExtraField {

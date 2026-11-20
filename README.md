@@ -183,6 +183,9 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Rotate** drawing shapes, text and freehand drawings by dragging the round handle above the selected shape
   (whole degrees, 15° steps with Shift, snaps to 0/90/180/270), or type the **Angle** in the right panel.
   A turned shape's resize handles turn with it, and the opposite side stays put while you drag one.
+- **Rotate devices** in 90° steps — e.g. a switch standing on its side: drag the round handle above the selected
+  device, use **Home → Arrange → Rotate Right / Rotate Left**, or right-click → Rotate. The ports turn with the
+  picture, so cables leave from the right side; the label stays upright below. Saved to `.vsdx` with Visio's angle.
 - **Rename a device on the canvas**: double-click its label, type, Enter (Esc cancels).
 - **Cable text**: drag a cable's label along the cable to move it; double-click it to put it back in the middle.
   The position is kept in exports and `.vsdx`.

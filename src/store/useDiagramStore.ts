@@ -61,6 +61,10 @@ interface DiagramState {
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
   /** Adds a dimension line (or a floor-plan wall) starting at `position`. */
   addMeasure: (position: { x: number; y: number }, variant?: 'dimension' | 'wall') => void;
+  /** Turns a device to 0/90/180/270° (its box turns with it). No undo step. */
+  setDeviceRotation: (id: string, rotation: number) => void;
+  /** Rotate Left / Right 90° for the selection: devices and drawing shapes (undoable). */
+  rotateSelection: (delta: 90 | -90) => void;
   /** Moves and resizes one node (rotated-shape resize handles). No undo step: the drag takes one at its start. */
   setNodeBox: (id: string, position: { x: number; y: number }, width: number, height: number) => void;
   /** Line tool: a straight line from a to b. */
@@ -278,6 +282,21 @@ function zoneMembers(z: AppNode, nodes: AppNode[]) {
   });
 }
 
+/** A device turned to `rotation` (quarter turns): a set size swaps width and height on a quarter turn, around the same centre. */
+function turnDevice(n: AppNode, rotation: number): AppNode {
+  if (n.type !== 'device') return n;
+  const r = ((Math.round(rotation / 90) * 90) % 360 + 360) % 360;
+  const old = n.data.rotation ?? 0;
+  const swap = (old % 180) !== (r % 180);
+  const s = nodeSize(n);
+  let out: AppNode = { ...n, data: { ...n.data, rotation: r || undefined } };
+  if (swap && s.w && s.h) {
+    const position = { x: n.position.x + (s.w - s.h) / 2, y: n.position.y + (s.h - s.w) / 2 };
+    out = { ...out, position, ...(n.width ? { width: n.height ?? s.h, height: n.width } : {}), measured: undefined };
+  }
+  return out;
+}
+
 /** Contents of the zones being dragged, captured when each drag starts. */
 const zoneDrag = new Map<string, string[]>();
 
@@ -478,6 +497,21 @@ export const useDiagram = create<DiagramState>()(
           const data = variant === 'wall' ? { dx: 300, dy: 0, variant, thickness: 8 } : { dx: 200, dy: 0 };
           const node: AppNode = { id: `m-${uid()}`, type: 'measure', position, data };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        setDeviceRotation: (id, rotation) =>
+          commit({ nodes: page().nodes.map((n) => (n.id === id && n.type === 'device' ? turnDevice(n, rotation) : n)) }),
+        rotateSelection: (delta) => {
+          const sel = page().nodes.filter((n) => n.selected && !extras(n).locked && (n.type === 'device' || (n.type === 'shape' && n.data.kind !== 'window' && n.data.kind !== 'callout')));
+          if (!sel.length) return;
+          get().snapshot();
+          const ids = new Set(sel.map((n) => n.id));
+          commit({
+            nodes: page().nodes.map((n) => {
+              if (!ids.has(n.id)) return n;
+              const r = ((((n.data as { rotation?: number }).rotation ?? 0) + delta) % 360 + 360) % 360;
+              return n.type === 'device' ? turnDevice(n, Math.round(r / 90) * 90) : ({ ...n, data: { ...n.data, rotation: r } } as AppNode);
+            }),
+          });
         },
         setNodeBox: (id, position, width, height) =>
           commit({ nodes: page().nodes.map((n) => (n.id === id ? { ...n, position, width, height, style: { ...n.style, width, height } } : n)) }),

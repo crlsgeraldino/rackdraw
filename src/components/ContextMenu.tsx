@@ -59,6 +59,9 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
     );
     if (selCount > 1) items.push({ label: 'Group', keys: 'Ctrl+G', run: s.groupSelected });
     if (node.type !== 'backdrop' && node.data.group) items.push({ label: 'Ungroup', keys: 'Ctrl+Shift+G', run: s.ungroupSelected });
+    if (node.type === 'device' || (node.type === 'shape' && node.data.kind !== 'window' && node.data.kind !== 'callout')) {
+      items.push({ label: 'Rotate right 90°', run: () => s.rotateSelection(90) }, { label: 'Rotate left 90°', run: () => s.rotateSelection(-90) });
+    }
     items.push(
       { label: locked ? 'Unlock' : 'Lock position', run: () => s.setSelectionLocked(!locked) },
       'sep',

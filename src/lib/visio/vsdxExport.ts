@@ -234,10 +234,14 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             ...(d.notes ? [['Notes', d.notes] as [string, string]] : []),
           ];
           // Ports become Visio connection points (named after the port), so cables can be glued to them in Visio.
-          const k = b.w / (s.width * (s.style === 'icon' ? 1 : s.scale));
+          // A turned device: the picture at its own size around the same centre, with Visio's Angle (counter-clockwise).
+          const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
+          const quarter = rot % 180 === 90;
+          const ub = quarter ? { x: b.x + (b.w - b.h) / 2, y: b.y + (b.h - b.w) / 2, w: b.h, h: b.w } : b;
+          const k = ub.w / (s.width * (s.style === 'icon' ? 1 : s.scale));
           const kk = (s.style === 'icon' ? 1 : s.scale) * k;
           const ports = s.ports.map((p) => ({ x: inch((p.x + p.w / 2) * kk), y: inch((p.y + p.h / 2) * kk), name: d.ports?.[p.id]?.label || p.label }));
-          front.push({ kind: 'image', name: d.name, box: ibox(b), media: name, ports, data: data.filter(([, v]) => v !== '') });
+          front.push({ kind: 'image', name: d.name, box: ibox(ub), media: name, ports, data: data.filter(([, v]) => v !== ''), angle: rot ? (-rot * Math.PI) / 180 : undefined });
           // Label and info box as drawn.
           const el = document.querySelector(`.react-flow__node[data-id="${CSS.escape(n.id)}"]`);
           const lab = el?.querySelector('.nc-device-label');

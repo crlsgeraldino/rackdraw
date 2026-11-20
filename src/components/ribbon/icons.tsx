@@ -39,6 +39,8 @@ const P: Record<string, React.ReactNode> = {
   shapes: <><rect x="2" y="2" width="8" height="8" /><circle cx="14" cy="14" r="4" /></>,
   zone: <><rect x="2" y="3" width="16" height="14" rx="2" strokeDasharray="3 2" stroke="#2563eb" /></>,
   note: <><path d="M3 3h14v10l-4 4H3z" fill="#fef9c3" /><path d="M13 17v-4h4" /></>,
+  rotateRight: <><path d="M15 4v4h-4" /><path d="M15 8a6.5 6.5 0 1 0 1.5 5" /><rect x="7" y="9" width="5" height="5" fill="#93c5fd" /></>,
+  rotateLeft: <><path d="M5 4v4h4" /><path d="M5 8a6.5 6.5 0 1 1-1.5 5" /><rect x="8" y="9" width="5" height="5" fill="#93c5fd" /></>,
   pointer: <><path d="M5 2l10 9-4.5.8L13 17l-2 1-2.6-5.2L5 15z" /></>,
   lineTool: <><path d="M3 17L17 3" /><circle cx="3" cy="17" r="1.5" /><circle cx="17" cy="3" r="1.5" /></>,
   pencil: <><path d="M3 17l1-4L14 3l3 3L7 16z" /><path d="M12 5l3 3" /><path d="M3 17l4-1" stroke="#2563eb" /></>,

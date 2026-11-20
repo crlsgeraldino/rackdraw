@@ -463,6 +463,10 @@ function HomeTab() {
             ? <Small icon="unlock" label="Unlock" onClick={() => s.setSelectionLocked(false)} />
             : <Small icon="lock" label="Lock" onClick={() => s.setSelectionLocked(true)} disabled={!st.unlocked} title="Lock position: can't be moved, resized or deleted" />}
         </Column>
+        <Column>
+          <Small icon="rotateRight" label="Rotate Right" onClick={() => s.rotateSelection(90)} disabled={!st.count} title="Rotate the selection right 90°" />
+          <Small icon="rotateLeft" label="Rotate Left" onClick={() => s.rotateSelection(-90)} disabled={!st.count} title="Rotate the selection left 90°" />
+        </Column>
       </Group>
       <Group label="Editing">
         <Column>
@@ -807,6 +811,10 @@ function ShapeTab() {
           <Small icon="front" label="Bring to Front" onClick={() => s.orderSelected('front')} disabled={!st.count} />
           <Small icon="back" label="Send to Back" onClick={() => s.orderSelected('back')} disabled={!st.count} />
           {st.locked ? <Small icon="unlock" label="Unlock" onClick={() => s.setSelectionLocked(false)} /> : <Small icon="lock" label="Lock" onClick={() => s.setSelectionLocked(true)} disabled={!st.unlocked} />}
+        </Column>
+        <Column>
+          <Small icon="rotateRight" label="Rotate Right" onClick={() => s.rotateSelection(90)} disabled={!st.count} />
+          <Small icon="rotateLeft" label="Rotate Left" onClick={() => s.rotateSelection(-90)} disabled={!st.count} />
         </Column>
       </Group>
       <Group label="Delete">

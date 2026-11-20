@@ -15,6 +15,10 @@ import MeasureNodeView from './MeasureNode';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
 
+const SIDES: PortDef['side'][] = ['top', 'right', 'bottom', 'left'];
+/** Which way a port faces once the device is turned clockwise by `deg` (quarter turns). */
+const turnSide = (side: PortDef['side'], deg: number) => SIDES[(SIDES.indexOf(side) + Math.round(deg / 90)) % 4];
+
 const SIDE: Record<PortDef['side'], Position> = {
   top: Position.Top,
   bottom: Position.Bottom,
@@ -141,16 +145,19 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   }
   // Resizing sets the node's width; everything (art, ports, highlights) scales from it, keeping proportions.
   const base = baseSize(stencil);
-  const zoom = width ? width / base.width : 1;
+  // Quarter turns (Visio's Rotate 90°): the box swaps width and height, the drawing turns inside it.
+  const rot = ((data.rotation ?? 0) % 360 + 360) % 360;
+  const quarter = rot % 180 === 90;
+  const zoom = width ? width / (quarter ? base.height : base.width) : 1;
   const k = (stencil.style === 'icon' ? 1 : stencil.scale) * zoom;
   const resizer = (
     <NodeResizer
       isVisible={selected && !data.locked}
       keepAspectRatio
-      minWidth={Math.min(base.width, Math.max(24, base.width * 0.2))}
-      minHeight={Math.min(base.height, Math.max(8, base.height * 0.2))}
-      maxWidth={base.width * 6}
-      maxHeight={base.height * 6}
+      minWidth={quarter ? Math.min(base.height, Math.max(8, base.height * 0.2)) : Math.min(base.width, Math.max(24, base.width * 0.2))}
+      minHeight={quarter ? Math.min(base.width, Math.max(24, base.width * 0.2)) : Math.min(base.height, Math.max(8, base.height * 0.2))}
+      maxWidth={(quarter ? base.height : base.width) * 6}
+      maxHeight={(quarter ? base.width : base.height) * 6}
       color="#3b82f6"
       handleStyle={{ width: 9, height: 9, borderRadius: 2 }}
       lineStyle={{ borderWidth: 0 }}
@@ -181,7 +188,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         key={p.id}
         id={p.id}
         type="source"
-        position={SIDE[p.side]}
+        position={SIDE[turnSide(p.side, rot)]}
         title={title}
         className={stencil.style === 'icon' ? 'nc-handle-dot' : 'nc-handle-port'}
         style={{ left: (p.x + off.x) * k, top: (p.y + off.y) * k, width: p.w * k, height: p.h * k }}
@@ -205,28 +212,38 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         {resizer}
         {quickInfo}
         <NodeBadges data={data} selected={selected} />
-        <div ref={iconPorts.ref} className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
+        <div ref={iconPorts.ref} className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade, transform: rot ? `rotate(${rot}deg)` : undefined }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
         </div>
+        {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
         <DeviceLabel id={id} data={data} variant="icon" />
         <DeviceInfoBox id={id} data={data} />
       </div>
     );
   }
 
+  const aw = stencil.width * k, ah = stencil.height * k;
+  const box = quarter ? { width: ah, height: aw } : { width: aw, height: ah };
   return (
-    <div className={`relative ${selected ? 'nc-selected-panel' : ''}`} {...hover.bind}>
+    <div className={`relative ${selected ? 'nc-selected-panel' : ''}`} style={rot ? box : undefined} {...hover.bind}>
       {resizer}
       {quickInfo}
       <NodeBadges data={data} selected={selected} />
-      <div style={{ ...(selected ? {} : outline), ...fade }}>
-        {stencil.style === 'image'
-          ? <ImageArt stencil={stencil} portStates={states} k={k} />
-          : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
+      {/* The drawing, its port markers and its ports turn together; React Flow reads the turned port positions. */}
+      <div
+        className={rot ? 'absolute' : undefined}
+        style={rot ? { width: aw, height: ah, left: (box.width - aw) / 2, top: (box.height - ah) / 2, transform: `rotate(${rot}deg)` } : undefined}
+      >
+        <div style={{ ...(selected ? {} : outline), ...fade }}>
+          {stencil.style === 'image'
+            ? <ImageArt stencil={stencil} portStates={states} k={k} />
+            : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
+        </div>
+        {markers}
+        {handles}
       </div>
-      {markers}
-      {handles}
+      {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
       <DeviceLabel id={id} data={data} variant="panel" />
       <DeviceInfoBox id={id} data={data} />
     </div>
@@ -417,6 +434,35 @@ function TurnedResizer({ id, x, y, w, h, rotation }: { id: string; x: number; y:
           onPointerCancel={() => { drag.current = null; }}
         />
       ))}
+    </>
+  );
+}
+
+/** Rotate handle for a device: drag it round to turn the device in quarter turns. */
+function DeviceRotateHandle({ id }: { id: string }) {
+  const setRotation = useDiagram((s) => s.setDeviceRotation);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const node = useRef<HTMLSpanElement>(null);
+  const active = useRef(false);
+  return (
+    <>
+      <span className="pointer-events-none absolute left-1/2 h-4 w-px -translate-x-1/2 bg-blue-500" style={{ top: -20 }} />
+      <span
+        ref={node}
+        className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
+        style={{ top: -26 }}
+        title="Drag to rotate in 90° steps"
+        onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => {
+          if (!active.current) return;
+          const r = (node.current!.parentElement as HTMLElement).getBoundingClientRect();
+          let a = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI + 90;
+          a = ((Math.round(a / 90) * 90) % 360 + 360) % 360;
+          setRotation(id, a);
+        }}
+        onPointerUp={() => { active.current = false; }}
+        onPointerCancel={() => { active.current = false; }}
+      />
     </>
   );
 }
