@@ -10,7 +10,9 @@ import { DEFAULT_LIBRARY, libraryOf, resolveLibrary, sameLibrary } from '@/lib/l
 import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
 import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, ShapeKind, StencilDef } from '@/lib/types';
+import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
+import { replaceHits, type FindHit } from '@/lib/find';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, ShapeKind, StencilDef, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -59,6 +61,25 @@ interface DiagramState {
   updateEdgeData: (id: string, patch: Partial<CableData>) => void;
   deleteSelected: () => void;
   duplicateSelected: () => void;
+
+  // clipboard and Arrange (active page selection)
+  /** Copies the selected items (and cables between them); returns what was copied, or null if nothing was selected. */
+  copySelected: () => Clipboard | null;
+  /** Copies, then deletes the selection (locked items are copied but stay). */
+  cutSelected: () => Clipboard | null;
+  /** Pastes items onto the active page, offset a little each time; `clip` defaults to the last copy. Returns how many. */
+  paste: (clip?: Clipboard | null) => number;
+  alignSelected: (mode: AlignMode) => void;
+  distributeSelected: (axis: DistributeAxis) => void;
+  groupSelected: () => void;
+  ungroupSelected: () => void;
+  orderSelected: (to: 'front' | 'back') => void;
+  setSelectionLocked: (locked: boolean) => void;
+  /** Shows a page and selects one node or cable on it (used by Find). */
+  selectItem: (pageId: string, kind: 'node' | 'edge', id: string) => void;
+  /** Replaces `term` in the given Find hits (undoable). Returns how many fields changed. */
+  replaceInHits: (hits: FindHit[], term: string, replacement: string, matchCase: boolean) => number;
+  updateTitleBlock: (patch: Partial<TitleBlock>) => void;
 
   // projects
   newProject: (name: string) => void;
@@ -154,6 +175,23 @@ function blankProject(name: string): Project {
 /** Gives a copied node a fresh id (keeping its id prefix). */
 const reId = (id: string) => `${id.split('-')[0]}-${uid()}`;
 
+/** Copied diagram items. Also put on the system clipboard, so it can be pasted into another NetCraft window. */
+export interface Clipboard {
+  format: 'netcraft-clip';
+  nodes: AppNode[];
+  edges: CableEdge[];
+}
+export const CLIP_MIME = 'application/x-netcraft-clip';
+
+/** Last copy, and how many times it has been pasted (each paste lands a little further down-right). */
+let clipboard: { clip: Clipboard; pasted: number } | null = null;
+
+/** Data fields shared by all node kinds (group, lock, link). */
+const extras = (n: AppNode) => n.data as { group?: string; locked?: boolean; link?: string };
+
+/** React Flow flags for a locked item: it can be selected (to edit or unlock) but not dragged or deleted. */
+const lockFlags = (locked: boolean) => ({ draggable: !locked, deletable: !locked });
+
 const HISTORY_LIMIT = 100;
 const first = blankProject('New client');
 
@@ -213,7 +251,35 @@ export const useDiagram = create<DiagramState>()(
         onNodesChange: (changes) => {
           const arr = changes.toArray();
           if (arr.some((c) => c.type === 'remove')) get().snapshot();
-          const nodes = changes.applyTo(page().nodes);
+          const before = page().nodes;
+          let nodes = changes.applyTo(before);
+          // Groups: moving or selecting one member moves/selects the whole group.
+          const groupOf = new Map(before.filter((n) => n.type !== 'backdrop' && extras(n).group).map((n) => [n.id, extras(n).group!]));
+          if (groupOf.size) {
+            const moved = new Map<string, { dx: number; dy: number }>();
+            const touched = new Set(arr.flatMap((c) => (c.type === 'position' ? [c.id] : [])));
+            for (const c of arr) {
+              // Only drags move the group; a resize handle also sends position changes for the resized item.
+              if (c.type !== 'position' || !c.position || !c.dragging) continue;
+              const g = groupOf.get(c.id);
+              const old = g ? before.find((n) => n.id === c.id) : undefined;
+              if (g && old && !moved.has(g)) moved.set(g, { dx: c.position.x - old.position.x, dy: c.position.y - old.position.y });
+            }
+            const selected = new Map<string, boolean>();
+            // Clicking a member of an already-selected group deselects the others; "selected" wins.
+            for (const c of arr) if (c.type === 'select' && groupOf.has(c.id)) selected.set(groupOf.get(c.id)!, c.selected || !!selected.get(groupOf.get(c.id)!));
+            if (moved.size || selected.size) {
+              nodes = nodes.map((n) => {
+                const g = groupOf.get(n.id);
+                if (!g) return n;
+                const d = moved.get(g);
+                let next = n;
+                if (d && !touched.has(n.id) && (d.dx || d.dy)) next = { ...next, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } };
+                if (selected.has(g) && n.selected !== selected.get(g)) next = { ...next, selected: selected.get(g) };
+                return next;
+              });
+            }
+          }
           // Removing a device removes its cables too.
           const ids = new Set(nodes.map((n) => n.id));
           const edges = page().edges.filter((e) => ids.has(e.source) && ids.has(e.target));
@@ -304,21 +370,151 @@ export const useDiagram = create<DiagramState>()(
         deleteSelected: () => {
           const pg = page();
           get().snapshot();
-          const nodes = pg.nodes.filter((n) => !n.selected);
+          const nodes = pg.nodes.filter((n) => !n.selected || isLocked(n));
           const ids = new Set(nodes.map((n) => n.id));
           commit({ nodes, edges: pg.edges.filter((e) => !e.selected && ids.has(e.source) && ids.has(e.target)), racks: pruneRacks(cur().racks, allWith(nodes)) });
+        },
+
+        copySelected: () => {
+          const pg = page();
+          const nodes = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
+          if (!nodes.length) return null;
+          const ids = new Set(nodes.map((n) => n.id));
+          const clip: Clipboard = {
+            format: 'netcraft-clip',
+            nodes: structuredClone(nodes),
+            edges: structuredClone(pg.edges.filter((e) => ids.has(e.source) && ids.has(e.target))),
+          };
+          clipboard = { clip, pasted: 0 };
+          return clip;
+        },
+        cutSelected: () => {
+          const clip = get().copySelected();
+          if (clip) get().deleteSelected();
+          return clip;
+        },
+        paste: (given) => {
+          if (given && given !== clipboard?.clip) clipboard = { clip: given, pasted: 0 };
+          if (!clipboard) return 0;
+          const { clip } = clipboard;
+          if (!clip.nodes.length) return 0;
+          get().snapshot();
+          const step = 40 * ++clipboard.pasted;
+          const ids = new Map(clip.nodes.map((n) => [n.id, reId(n.id)]));
+          // A pasted group is a new group, independent of the original.
+          const groups = new Map<string, string>();
+          const newGroup = (g: string) => {
+            if (!groups.has(g)) groups.set(g, `g-${uid()}`);
+            return groups.get(g)!;
+          };
+          const nodes = clip.nodes.map((n) => {
+            const copy = structuredClone(n);
+            const g = extras(n).group;
+            const data = g ? { ...copy.data, group: newGroup(g) } : copy.data;
+            return { ...copy, id: ids.get(n.id)!, position: { x: n.position.x + step, y: n.position.y + step }, selected: true, data } as AppNode;
+          });
+          const edges = clip.edges.map((e) => ({ ...structuredClone(e), id: `e-${uid()}`, source: ids.get(e.source)!, target: ids.get(e.target)!, selected: false }));
+          commit({
+            nodes: [...page().nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), ...nodes],
+            edges: [...page().edges.map((e) => (e.selected ? { ...e, selected: false } : e)), ...edges],
+          });
+          return nodes.length;
+        },
+
+        alignSelected: (mode) => {
+          const pos = alignPositions(movable(page().nodes), mode);
+          if (!pos.size) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)) });
+        },
+        distributeSelected: (axis) => {
+          const pos = distributePositions(movable(page().nodes), axis);
+          if (!pos.size) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)) });
+        },
+        groupSelected: () => {
+          const sel = page().nodes.filter((n) => n.selected && n.type !== 'backdrop');
+          if (sel.length < 2) return;
+          get().snapshot();
+          const group = `g-${uid()}`;
+          commit({ nodes: page().nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, group } } as AppNode) : n)) });
+        },
+        ungroupSelected: () => {
+          if (!page().nodes.some((n) => n.selected && n.type !== 'backdrop' && extras(n).group)) return;
+          get().snapshot();
+          commit({
+            nodes: page().nodes.map((n) => {
+              if (!n.selected || n.type === 'backdrop' || !extras(n).group) return n;
+              const data = { ...n.data };
+              delete (data as { group?: string }).group;
+              return { ...n, data } as AppNode;
+            }),
+          });
+        },
+        orderSelected: (to) => {
+          const pg = page();
+          const isSel = (n: AppNode) => !!n.selected && n.type !== 'backdrop';
+          if (!pg.nodes.some(isSel)) return;
+          get().snapshot();
+          const z = orderZ(pg.nodes, to);
+          const sel = pg.nodes.filter(isSel).map((n) => ({ ...n, zIndex: z }));
+          // Array order breaks ties between equal zIndex values, so move them in the list too.
+          const rest = pg.nodes.filter((n) => !isSel(n));
+          commit({ nodes: to === 'front' ? [...rest, ...sel] : [...sel, ...rest] });
+        },
+        setSelectionLocked: (locked) => {
+          const pg = page();
+          if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;
+          get().snapshot();
+          commit({
+            nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, ...lockFlags(locked), data: { ...n.data, locked: locked || undefined } } as AppNode) : n)),
+          });
+        },
+        selectItem: (pageId, kind, id) => {
+          const p = cur();
+          if (!p.pages.some((pg) => pg.id === pageId)) return;
+          const pages = p.pages.map((pg) =>
+            pg.id !== pageId ? pg : {
+              ...pg,
+              nodes: pg.nodes.map((n) => {
+                const want = kind === 'node' && n.id === id;
+                return !!n.selected === want ? n : { ...n, selected: want };
+              }),
+              edges: pg.edges.map((e) => {
+                const want = kind === 'edge' && e.id === id;
+                return !!e.selected === want ? e : { ...e, selected: want };
+              }),
+            });
+          commit({ pages, activePageId: pageId });
+        },
+        replaceInHits: (hits, term, replacement, matchCase) => {
+          if (!hits.length || !term) return 0;
+          get().snapshot();
+          commit({ pages: replaceHits(cur().pages, hits, term, replacement, matchCase) });
+          return hits.length;
+        },
+        updateTitleBlock: (patch) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, titleBlock: { show: false, ...p.titleBlock, ...patch }, updatedAt: Date.now() } } });
         },
         duplicateSelected: () => {
           const pg = page();
           const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
           if (!sel.length) return;
           get().snapshot();
+          // Copies of a group form a new group.
+          const groups = new Map<string, string>();
+          const regroup = (g?: string) => {
+            if (g && !groups.has(g)) groups.set(g, `g-${uid()}`);
+            return g ? { group: groups.get(g) } : {};
+          };
           const copies = sel.map((n) => ({
             ...n,
             id: reId(n.id),
             position: { x: n.position.x + 40, y: n.position.y + 40 },
             selected: true,
-            data: { ...n.data },
+            data: { ...n.data, ...regroup(extras(n).group) },
           })) as AppNode[];
           commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), ...copies] });
         },

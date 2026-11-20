@@ -119,7 +119,7 @@ export function rackRows(p: Project) {
 /* ---------- rack elevations ---------- */
 
 /** Renders a rack's front and rear elevations side by side into a PNG, using the same component as the screen. */
-async function renderRack(p: Project, rack: Rack) {
+export async function renderRack(p: Project, rack: Rack) {
   const devices = new Map(allDevices(p).map((n) => [n.id, n]));
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-30000px;top:0;';
@@ -175,7 +175,8 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect) {
     height,
     pixelRatio: 2,
     style: { width: `${width}px`, height: `${height}px`, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})` },
-    filter: (node: Element) => !(node instanceof HTMLElement && node.classList?.contains('react-flow__resize-control')),
+    // Leave out resize handles and connection dots (shown on selected items).
+    filter: (node: Element) => !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle'))),
   };
   return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
 }
@@ -184,6 +185,22 @@ export async function exportImage(kind: 'png' | 'svg', p: Project, bounds: Rect,
   const { url } = await renderViewport(kind, bounds);
   const suffix = p.pages.length > 1 && pageName ? `-${safeName(pageName)}` : '';
   download(`${safeName(p.name)}${suffix}.${kind}`, url);
+}
+
+/* ---------- title block ---------- */
+
+/** Cells of the drawing title block (Visio-style border/title), left to right. "Page" is filled in per sheet. */
+export function titleBlockCells(p: Project, sheetTitle: string): { label: string; value: string; weight: number }[] {
+  const tb = p.titleBlock;
+  return [
+    { label: 'Client', value: p.name, weight: 1.3 },
+    { label: 'Site', value: [p.site, p.address].filter(Boolean).join(', '), weight: 1.5 },
+    { label: 'Drawing', value: sheetTitle, weight: 1.5 },
+    { label: 'Prepared by', value: tb?.preparedBy ?? '', weight: 1.1 },
+    { label: 'Drawn by', value: tb?.author ?? '', weight: 0.9 },
+    { label: 'Rev', value: tb?.revision ?? '', weight: 0.4 },
+    { label: 'Date', value: tb?.date || new Date().toLocaleDateString(), weight: 0.8 },
+  ];
 }
 
 /* ---------- PDF ---------- */
@@ -200,12 +217,18 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const m = 36;
+  // Room kept free at the bottom of every sheet for the title block.
+  const tbH = p.titleBlock?.show ? 30 : 0;
+  const bottom = H - m - (tbH ? tbH + 8 : 0);
+  /** Sheet title of each PDF page, for its title block. */
+  const sheetTitles: string[] = [];
   let pages = 0;
   const newPage = () => {
     if (pages++) doc.addPage();
   };
 
   const header = (title: string) => {
+    sheetTitles[doc.getNumberOfPages() - 1] = title;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text(p.name, m, m);
@@ -221,7 +244,7 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     newPage();
     header(title);
     const top = m + 28;
-    const ratio = Math.min((W - m * 2) / img.width, (H - top - m) / img.height);
+    const ratio = Math.min((W - m * 2) / img.width, (bottom - top) / img.height);
     doc.addImage(img.url, 'PNG', m, top, img.width * ratio, img.height * ratio, undefined, 'FAST');
   };
 
@@ -282,7 +305,7 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     };
     row(cols, true);
     for (const r of rows) {
-      if (y > H - m) {
+      if (y > bottom) {
         doc.addPage();
         header(`${title} (cont.)`);
         y = m + 40;
@@ -300,7 +323,41 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Label'], [0.11, 0.18, 0.09, 0.18, 0.09, 0.09, 0.09, 0.17].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]));
 
+  if (tbH) {
+    const total = doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i);
+      drawTitleBlock(doc, [...titleBlockCells(p, sheetTitles[i - 1] ?? ''), { label: 'Page', value: `${i} of ${total}`, weight: 0.6 }], m, H - m - tbH, W - m * 2, tbH);
+    }
+  }
+
   doc.save(`${safeName(p.name)}.pdf`);
+}
+
+type Pdf = InstanceType<typeof import('jspdf').jsPDF>;
+
+/** A one-row bordered title block: small grey labels over values. */
+function drawTitleBlock(doc: Pdf, cells: { label: string; value: string; weight: number }[], x: number, y: number, w: number, h: number) {
+  const total = cells.reduce((s, c) => s + c.weight, 0);
+  doc.setDrawColor(80);
+  doc.setLineWidth(0.8);
+  doc.rect(x, y, w, h);
+  let cx = x;
+  cells.forEach((c, i) => {
+    const cw = (c.weight / total) * w;
+    if (i) doc.line(cx, y, cx, y + h);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(120);
+    doc.text(c.label.toUpperCase(), cx + 4, y + 8);
+    doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(20);
+    doc.text(doc.splitTextToSize(c.value, cw - 8)[0] ?? '', cx + 4, y + h - 8);
+    cx += cw;
+  });
+  doc.setTextColor(0);
+  doc.setLineWidth(0.2);
 }
 
 /* ---------- CSV (opens in Excel) ---------- */

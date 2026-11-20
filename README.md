@@ -19,7 +19,12 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
   to back up or share.
 - **Export** — PDF report (diagram + device and connection tables), PNG (Word/email), SVG (Visio, Office, draw.io),
   CSV (Excel).
-- Undo/redo (Ctrl+Z / Ctrl+Y), duplicate (Ctrl+D), delete (Del), snap-to-grid, minimap.
+- Undo/redo (Ctrl+Z / Ctrl+Y), cut/copy/paste (Ctrl+X/C/V), duplicate (Ctrl+D), delete (Del), snap-to-grid, minimap.
+- **Arrange** — align, distribute, group, bring to front / send to back, lock.
+- **Find & replace** (Ctrl+F / Ctrl+H) across every page: names, IPs, serials, port notes, VLANs, labels.
+- **Hyperlinks** on devices, shapes and zones: a device's web UI, a ticket, or another page.
+- **Print** (Ctrl+P) and PDF with a **title block** on every sheet: client, site, drawing, prepared by, revision,
+  date, page X of Y.
 
 ## Run locally
 
@@ -87,6 +92,37 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   arrow lines; device-to-device links stay network cables.
 - Any line or cable can be routed with **right angles, straight or curved**, and get **arrowheads** at the start,
   end or both.
+
+## Editing like Visio
+
+- **Copy / cut / paste** (Ctrl+C / Ctrl+X / Ctrl+V, or the **Arrange** menu) copies devices, shapes, notes and zones
+  together with the cables between them. Paste on another page, another client, or another NetCraft window; each
+  paste lands a little further down-right. Pasting into Notepad or a ticket gives one line per device
+  (name, IP, model, serial).
+- **Arrange** menu (also in the right panel when several items are selected): align left/center/right/top/middle/
+  bottom, distribute horizontally/vertically (equal gaps, first and last stay put), **group** (Ctrl+G) and
+  ungroup (Ctrl+Shift+G), **bring to front** (Ctrl+Shift+F) and **send to back** (Ctrl+Shift+B).
+  Select several items with Shift+click, or Shift+drag a box.
+- A **group** is selected and moved as one; ungroup to edit the members on their own.
+- **Lock position** keeps items from being moved, resized, deleted or aligned (handy for a wall-mounted rack or a
+  room outline). Locked items can still be selected and edited; unlock them from the Arrange menu or the right panel.
+- **Find** (Ctrl+F) searches every page of the client: device name, model, IP, MAC, serial, asset tag, location,
+  notes, links, port descriptions and VLANs, zone titles, notes, shape text, and cable labels/VLANs.
+  Enter / Shift+Enter step through results and zoom to each one. **Replace** (Ctrl+H, or ▸ in the find bar)
+  replaces in one field or in all of them at once; Ctrl+Z undoes it.
+- **Links**: set a device's, shape's or zone's **Link** in the right panel to a web address (a bare IP or host name
+  opens as `https://…`, handy for a device's web UI), `mailto:`, or **another page** of the client. A link button
+  appears on the item; click it to follow the link (the desktop app opens web links in your default browser).
+
+## Title block and printing
+
+- In the right panel (with nothing selected), turn on the **Title block** and fill in *Prepared by* (your company),
+  *Drawn by*, *Revision* and *Date* (empty = the day you print). Client and site come from the client details.
+- The **PDF report** and **Print** then put the title block along the bottom of every sheet, with the drawing name
+  and *page X of Y*.
+- **Export ▾ → Print…** (Ctrl+P) picks the paper (Letter, Legal, Tabloid, A4, A3) and orientation, and which
+  diagram pages, rack elevations and tables to print, then opens the system print dialog (or *Save as PDF*).
+  Each diagram is scaled to fit its sheet; long tables continue onto more sheets with the title block repeated.
 
 ## Layers, status and data colors
 

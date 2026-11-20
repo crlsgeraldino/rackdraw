@@ -2,9 +2,11 @@
 
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 import { memo, useMemo, useState } from 'react';
+import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import type { BackdropNode, DeviceNode, NoteNode, PortDef, ShapeData, ShapeNode, StencilDef, ZoneNode } from '@/lib/types';
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
 
 const SIDE: Record<PortDef['side'], Position> = {
@@ -56,8 +58,12 @@ export function baseSize(stencil: StencilDef) {
   return { width: stencil.width * k, height: stencil.height * k };
 }
 
-function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
+function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
   const stencil = useStencil(data.stencilId);
+  // Only a size the user set (resize handles / properties panel) scales the device. React Flow's `width` prop falls
+  // back to the measured size, which would feed back into the drawing: one bad measurement (e.g. taken while the
+  // canvas remounts at another zoom) would then stick and grow the device.
+  const width = useDiagram((s) => activePage(s.projects[s.currentId]).nodes.find((n) => n.id === id)?.width);
   const states = usePortStates(id);
   const snapshot = useDiagram((s) => s.snapshot);
   const display = useDisplay();
@@ -75,7 +81,7 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
   const k = (stencil.style === 'icon' ? 1 : stencil.scale) * zoom;
   const resizer = (
     <NodeResizer
-      isVisible={selected}
+      isVisible={selected && !data.locked}
       keepAspectRatio
       minWidth={Math.min(base.width, Math.max(24, base.width * 0.2))}
       minHeight={Math.min(base.height, Math.max(8, base.height * 0.2))}
@@ -116,6 +122,7 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
     return (
       <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }}>
         {resizer}
+        <NodeBadges data={data} selected={selected} />
         <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
@@ -131,6 +138,7 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
   return (
     <div className={`relative ${selected ? 'nc-selected-panel' : ''}`}>
       {resizer}
+      <NodeBadges data={data} selected={selected} />
       <div style={{ ...(selected ? {} : outline), ...fade }}>
         {stencil.style === 'image'
           ? <ImageArt stencil={stencil} portStates={states} k={k} />
@@ -148,11 +156,12 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
 function ZoneNodeView({ data, selected }: NodeProps<ZoneNode>) {
   return (
     <>
-      <NodeResizer isVisible={selected} minWidth={160} minHeight={100} color={data.color} />
+      <NodeResizer isVisible={selected && !data.locked} minWidth={160} minHeight={100} color={data.color} />
       <div
-        className="h-full w-full rounded-lg border-2 border-dashed"
+        className="relative h-full w-full rounded-lg border-2 border-dashed"
         style={{ borderColor: data.color, background: `${data.color}12` }}
       >
+        <NodeBadges data={data} selected={selected} />
         <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color }}>
           {data.title}
         </div>
@@ -199,7 +208,8 @@ function ShapeNodeView({ id, data, selected, width, height }: NodeProps<ShapeNod
   const textStyle: React.CSSProperties = { color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2 };
   return (
     <div className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
-      <NodeResizer isVisible={selected} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
+      <NodeResizer isVisible={selected && !data.locked} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
+      <NodeBadges data={data} selected={selected} />
       <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'arrow' && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>

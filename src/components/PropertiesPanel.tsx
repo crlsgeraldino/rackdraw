@@ -7,6 +7,9 @@ import { loadImageFile } from '@/lib/imageImport';
 import { CABLE_STYLES, DEVICE_STATUSES, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { PAGE_LINK, resolveLink } from '@/lib/links';
+import { ArrangeButtons } from './ArrangeMenu';
+import { useFollowLink } from './NodeBadges';
 
 function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
   const snapshot = useDiagram((s) => s.snapshot);
@@ -80,6 +83,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         );
       })()}
       <Field label="Location" value={d.location} onChange={set('location')} />
+      <LinkField nodeId={node.id} value={d.link} />
       <div className="flex gap-2">
         <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
         <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
@@ -143,6 +147,47 @@ function LayerSelect({ value, onChange }: { value?: string; onChange: (layer: st
         {layers.map((l) => <option key={l.id} value={l.id}>{l.name}{l.visible ? '' : ' (hidden)'}</option>)}
       </select>
     </label>
+  );
+}
+
+/** Hyperlink of an item: a web address (device web UI, ticket, KB article) or another page of this client. */
+function LinkField({ nodeId, value }: { nodeId: string; value?: string }) {
+  const pages = useCurrentProject().pages;
+  const here = useCurrentPage().id;
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const follow = useFollowLink();
+  const isPage = !!value?.startsWith(PAGE_LINK);
+  const target = resolveLink(value);
+  const invalid = !!value?.trim() && !target;
+  const set = (link: string) => update(nodeId, { link: link || undefined });
+  return (
+    <div className="mb-2">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Link</span>
+      <div className="flex gap-1">
+        <select
+          className="w-24 shrink-0 rounded border border-gray-300 px-1 py-1 text-sm"
+          value={isPage ? value : ''}
+          onChange={(e) => { snapshot(); set(e.target.value); }}
+          aria-label="Link type"
+        >
+          <option value="">Web</option>
+          {pages.filter((pg) => pg.id !== here).map((pg) => <option key={pg.id} value={`${PAGE_LINK}${pg.id}`}>Page: {pg.name}</option>)}
+        </select>
+        {!isPage && (
+          <input
+            className={`min-w-0 flex-1 rounded border px-2 py-1 text-sm outline-none ${invalid ? 'border-red-400' : 'border-gray-300 focus:border-blue-500'}`}
+            value={value ?? ''}
+            placeholder="https://… or 192.168.1.1"
+            onFocus={snapshot}
+            onChange={(e) => set(e.target.value)}
+            aria-label="Link address"
+          />
+        )}
+        {target && <button className="shrink-0 rounded border border-gray-300 px-2 text-xs text-blue-700 hover:bg-blue-50" onClick={() => follow(value)} title="Follow the link">Open</button>}
+      </div>
+      {invalid && <span className="text-[10px] text-red-600">Use a web address (https://…), mailto: or a host name / IP.</span>}
+    </div>
   );
 }
 
@@ -243,6 +288,7 @@ function ShapeProps({ node }: { node: ShapeNode }) {
         </label>
       )}
       <LayerSelect value={d.layer} onChange={(layer) => set({ layer })} />
+      <LinkField nodeId={node.id} value={d.link} />
       <p className="mt-2 text-[10px] text-gray-400">Drag from a blue dot on its edge to draw an arrow to another shape or device.</p>
     </>
   );
@@ -321,6 +367,41 @@ function ProjectProps() {
       <Field label="Notes" value={p.notes} onChange={(v) => update({ notes: v })} area />
       <p className="mt-3 text-xs text-gray-500">{devices} devices · {cables} cables · {p.pages.length} page{p.pages.length === 1 ? '' : 's'}</p>
       <p className="mt-1 text-[10px] text-gray-400">Select a device or cable to edit it.</p>
+      <hr className="my-4 border-gray-200" />
+      <TitleBlockProps />
+    </>
+  );
+}
+
+/** Title block printed along the bottom of every PDF and printed page. */
+function TitleBlockProps() {
+  const tb = useCurrentProject().titleBlock;
+  const update = useDiagram((s) => s.updateTitleBlock);
+  return (
+    <>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wide text-gray-500">Title block</span>
+        <label className="flex items-center gap-1 text-xs text-gray-700">
+          <input type="checkbox" checked={!!tb?.show} onChange={(e) => update({ show: e.target.checked })} />
+          Show
+        </label>
+      </div>
+      {tb?.show ? (
+        <>
+          <Field label="Prepared by (your company)" value={tb.preparedBy} onChange={(v) => update({ preparedBy: v })} />
+          <div className="flex gap-2">
+            <Field label="Drawn by" value={tb.author} onChange={(v) => update({ author: v })} />
+            <Field label="Revision" value={tb.revision} onChange={(v) => update({ revision: v })} />
+          </div>
+          <label className="mb-2 block">
+            <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Date</span>
+            <input className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500" value={tb.date ?? ''} placeholder="Day of printing" onChange={(e) => update({ date: e.target.value })} />
+          </label>
+          <p className="text-[10px] text-gray-400">Printed along the bottom of every PDF and printed page, with the client, site, drawing name and page number.</p>
+        </>
+      ) : (
+        <p className="text-[10px] text-gray-400">Add a title block (client, site, drawing, prepared by, revision, date, page number) to PDF reports and printouts.</p>
+      )}
     </>
   );
 }
@@ -333,7 +414,12 @@ export function PropertiesPanel() {
 
   let body: React.ReactNode;
   if (selNodes.length + selEdges.length > 1) {
-    body = <p className="text-sm text-gray-500">{selNodes.length + selEdges.length} items selected</p>;
+    body = (
+      <>
+        <p className="mb-3 text-sm text-gray-500">{selNodes.length + selEdges.length} items selected</p>
+        {selNodes.length > 1 && <ArrangeButtons />}
+      </>
+    );
   } else if (selNodes[0]?.type === 'device') {
     body = <DeviceProps node={selNodes[0]} />;
   } else if (selNodes[0]?.type === 'zone') {
@@ -347,6 +433,7 @@ export function PropertiesPanel() {
             <button key={c} onClick={() => update(z.id, { color: c })} className={`h-6 w-6 rounded ${z.data.color === c ? 'ring-2 ring-offset-1' : ''}`} style={{ background: c }} aria-label={c} />
           ))}
         </div>
+        <div className="mt-3"><LinkField nodeId={z.id} value={z.data.link} /></div>
       </>
     );
   } else if (selNodes[0]?.type === 'note') {
@@ -367,5 +454,16 @@ export function PropertiesPanel() {
     );
   }
 
-  return <aside className="w-72 shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-3">{body}</aside>;
+  const lockedOne = selNodes.length === 1 && selNodes[0].type !== 'backdrop' && selNodes[0].data.locked;
+  return (
+    <aside className="w-72 shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-3">
+      {lockedOne && (
+        <div className="mb-3 flex items-center justify-between rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+          Locked: it can&apos;t be moved or deleted.
+          <button className="text-blue-600 hover:underline" onClick={() => useDiagram.getState().setSelectionLocked(false)}>Unlock</button>
+        </div>
+      )}
+      {body}
+    </aside>
+  );
 }

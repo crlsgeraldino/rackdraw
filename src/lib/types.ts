@@ -64,7 +64,17 @@ export interface PortData {
   vlan?: string;
 }
 
-export interface DeviceData extends Record<string, unknown> {
+/** Editing state shared by every kind of diagram item (Arrange menu, hyperlinks). */
+export interface NodeExtras {
+  /** Items with the same group id are selected and moved together. */
+  group?: string;
+  /** Locked items can't be moved, deleted or aligned until unlocked. */
+  locked?: boolean;
+  /** Hyperlink: a web/mailto address, or `page:<pageId>` to jump to another page of the project. */
+  link?: string;
+}
+
+export interface DeviceData extends Record<string, unknown>, NodeExtras {
   stencilId: string;
   name: string;
   model?: string;
@@ -82,12 +92,12 @@ export interface DeviceData extends Record<string, unknown> {
   ports?: Record<string, PortData>;
 }
 
-export interface ZoneData extends Record<string, unknown> {
+export interface ZoneData extends Record<string, unknown>, NodeExtras {
   title: string;
   color: string;
 }
 
-export interface NoteData extends Record<string, unknown> {
+export interface NoteData extends Record<string, unknown>, NodeExtras {
   text: string;
 }
 
@@ -104,7 +114,7 @@ export interface BackdropData extends Record<string, unknown> {
 export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
-export interface ShapeData extends Record<string, unknown> {
+export interface ShapeData extends Record<string, unknown>, NodeExtras {
   kind: ShapeKind;
   text: string;
   fill: string;
@@ -203,6 +213,17 @@ export interface DataLink {
 
 export type PageKind = 'network' | 'floorplan';
 
+/** Drawing title block printed along the bottom of every PDF and printed page (client and site come from the project). */
+export interface TitleBlock {
+  show: boolean;
+  /** Your company (the MSP preparing the document). */
+  preparedBy?: string;
+  author?: string;
+  revision?: string;
+  /** Free text; empty = the day it's printed or exported. */
+  date?: string;
+}
+
 /** One drawing in a client project (like a Visio page). Cables connect devices on the same page. */
 export interface Page {
   id: string;
@@ -227,6 +248,7 @@ export interface Project {
   dataLink?: DataLink;
   layers?: Layer[];
   display?: DisplaySettings;
+  titleBlock?: TitleBlock;
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */
   nodes?: AppNode[];
   edges?: CableEdge[];

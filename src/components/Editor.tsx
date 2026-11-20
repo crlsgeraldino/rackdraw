@@ -15,9 +15,13 @@ import {
 import '@xyflow/react/style.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { printProject, type PrintOptions } from '@/lib/print';
 import { allNodes } from '@/lib/project';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
-import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
+import { ArrangeMenu } from './ArrangeMenu';
+import { FindBar } from './FindBar';
+import { PrintDialog } from './PrintDialog';
 import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
 import { DND_TYPE, Palette } from './Palette';
@@ -34,11 +38,67 @@ function Btn({ children, onClick, disabled, title }: { children: React.ReactNode
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="rounded px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent"
+      className="whitespace-nowrap rounded px-2 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {children}
     </button>
   );
+}
+
+const inField = (t: EventTarget | null) => t instanceof Element && !!t.closest('input, textarea, select, [contenteditable]');
+
+/** Readable text for other apps (tickets, email): one line per copied device, shape or note. */
+function clipText(clip: Clipboard) {
+  return clip.nodes
+    .map((n) => {
+      if (n.type === 'device') return [n.data.name, n.data.ip, n.data.model, n.data.serial].filter(Boolean).join('\t');
+      if (n.type === 'shape') return n.data.text;
+      if (n.type === 'note') return n.data.text;
+      if (n.type === 'zone') return n.data.title;
+      return '';
+    })
+    .filter(Boolean)
+    .join('\r\n');
+}
+
+/** Copy/cut/paste of diagram items through the system clipboard (so it also works between NetCraft windows). */
+function useClipboardEvents() {
+  useEffect(() => {
+    const { copySelected, cutSelected, paste } = useDiagram.getState();
+    const put = (e: ClipboardEvent, clip: Clipboard | null) => {
+      if (!clip) return;
+      e.preventDefault();
+      e.clipboardData?.setData(CLIP_MIME, JSON.stringify(clip));
+      e.clipboardData?.setData('text/plain', clipText(clip));
+    };
+    const onCopy = (e: ClipboardEvent) => {
+      if (!inField(e.target) && !window.getSelection()?.toString() && useDiagram.getState().view === 'diagram') put(e, copySelected());
+    };
+    const onCut = (e: ClipboardEvent) => {
+      if (!inField(e.target) && !window.getSelection()?.toString() && useDiagram.getState().view === 'diagram') put(e, cutSelected());
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      if (inField(e.target) || useDiagram.getState().view !== 'diagram') return;
+      const raw = e.clipboardData?.getData(CLIP_MIME);
+      if (!raw) return;
+      try {
+        const clip = JSON.parse(raw) as Clipboard;
+        if (clip?.format !== 'netcraft-clip' || !Array.isArray(clip.nodes)) return;
+        e.preventDefault();
+        paste(clip);
+      } catch {
+        // Not ours.
+      }
+    };
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCut);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCut);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, []);
 }
 
 function Toolbar() {
@@ -52,18 +112,20 @@ function Toolbar() {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   const view = useDiagram((s) => s.view);
   const setView = useDiagram((s) => s.setView);
   const page = useCurrentPage();
-  const bounds = () => rf.getNodesBounds(page.nodes);
+  // By id, so React Flow uses its live measurements rather than sizes saved in the diagram.
+  const bounds = () => rf.getNodesBounds(page.nodes.map((n) => n.id));
 
   /** For the PDF: show each page in turn and capture it. */
   const renderPage: PageRenderer = async (pg) => {
     if (!pg.nodes.length) return null;
     useDiagram.getState().setActivePage(pg.id);
     await new Promise((r) => setTimeout(r, 700));
-    return renderCanvasPng(rf.getNodesBounds(pg.nodes));
+    return renderCanvasPng(rf.getNodesBounds(pg.nodes.map((n) => n.id)));
   };
 
   const run = async (fn: () => Promise<void> | void, needsCanvas = true) => {
@@ -104,17 +166,46 @@ function Toolbar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Ctrl+P prints the client documentation instead of the app screen.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setPrinting(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const doPrint = (o: PrintOptions) => {
+    setPrinting(false);
+    const back = project.activePageId;
+    run(async () => {
+      try {
+        await printProject(project, renderPage, o);
+      } finally {
+        useDiagram.getState().setActivePage(back);
+      }
+    }, o.pageIds.length > 0);
+  };
+
+  // Menu copy/cut go through the browser's copy command, so the system clipboard gets them too.
+  const { copySelected, cutSelected, paste } = useDiagram.getState();
+  const menuCopy = () => { if (!document.execCommand('copy')) copySelected(); };
+  const menuCut = () => { if (!document.execCommand('cut')) cutSelected(); };
+
   const sorted = Object.values(projects).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-3">
       <div className="mr-3 flex items-center gap-2">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4.5V14" /></svg>
-        <span className="font-semibold text-gray-900">NetCraft</span>
+        <span className="hidden font-semibold text-gray-900 xl:inline">NetCraft</span>
       </div>
 
       <select
-        className="max-w-56 rounded border border-gray-300 px-2 py-1 text-sm"
+        className="max-w-40 rounded border border-gray-300 px-2 py-1 text-sm xl:max-w-56"
         value={project.id}
         onChange={(e) => {
           openProject(e.target.value);
@@ -176,22 +267,26 @@ function Toolbar() {
       </div>
 
       <div className="mx-2 h-6 w-px bg-gray-200" />
-      <Btn onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶ Undo</Btn>
-      <Btn onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">↷ Redo</Btn>
+      <Btn onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶<span className="hidden xl:inline"> Undo</span></Btn>
+      <Btn onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">↷<span className="hidden xl:inline"> Redo</span></Btn>
 
       <div className="ml-auto" />
+      {view === 'diagram' && <ArrangeMenu onCopy={menuCopy} onCut={menuCut} onPaste={() => paste()} />}
       <ViewMenu />
       <DataMenu />
+      {printing && <PrintDialog onPrint={doPrint} onClose={() => setPrinting(false)} />}
       <div className="relative">
         <button
           onClick={() => setMenu((m) => !m)}
           disabled={busy}
-          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          className="whitespace-nowrap rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {busy ? 'Exporting…' : 'Export ▾'}
+          {busy ? 'Working…' : 'Export ▾'}
         </button>
         {menu && (
           <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setMenu(false)}>
+            <button className="flex w-full items-center px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => { setMenu(false); setPrinting(true); }}>Print… <span className="ml-auto text-xs text-gray-400">Ctrl+P</span></button>
+            <div className="my-1 border-t border-gray-100" />
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(async () => { const back = project.activePageId; try { await exportPdf(project, renderPage); } finally { useDiagram.getState().setActivePage(back); } })}>PDF report <span className="text-xs text-gray-400">diagram, racks, tables</span></button>
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => { if (!page.nodes.length) return alert('This page is empty.'); return exportImage('png', project, bounds(), page.name); })}>PNG image <span className="text-xs text-gray-400">Word, email</span></button>
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => { if (!page.nodes.length) return alert('This page is empty.'); return exportImage('svg', project, bounds(), page.name); })}>SVG vector <span className="text-xs text-gray-400">Visio, Office</span></button>
@@ -231,6 +326,8 @@ function Canvas() {
     [page.edges, display],
   );
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
+  const [find, setFind] = useState<{ replace: boolean } | null>(null);
+  useClipboardEvents();
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -248,10 +345,20 @@ function Canvas() {
   // Keyboard shortcuts (outside of text fields).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, [contenteditable]')) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); }
+      const key = e.key.toLowerCase();
+      // Find works from anywhere, even while typing in a field.
+      if (mod && !e.shiftKey && (key === 'f' || key === 'h')) {
+        e.preventDefault();
+        setFind({ replace: key === 'h' });
+        return;
+      }
+      if (inField(e.target) || !mod) return;
+      const s = useDiagram.getState();
+      if (key === 'd' && !e.shiftKey) { e.preventDefault(); duplicateSelected(); }
+      else if (key === 'g') { e.preventDefault(); if (e.shiftKey) s.ungroupSelected(); else s.groupSelected(); }
+      else if (key === 'f' && e.shiftKey) { e.preventDefault(); s.orderSelected('front'); }
+      else if (key === 'b' && e.shiftKey) { e.preventDefault(); s.orderSelected('back'); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -295,6 +402,7 @@ function Canvas() {
           </div>
         </div>
       )}
+      {find && <FindBar replaceMode={find.replace} onClose={() => setFind(null)} />}
       <button onClick={deleteSelected} className="sr-only">Delete selected</button>
     </div>
   );
@@ -314,7 +422,7 @@ export default function Editor() {
   // Undo/redo work in both views (outside of text fields, which have their own undo).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return;
+      if (inField(e.target)) return;
       const mod = e.ctrlKey || e.metaKey;
       const { undo, redo } = useDiagram.getState();
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
