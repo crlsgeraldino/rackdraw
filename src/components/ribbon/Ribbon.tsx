@@ -10,7 +10,7 @@ import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
 import { THEMES, type Theme } from '@/lib/themes';
-import { setTool, useTool } from '@/lib/tools';
+import { setPresenting, setTool, useTool } from '@/lib/tools';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
@@ -385,6 +385,7 @@ function HomeTab() {
   const fmt = s.formatKind();
   const shapeSel = page.nodes.filter((n): n is ShapeNode => !!n.selected && n.type === 'shape');
   const fmtOn = (k: 'bold' | 'italic' | 'underline') => shapeSel.length > 0 && shapeSel.every((n) => !!n.data[k]);
+  const shadowOn = shapeSel.length > 0 && shapeSel.every((n) => !!n.data.shadow);
   return (
     <>
       <Group label="Clipboard">
@@ -404,6 +405,9 @@ function HomeTab() {
           <Small icon="pointer" label="Pointer" active={!tool} onClick={() => setTool(null)} title="Pointer tool: select and move (Esc)" />
           <Small icon="lineTool" label="Line" active={tool === 'line'} onClick={() => setTool(tool === 'line' ? null : 'line')} title="Line tool: drag to draw lines (Shift = straight)" />
           <Small icon="pencil" label="Pencil" active={tool === 'pencil'} onClick={() => setTool(tool === 'pencil' ? null : 'pencil')} title="Pencil tool: drag to draw freehand" />
+        </Column>
+        <Column>
+          <Small icon="connector" label="Connector" active={tool === 'connector'} onClick={() => setTool(tool === 'connector' ? null : 'connector')} title="Connector tool: drag from one device or shape to another to connect them (nearest free ports)" />
         </Column>
         <Column>
           <Small icon="text" label="Text" onClick={() => s.addShape('text', center())} title="Add a text box in the middle of the view" />
@@ -442,6 +446,22 @@ function HomeTab() {
           <Drop trigger={(open) => <Small icon="line" label="Line ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line colour of the selected cables, shapes and zones" />}>
             {(close) => <Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} />}
           </Drop>
+          <Drop width={170} trigger={(open) => <Small icon="weight" label="Weight ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line weight of the selected cables, shapes and lines" />}>
+            {(close) => (
+              <div className="py-1">
+                {[0.5, 1, 1.5, 2, 3, 4.5, 6].map((w) => (
+                  <button key={w} className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-blue-50" onClick={() => { s.styleSelection({ weight: w }); close(); }}>
+                    <span className="w-10 text-gray-600">{w} px</span>
+                    <span className="h-0 flex-1 border-t border-gray-800" style={{ borderTopWidth: w }} />
+                  </button>
+                ))}
+                <button className="w-full px-3 py-1 text-left text-xs text-gray-600 hover:bg-blue-50" onClick={() => { s.styleSelection({ weight: null }); close(); }}>Automatic</button>
+              </div>
+            )}
+          </Drop>
+        </Column>
+        <Column>
+          <Small icon="shadow" label="Shadow" active={shadowOn} onClick={() => s.styleSelection({ shadow: !shadowOn })} disabled={!shapeSel.length} title="Drop shadow on the selected shapes" />
         </Column>
       </Group>
       <Group label="Arrange">
@@ -746,6 +766,7 @@ function ViewTab() {
   return (
     <>
       <Group label="Views">
+        <Big icon="fullscreen" label="Full Screen" onClick={() => { setView('diagram'); setPresenting(true); }} title="Show the drawing alone, page by page (F5); arrow keys change page, Esc ends" />
         <Big icon="diagram" label="Diagram" active={diagram} onClick={() => setView('diagram')} />
         <Big icon="racks" label={`Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`} active={!diagram} onClick={() => setView('racks')} />
       </Group>

@@ -187,6 +187,12 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   Shift, catches 0/90/180/270), type the **Angle** under Size & Position, or use **Home → Arrange → Rotate Right /
   Rotate Left** (90°) or right-click → Rotate. The ports turn with the picture, so cables leave from the right
   place; the label stays upright below. Saved to `.vsdx` with Visio's angle.
+- **Connector tool** (Home → Tools): drag from one device or shape to another and a cable joins them at the nearest
+  free ports (on a 48-port switch, the free port closest to the other device). Stays on until Esc / Pointer.
+- **Shape Style → Weight** (0.5–6 px, or Automatic) for cables, shapes and lines, and **Shadow** for shapes. Both are
+  saved to `.vsdx`.
+- **View → Full Screen** (or **F5**): only the drawing, fitted to the screen; ← / → (or Page Up / Page Down, Space)
+  move between pages, **Esc** ends. Background pages show behind their pages and are skipped.
 - **Rename a device on the canvas**: double-click its label, type, Enter (Esc cancels).
 - **Cable text**: drag a cable's label along the cable to move it; double-click it to put it back in the middle.
   The position is kept in exports and `.vsdx`.

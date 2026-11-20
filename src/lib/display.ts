@@ -76,7 +76,7 @@ export function displayColors(p: Project): DisplayColors {
 
   // A color picked for one cable wins over the type/VLAN color.
   const byData = cable;
-  const withOverride: DisplayColors['cable'] = (d) => (d?.color ? { ...byData(d), color: d.color } : byData(d));
+  const withOverride: DisplayColors['cable'] = (d) => ({ ...byData(d), ...(d?.color ? { color: d.color } : {}), ...(d?.weight ? { width: d.weight } : {}) });
 
   return { device, cable: withOverride, deviceLegend, cableLegend, deviceTitle, cableTitle };
 }

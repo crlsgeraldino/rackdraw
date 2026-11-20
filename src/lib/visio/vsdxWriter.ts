@@ -22,6 +22,8 @@ export interface VStyle {
   dashed?: boolean;
   /** Corner radius in inches. */
   rounding?: number;
+  /** Drop shadow. */
+  shadow?: boolean;
 }
 
 export interface VText {
@@ -114,6 +116,7 @@ function styleCells(s: VStyle) {
   out.push(cell('FillPattern', fill ? 1 : 0));
   if (fill) out.push(cell('FillForegnd', fill), cell('FillForegndTrans', s.fillTransparency ?? 0));
   if (s.rounding) out.push(cell('Rounding', s.rounding));
+  if (s.shadow) out.push(cell('ShdwPattern', 1), cell('ShdwForegnd', '#000000'), cell('ShdwForegndTrans', 0.65), cell('ShapeShdwOffsetX', 0.03), cell('ShapeShdwOffsetY', -0.04), cell('ShapeShdwType', 1));
   return out.join('');
 }
 

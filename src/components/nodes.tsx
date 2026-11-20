@@ -285,7 +285,7 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
 }
 
 function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
-  const common = { fill: d.fill, stroke: d.stroke, strokeWidth: 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
+  const common = { fill: d.fill, stroke: d.stroke, strokeWidth: d.lineWidth ?? 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
   switch (d.kind) {
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
     case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
@@ -363,7 +363,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
       <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
-      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
       {data.kind === 'text' && selected && !editing && <div className="pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}

@@ -144,7 +144,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           break;
         case 'shape': {
           const d = n.data;
-          const style = { fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, lineWeightPt: 1.5 };
+          const style = { fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
           const text = d.text ? { text: d.text, color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.

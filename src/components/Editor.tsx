@@ -14,7 +14,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
-import { DrawOverlay, GuidesLayer } from './CanvasTools';
+import { DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
+import { setPresenting, usePresenting } from '@/lib/tools';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { edgeTypes } from './CableEdgeView';
@@ -180,8 +181,15 @@ function Canvas() {
     window.addEventListener(FIND_EVENT, open);
     return () => window.removeEventListener(FIND_EVENT, open);
   }, []);
-  const minimap = usePref('minimap');
-  const rulers = usePref('rulers');
+  const presenting = usePresenting((s) => s.on);
+  const minimap = usePref('minimap') && !presenting;
+  const rulers = usePref('rulers') && !presenting;
+  // Full Screen: fit each page to the screen.
+  useEffect(() => {
+    if (!presenting) return;
+    const t = setTimeout(() => rf.fitView({ padding: 0.04, duration: 200 }), 120);
+    return () => clearTimeout(t);
+  }, [presenting, page.id, rf]);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   // "Set scale": the user clicks two points a known distance apart.
   const [calib, setCalib] = useState<{ x: number; y: number }[] | null>(null);
@@ -276,6 +284,9 @@ function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        nodesDraggable={!presenting}
+        nodesConnectable={!presenting}
+        elementsSelectable={!presenting}
         onNodeDragStart={snapshot}
         onNodeContextMenu={(e, n) => openMenu(e, { kind: 'node', id: n.id, x: e.clientX, y: e.clientY })}
         onEdgeContextMenu={(e, ed) => openMenu(e, { kind: 'edge', id: ed.id, x: e.clientX, y: e.clientY })}
@@ -299,7 +310,8 @@ function Canvas() {
         <Panel position="top-left"><Legend /></Panel>
         {minimap && <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />}
       </ReactFlow>
-      <DrawOverlay />
+      {!presenting && <DrawOverlay />}
+      {presenting && <PresentBar />}
       </div>
       {page.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -341,6 +353,7 @@ export default function Editor() {
     return unsub;
   }, [hydrated]);
   const view = useDiagram((s) => s.view);
+  const presenting = usePresenting((s) => s.on);
   const shapesPane = usePref('shapesPane');
   const propsPane = usePref('propsPane');
 
@@ -350,11 +363,28 @@ export default function Editor() {
       if (inField(e.target)) return;
       const mod = e.ctrlKey || e.metaKey;
       const { undo, redo } = useDiagram.getState();
+      // Full Screen (F5): arrows / Page Up / Page Down change page, Esc ends.
+      if (e.key === 'F5') { e.preventDefault(); useDiagram.getState().setView('diagram'); setPresenting(true); return; }
+      if (usePresenting.getState().on) {
+        const p = useDiagram.getState();
+        const proj = p.projects[p.currentId];
+        const pages = proj.pages.filter((x) => !x.background);
+        const i = pages.findIndex((x) => x.id === proj.activePageId);
+        if (e.key === 'Escape') setPresenting(false);
+        else if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key) && i < pages.length - 1) p.setActivePage(pages[i + 1].id);
+        else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key) && i > 0) p.setActivePage(pages[i - 1].id);
+        else return;
+        e.preventDefault();
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Leaving the browser's full screen (Esc / F11) ends Full Screen too.
+    const onFs = () => { if (!document.fullscreenElement && usePresenting.getState().on) setPresenting(false); };
+    document.addEventListener('fullscreenchange', onFs);
+    return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('fullscreenchange', onFs); };
   }, []);
 
   if (!hydrated) return <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading your diagrams…</div>;
@@ -362,20 +392,20 @@ export default function Editor() {
   return (
     <ReactFlowProvider>
       <div className="flex h-screen flex-col bg-gray-50 text-gray-900">
-        <Ribbon />
-        {view === 'racks' ? (
+        {!presenting && <Ribbon />}
+        {view === 'racks' && !presenting ? (
           <RackView />
         ) : (
           <div className="flex min-h-0 flex-1">
-            {shapesPane && <Palette />}
+            {shapesPane && !presenting && <Palette />}
             <div className="flex min-w-0 flex-1 flex-col">
               <Canvas />
-              <PageTabs />
+              {!presenting && <PageTabs />}
             </div>
-            {propsPane && <PropertiesPanel />}
+            {propsPane && !presenting && <PropertiesPanel />}
           </div>
         )}
-        <StatusBar />
+        {!presenting && <StatusBar />}
       </div>
     </ReactFlowProvider>
   );

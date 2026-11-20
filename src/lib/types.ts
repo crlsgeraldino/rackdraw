@@ -203,6 +203,10 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   /** Door swings the other way. */
   flip?: boolean;
   layer?: string;
+  /** Line weight in px (default 2). */
+  lineWidth?: number;
+  /** Drop shadow (Shape Style → Shadow). */
+  shadow?: boolean;
   /** Freeform (Pencil tool): the drawn path as fractions (0–1) of the shape's box. */
   points?: [number, number][];
   // Font and paragraph (Home tab)
@@ -271,6 +275,8 @@ export interface CableData extends Record<string, unknown> {
   showLength?: boolean;
   /** Where the cable's text sits along it, 0 (source) … 1 (target); missing = the middle. */
   labelAt?: number;
+  /** Line weight chosen for this cable (px); missing = by cable type. */
+  weight?: number;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';

@@ -115,7 +115,7 @@ interface DiagramState {
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
    */
-  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat }) => void;
+  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean }) => void;
   /** Adds a callout; with `target` its leader line points at that item and it moves with it. */
   addCallout: (position: { x: number; y: number }, target?: string) => void;
   /** Moves nodes on the active page to new positions (one undo step). */
@@ -799,7 +799,7 @@ export const useDiagram = create<DiagramState>()(
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
-        styleSelection: ({ fill, line, text }) => {
+        styleSelection: ({ fill, line, text, weight, shadow }) => {
           const pg = page();
           if (!pg.nodes.some((n) => n.selected) && !pg.edges.some((e) => e.selected)) return;
           get().snapshot();
@@ -812,14 +812,19 @@ export const useDiagram = create<DiagramState>()(
                   ...n,
                   data: {
                     ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}), ...fmt,
+                    ...(weight !== undefined ? { lineWidth: weight ?? undefined } : {}), ...(shadow !== undefined ? { shadow: shadow || undefined } : {}),
                     ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
                   },
                 };
               }
               if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
+              if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}) } };
               return n;
             }),
-            edges: line === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? { ...e, data: { ...(e.data as CableData), color: line ?? undefined } } : e)),
+            edges: line === undefined && weight === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? {
+              ...e,
+              data: { ...(e.data as CableData), ...(line !== undefined ? { color: line ?? undefined } : {}), ...(weight !== undefined ? { weight: weight ?? undefined } : {}) },
+            } : e)),
           });
         },
         setSelectionLocked: (locked) => {
