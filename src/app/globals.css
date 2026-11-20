@@ -81,3 +81,10 @@ body {
 .react-flow__edge.nc-bg {
   pointer-events: none !important;
 }
+
+/* Dragging a cable over a port that already has one: red, and it won't connect. */
+.react-flow__handle.connectingto:not(.valid) {
+  background: #ef4444 !important;
+  opacity: 1 !important;
+  outline: 2px solid #ef4444;
+}

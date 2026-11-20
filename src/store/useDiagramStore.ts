@@ -51,6 +51,8 @@ interface DiagramState {
   onNodesChange: (changes: NodeChangeset<AppNode>) => void;
   onEdgesChange: (changes: EdgeChangeset<CableEdge>) => void;
   onConnect: (c: Connection) => void;
+  /** Drag a cable's end to another port (Visio: move a connector's glued end). Refused onto a port already cabled. */
+  reconnectEdge: (id: string, c: Connection) => void;
   snapshot: () => void;
   undo: () => void;
   redo: () => void;
@@ -306,6 +308,12 @@ function turnDevice(n: AppNode, rotation: number, stencil?: StencilDef): AppNode
   return { ...out, position, ...(n.width ? { width: now.w, height: now.h, style: { ...n.style, width: now.w, height: now.h } } : {}), measured: undefined };
 }
 
+/** Is this device port already cabled on the page? (Ports of drawing shapes never count as taken.) */
+export function portTaken(pg: Page, nodeId: string, handle?: string | null) {
+  if (!handle || pg.nodes.find((n) => n.id === nodeId)?.type !== 'device') return false;
+  return pg.edges.some((e) => (e.source === nodeId && e.sourceHandle === handle) || (e.target === nodeId && e.targetHandle === handle));
+}
+
 /** Contents of the zones being dragged, captured when each drag starts. */
 const zoneDrag = new Map<string, string[]>();
 
@@ -466,6 +474,8 @@ export const useDiagram = create<DiagramState>()(
         },
         onConnect: (c) => {
           if (c.source === c.target && c.sourceHandle === c.targetHandle) return;
+          // A device port takes one cable (drawing shapes' sides take any number of lines).
+          if (portTaken(page(), c.source, c.sourceHandle) || portTaken(page(), c.target, c.targetHandle)) return;
           get().snapshot();
           // Device-to-device links are network cables; anything touching a drawing shape is a plain arrow line.
           const isDevice = (id: string) => page().nodes.find((n) => n.id === id)?.type === 'device';
@@ -479,6 +489,15 @@ export const useDiagram = create<DiagramState>()(
           commit({ edges: addEdge(edge, page().edges) });
         },
 
+        reconnectEdge: (id, c) => {
+          const pg = page();
+          const old = pg.edges.find((e) => e.id === id);
+          if (!old) return;
+          const others = { ...pg, edges: pg.edges.filter((e) => e.id !== id) };
+          if (portTaken(others, c.source, c.sourceHandle) || portTaken(others, c.target, c.targetHandle)) return;
+          get().snapshot();
+          commit({ edges: pg.edges.map((e) => (e.id === id ? { ...e, source: c.source, target: c.target, sourceHandle: c.sourceHandle, targetHandle: c.targetHandle } : e)) });
+        },
         addStencil: (stencilId, position) => {
           const s = findStencil(stencilId, get().customStencils);
           if (!s) return;

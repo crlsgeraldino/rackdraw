@@ -10,14 +10,15 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/style.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, usePresenting } from '@/lib/tools';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
-import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
+import { CLIP_MIME, getStencil, portTaken, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
+import { activePage } from '@/lib/project';
 import { edgeTypes } from './CableEdgeView';
 import { PageSheet, RULER, Rulers } from './CanvasPage';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
@@ -182,6 +183,7 @@ function Canvas() {
     return () => window.removeEventListener(FIND_EVENT, open);
   }, []);
   const presenting = usePresenting((s) => s.on);
+  const reconnecting = useRef<string | null>(null); // cable whose end is being moved
   const minimap = usePref('minimap') && !presenting;
   const rulers = usePref('rulers') && !presenting;
   // Full Screen: fit each page to the screen.
@@ -284,6 +286,17 @@ function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={(c) => {
+          const pg = activePage(useDiagram.getState().projects[useDiagram.getState().currentId]);
+          // When moving a cable's end, the cable's own ports don't count.
+          const moving = reconnecting.current;
+          const others = moving ? { ...pg, edges: pg.edges.filter((e) => e.id !== moving) } : pg;
+          return !portTaken(others, c.source, c.sourceHandle) && !portTaken(others, c.target, c.targetHandle);
+        }}
+        edgesReconnectable={!presenting}
+        onReconnectStart={(_, edge) => { reconnecting.current = edge.id; }}
+        onReconnectEnd={() => { reconnecting.current = null; }}
+        onReconnect={(old, c) => useDiagram.getState().reconnectEdge(old.id, c)}
         nodesDraggable={!presenting}
         nodesConnectable={!presenting}
         elementsSelectable={!presenting}
