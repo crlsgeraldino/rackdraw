@@ -160,6 +160,19 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   opens as `https://…`, handy for a device's web UI), `mailto:`, or **another page** of the client. A link button
   appears on the item; click it to follow the link (the desktop app opens web links in your default browser).
 
+## Editing a device's shape (like Visio's Edit Master)
+
+- **Double-click a device**, or right-click it → **Edit shape & ports…**, or **Edit shape…** in the right panel.
+- In the shape editor, click any port to rename it, change its type (RJ45, SFP, console…), the side its cable leaves
+  from, or delete it; drag a box to add a port. You can also change the shape's name, library, size on the diagram
+  and rack height. Cables stay plugged in when you rename ports.
+- Like Visio, saving changes every device that uses the shape (the editor says how many). Editing a built-in shape
+  makes your own editable copy in **My stencils** and switches just that device to it, so the built-in stays as is.
+- To rename a port on one device only, use **Port name on this device** in that port's details (right panel).
+- **Right-click** anything on the canvas for its shortcut menu: devices (edit shape, show/hide info box, cut, copy,
+  duplicate, order, group, lock, copy/paste format, delete), cables (right angles / straight / curved, format,
+  delete) and the empty canvas (paste, check diagram).
+
 ## Tidy-up tools
 
 - **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).

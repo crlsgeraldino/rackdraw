@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { libraryOf } from '@/lib/libraries';
 import { STENCIL_CATEGORIES, type PortDef, type PortKind, type PortSide, type StencilCategory, type StencilDef } from '@/lib/types';
+import { allNodes } from '@/lib/project';
+import { useDiagram } from '@/store/useDiagramStore';
 import { LibraryPicker } from './LibraryPicker';
 
 const KINDS: { value: PortKind; label: string }[] = [
@@ -36,6 +38,11 @@ function nextLabel(ports: PortDef[]) {
 export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: StencilDef; isNew: boolean; onSave: (s: StencilDef) => void; onCancel: () => void }) {
   const [s, setS] = useState<StencilDef>(() => ({ ...initial, library: libraryOf(initial) }));
   const [selected, setSelected] = useState<string | null>(null);
+  const projects = useDiagram((st) => st.projects);
+  const uses = useMemo(
+    () => Object.values(projects).reduce((n, p) => n + allNodes(p).filter((x) => x.type === 'device' && x.data.stencilId === initial.id).length, 0),
+    [projects, initial.id],
+  );
   const [draft, setDraft] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const surface = useRef<HTMLDivElement>(null);
 
@@ -111,7 +118,10 @@ export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: S
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onMouseDown={onCancel}>
       <div className="flex max-h-full w-[1040px] max-w-full flex-col rounded-lg bg-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-2.5">
-          <h2 className="font-semibold text-gray-900">{isNew ? 'New stencil' : 'Edit stencil'}</h2>
+          <div>
+            <h2 className="font-semibold text-gray-900">{isNew ? 'New shape' : 'Edit shape'}: {s.name}</h2>
+            {uses > 0 && <p className="text-[11px] text-gray-500">Changes apply to every device using this shape ({uses} in your diagrams).</p>}
+          </div>
           <button className="text-xl leading-none text-gray-400 hover:text-gray-700" onClick={onCancel} aria-label="Close">×</button>
         </header>
 

@@ -9,6 +9,7 @@ import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
 import { ArrangeButtons } from './ArrangeMenu';
+import { editStencil } from './ContextMenu';
 import { useFollowLink } from './NodeBadges';
 
 function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
@@ -49,7 +50,14 @@ function DeviceProps({ node }: { node: DeviceNode }) {
 
   return (
     <>
-      <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">{stencil?.name}</div>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="truncate text-[11px] uppercase tracking-wide text-gray-500">{stencil?.name}</span>
+        {stencil && (
+          <button className="shrink-0 rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50" onClick={() => editStencil(stencil.id, node.id)} title="Edit the shape: its picture, size and ports (like Visio's Edit Master)">
+            Edit shape…
+          </button>
+        )}
+      </div>
       <Field label="Name / hostname" value={d.name} onChange={set('name')} />
       <LabelEditor nodes={[node]} />
       <div className="flex gap-2">
@@ -152,8 +160,12 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
               {isOpen && (
                 <div className="space-y-1.5 bg-blue-50/40 px-2 pb-2 pt-1">
                   <label className="block">
+                    <span className="text-[10px] text-gray-500">Port name on this device</span>
+                    <input className={`${input} font-mono`} value={pd.label ?? ''} placeholder={p.label} onFocus={snapshot} onChange={(e) => set({ label: e.target.value || undefined })} />
+                  </label>
+                  <label className="block">
                     <span className="text-[10px] text-gray-500">Connected to</span>
-                    <input autoFocus className={input} value={pd.description ?? ''} placeholder={cable || 'e.g. Front desk printer, Core switch port 48'} onFocus={snapshot} onChange={(e) => set({ description: e.target.value })} />
+                    <input className={input} value={pd.description ?? ''} placeholder={cable || 'e.g. Front desk printer, Core switch port 48'} onFocus={snapshot} onChange={(e) => set({ description: e.target.value })} />
                   </label>
                   <div className="flex gap-1.5">
                     <label className="block flex-[2]">

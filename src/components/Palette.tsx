@@ -8,6 +8,8 @@ import { loadImageFile } from '@/lib/imageImport';
 import { STENCILS, StencilThumb } from '@/lib/stencils';
 import { STENCIL_CATEGORIES, type ShapeKind, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
+import { editableCopy } from '@/lib/shapeCopy';
+import { EDIT_STENCIL_EVENT } from './ContextMenu';
 import { StencilEditor } from './StencilEditor';
 import { VisioImportDialog } from './VisioImportDialog';
 
@@ -49,6 +51,29 @@ const SHAPES: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
 export function Palette() {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<StencilDef | null>(null);
+  // Device to switch to the edited copy when a built-in shape is edited from the canvas.
+  const [editFor, setEditFor] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (e: Event) => {
+      const { stencilId, nodeId } = (e as CustomEvent<{ stencilId: string; nodeId?: string }>).detail;
+      const own = useDiagram.getState().customStencils[stencilId];
+      if (own) {
+        setEditFor(null);
+        setEditing(own);
+        return;
+      }
+      const builtIn = STENCILS.find((s) => s.id === stencilId);
+      if (!builtIn) return;
+      try {
+        setEditing(editableCopy(builtIn));
+        setEditFor(nodeId ?? null);
+      } catch (err) {
+        alert((err as Error).message);
+      }
+    };
+    window.addEventListener(EDIT_STENCIL_EVENT, open);
+    return () => window.removeEventListener(EDIT_STENCIL_EVENT, open);
+  }, []);
   const imageRef = useRef<HTMLInputElement>(null);
   const libRef = useRef<HTMLInputElement>(null);
   const visioRef = useRef<HTMLInputElement>(null);
@@ -281,10 +306,12 @@ export function Palette() {
         <StencilEditor
           initial={editing}
           isNew={!custom[editing.id]}
-          onCancel={() => setEditing(null)}
+          onCancel={() => { setEditing(null); setEditFor(null); }}
           onSave={(s) => {
             saveCustomStencil(s);
+            if (editFor) useDiagram.getState().updateDevicesData([editFor], { stencilId: s.id });
             setEditing(null);
+            setEditFor(null);
           }}
         />
       )}

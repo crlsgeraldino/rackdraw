@@ -21,6 +21,7 @@ import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { ArrangeMenu } from './ArrangeMenu';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
+import { ContextMenu, editStencil, type MenuTarget } from './ContextMenu';
 import { FindBar } from './FindBar';
 import { PrintDialog } from './PrintDialog';
 import { edgeTypes } from './CableEdgeView';
@@ -344,6 +345,16 @@ function Canvas() {
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [menu, setMenu] = useState<MenuTarget | null>(null);
+  const { selectItem } = useDiagram.getState();
+  /** Right-click selects what's under the pointer (unless it's already part of the selection), then opens the menu. */
+  const openMenu = (e: React.MouseEvent, target: MenuTarget) => {
+    e.preventDefault();
+    const pg = page;
+    if (target.kind === 'node' && !pg.nodes.find((n) => n.id === target.id)?.selected) selectItem(pg.id, 'node', target.id);
+    if (target.kind === 'edge' && !pg.edges.find((x) => x.id === target.id)?.selected) selectItem(pg.id, 'edge', target.id);
+    setMenu(target);
+  };
   useEffect(() => {
     const open = () => setChecking(true);
     window.addEventListener(OPEN_CHECK_EVENT, open);
@@ -398,6 +409,10 @@ function Canvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDragStart={snapshot}
+        onNodeContextMenu={(e, n) => openMenu(e, { kind: 'node', id: n.id, x: e.clientX, y: e.clientY })}
+        onEdgeContextMenu={(e, ed) => openMenu(e, { kind: 'edge', id: ed.id, x: e.clientX, y: e.clientY })}
+        onPaneContextMenu={(e) => openMenu(e as React.MouseEvent, { kind: 'pane', x: e.clientX, y: e.clientY })}
+        onNodeDoubleClick={(_, n) => { if (n.type === 'device') editStencil(n.data.stencilId, n.id); }}
         connectionMode={ConnectionMode.Loose}
         defaultEdgeOptions={{ type: 'cable' }}
         snapToGrid
@@ -426,6 +441,7 @@ function Canvas() {
       )}
       {find && <FindBar replaceMode={find.replace} onClose={() => setFind(null)} />}
       {checking && <CheckPanel onClose={() => setChecking(false)} />}
+      {menu && <ContextMenu target={menu} onClose={() => setMenu(null)} />}
       <button onClick={deleteSelected} className="sr-only">Delete selected</button>
     </div>
   );
