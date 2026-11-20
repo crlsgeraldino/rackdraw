@@ -1,7 +1,7 @@
 'use client';
 
 import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type NodeProps } from '@xyflow/react';
-import { memo, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
@@ -11,6 +11,7 @@ import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
 import { useDragOffset } from './useDragOffset';
+import { EDIT_TEXT_EVENT } from '@/lib/events';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { useIconPortOffsets } from './iconPorts';
 import MeasureNodeView from './MeasureNode';
@@ -70,11 +71,17 @@ function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates:
  */
 function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; variant: 'icon' | 'panel' }) {
   const update = useDiagram((s) => s.updateNodeData);
-  const drag = useDragOffset(data.labelOffset, (labelOffset) => update(id, { labelOffset }), !!data.locked);
   const sizeRef = useOverlaySize<HTMLDivElement>(`${id}|label`);
+  // Dragging a label that sits beside its icon keeps it on that side (moved from there).
+  const drag = useDragOffset(data.labelOffset, (labelOffset) => update(id, data.labelBeside ? { labelOffset, labelSide: 'left' } : { labelOffset }), !!data.locked);
   const snapshot = useDiagram((s) => s.snapshot);
-  // Double-click the label to rename the device right there (like typing on a Visio shape).
+  // Double-click the label (or F2) to rename the device right there (like typing on a Visio shape).
   const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked) setEditing(true); };
+    window.addEventListener(EDIT_TEXT_EVENT, on);
+    return () => window.removeEventListener(EDIT_TEXT_EVENT, on);
+  }, [id, data.locked]);
   const fields = data.labelFields ?? DEFAULT_LABEL_FIELDS;
   const lines = fields.map((f) => ({ f, v: f === 'name' ? data.name : (data[f] as string | undefined) })).filter((l) => l.v);
   if (!lines.length) return null;
@@ -385,6 +392,11 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   // Free rotation (Visio's rotation handle) for drawing shapes; doors turn in 90° steps, windows and callouts don't.
   const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout';
   const outer = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked) { snapshot(); setEditing(true); } };
+    window.addEventListener(EDIT_TEXT_EVENT, on);
+    return () => window.removeEventListener(EDIT_TEXT_EVENT, on);
+  }, [id, data.locked, snapshot]);
   // A turned shape gets its own resize handles, turned with it (React Flow's only work square to the page).
   const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (

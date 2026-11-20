@@ -17,6 +17,7 @@ import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { THEMES, themeById, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
+import { SHORTCUTS_EVENT } from '@/lib/events';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
@@ -455,7 +456,9 @@ function HomeTab() {
           <Small icon="pencil" label="Pencil" active={tool === 'pencil'} onClick={() => setTool(tool === 'pencil' ? null : 'pencil')} title="Pencil tool: drag to draw freehand" />
         </Column>
         <Column>
-          <Small icon="connector" label="Connector" active={tool === 'connector'} onClick={() => setTool(tool === 'connector' ? null : 'connector')} title="Connector tool: drag from one device or shape to another to connect them (nearest free ports)" />
+          <Small icon="connector" label="Connector" active={tool === 'connector'} onClick={() => setTool(tool === 'connector' ? null : 'connector')} title="Connector tool (Ctrl+3): drag from one device or shape to another to connect them (nearest free ports)" />
+          <Small icon="rectTool" label="Rectangle" active={tool === 'rect'} onClick={() => setTool(tool === 'rect' ? null : 'rect')} title="Rectangle tool (Ctrl+8): drag to draw; Shift for a square" />
+          <Small icon="ellipseTool" label="Ellipse" active={tool === 'ellipse'} onClick={() => setTool(tool === 'ellipse' ? null : 'ellipse')} title="Ellipse tool (Ctrl+9): drag to draw; Shift for a circle" />
         </Column>
         <Column>
           <Small icon="text" label="Text" onClick={() => s.addShape('text', center())} title="Add a text box in the middle of the view" />
@@ -1021,6 +1024,7 @@ function ViewTab() {
   return (
     <>
       <Group label="Views">
+        <Big icon="keyboard" label="Shortcuts" onClick={() => window.dispatchEvent(new Event(SHORTCUTS_EVENT))} title="Keyboard shortcuts (F1)" />
         <Big icon="fullscreen" label="Full Screen" onClick={() => { setView('diagram'); setPresenting(true); }} title="Show the drawing alone, page by page (F5); arrow keys change page, Esc ends" />
         <Big icon="diagram" label="Diagram" active={diagram} onClick={() => setView('diagram')} />
         <Big icon="racks" label={`Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`} active={!diagram} onClick={() => setView('racks')} />

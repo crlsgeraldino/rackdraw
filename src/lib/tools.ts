@@ -1,7 +1,7 @@
 /** Home → Tools drawing mode (Visio's Line and Pencil tools); null = the pointer tool. */
 import { create } from 'zustand';
 
-export type DrawTool = 'line' | 'pencil' | 'connector';
+export type DrawTool = 'line' | 'pencil' | 'connector' | 'rect' | 'ellipse';
 
 export const useTool = create<{ tool: DrawTool | null }>(() => ({ tool: null }));
 

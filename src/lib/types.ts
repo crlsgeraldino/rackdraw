@@ -126,6 +126,8 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras {
    * doesn't run through the text.
    */
   labelBeside?: boolean;
+  /** The label was dragged while beside its icon: it stays on that side, moved by labelOffset. */
+  labelSide?: 'left';
   /** Turned clockwise by this many degrees (0–359). */
   rotation?: number;
 }

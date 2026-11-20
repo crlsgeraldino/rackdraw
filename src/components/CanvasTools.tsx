@@ -34,6 +34,7 @@ export function DrawOverlay() {
   const [pts, setPts] = useState<{ x: number; y: number }[]>([]); // screen points relative to the overlay
   const drawing = useRef(false);
   const from = useRef<string | null>(null); // connector tool: where the drag started
+  const start = useRef<{ x: number; y: number } | null>(null); // box tools: the corner the drag started at
 
   useEffect(() => {
     if (!tool) return;
@@ -80,6 +81,12 @@ export function DrawOverlay() {
     const pick = pickPorts(ends(a), ends(b));
     if (pick) s.onConnect({ source: a, sourceHandle: pick[0], target: b, targetHandle: pick[1] });
   };
+  const boxTool = tool === 'rect' || tool === 'ellipse';
+  // Shift: a square / circle.
+  const square = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    const d = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    return { x: a.x + Math.sign(b.x - a.x || 1) * d, y: a.y + Math.sign(b.y - a.y || 1) * d };
+  };
   const straight = (a: { x: number; y: number }, b: { x: number; y: number }, shift: boolean) =>
     !shift ? b : Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? { x: b.x, y: a.y } : { x: a.x, y: b.y };
 
@@ -96,17 +103,31 @@ export function DrawOverlay() {
         drawing.current = true;
         (e.currentTarget as Element).setPointerCapture(e.pointerId);
         const p = local(e);
+        start.current = p;
         setPts([p, p]);
       }}
       onPointerMove={(e) => {
         if (!drawing.current) return;
         const p = local(e);
-        setPts((cur) => (tool === 'line' ? [cur[0], straight(cur[0], p, e.shiftKey)] : tool === 'connector' ? [cur[0], p] : [...cur, p]));
+        setPts((cur) => (tool === 'line' ? [cur[0], straight(cur[0], p, e.shiftKey)] : tool === 'connector' || boxTool ? [cur[0], boxTool && e.shiftKey ? square(cur[0], p) : p] : [...cur, p]));
       }}
       onPointerUp={(e) => {
         if (!drawing.current) return;
         drawing.current = false;
         const s = useDiagram.getState();
+        if (boxTool) {
+          setPts([]);
+          const s0 = start.current ?? local(e);
+          const end = e.shiftKey ? square(s0, local(e)) : local(e);
+          const a = toFlow(s0), b = toFlow(end);
+          const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+          if (w < 6 && h < 6) return; // a click, not a drawing
+          s.addShape(tool === 'rect' ? 'rect' : 'ellipse', { x: x + w / 2, y: y + h / 2 });
+          const pg = s.projects[s.currentId].pages.find((p) => p.id === s.projects[s.currentId].activePageId);
+          const made = useDiagram.getState().projects[s.currentId].pages.find((p) => p.id === pg?.id)?.nodes.at(-1);
+          if (made) useDiagram.getState().setNodeBox(made.id, { x, y }, Math.max(20, w), Math.max(14, h));
+          return;
+        }
         if (tool === 'connector') {
           setPts([]);
           const to = nodeAt(e);
@@ -127,13 +148,24 @@ export function DrawOverlay() {
       }}
       title={tool === 'line' ? 'Drag to draw a line (Shift = straight). Esc to stop.' : tool === 'connector' ? 'Drag from one device or shape to another to connect them. Esc to stop.' : 'Drag to draw freehand. Esc to stop.'}
     >
-      {pts.length > 1 && (
+      {pts.length > 1 && boxTool && (
+        <svg className="pointer-events-none absolute inset-0 h-full w-full">
+          {(() => {
+            const [a, b] = [pts[0], pts[pts.length - 1]];
+            const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+            return tool === 'rect'
+              ? <rect x={x} y={y} width={w} height={h} fill="#3b82f61a" stroke="#2563eb" strokeWidth={2} />
+              : <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="#3b82f61a" stroke="#2563eb" strokeWidth={2} />;
+          })()}
+        </svg>
+      )}
+      {pts.length > 1 && !boxTool && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
           <polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )}
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-blue-600 px-2 py-0.5 text-xs text-white shadow">
-        {tool === 'line' ? 'Line tool' : tool === 'connector' ? 'Connector tool: drag from one item to another' : 'Pencil tool'} · Esc to stop
+        {tool === 'line' ? 'Line tool' : tool === 'connector' ? 'Connector tool: drag from one item to another' : tool === 'rect' ? 'Rectangle tool (Shift: square)' : tool === 'ellipse' ? 'Ellipse tool (Shift: circle)' : 'Pencil tool'} · Esc to stop
       </div>
     </div>
   );

@@ -225,6 +225,10 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Rename a device on the canvas**: double-click its label, type, Enter (Esc cancels).
 - **Cable text**: drag a cable's label along the cable to move it; double-click it to put it back in the middle.
   The position is kept in exports and `.vsdx`.
+- **Rectangle and Ellipse tools** (Home → Tools): drag to draw; Shift for a square or circle.
+- **Keyboard shortcuts like Visio's**: Ctrl+1 Pointer, Ctrl+2 text box, Ctrl+3 Connector, Ctrl+4 Pencil, Ctrl+6 Line,
+  Ctrl+8 Rectangle, Ctrl+9 Ellipse, F2 edit the selected item's text, Ctrl+Shift+W fit the page. **F1** (or View →
+  Shortcuts) lists them all.
 - **Home → Tools**: **Line** (drag to draw; Shift keeps it straight) and **Pencil** (freehand) stay on until you pick
   **Pointer** or press Esc. Lines get a colour, width, dashes and arrowheads in the right panel; both can go on
   layers and are saved to `.vsdx`.

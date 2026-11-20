@@ -15,9 +15,11 @@ import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
+import { ShortcutsDialog } from './ShortcutsDialog';
 import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
-import { setPresenting, usePresenting } from '@/lib/tools';
+import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
+import { EDIT_TEXT_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, portTaken, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { activePage } from '@/lib/project';
@@ -141,7 +143,7 @@ function Canvas() {
     const byId = new Map(page.nodes.map((n) => [n.id, n]));
     for (const e of page.edges) for (const [id, h] of [[e.source, e.sourceHandle], [e.target, e.targetHandle]] as const) {
       const n = byId.get(id);
-      if (n?.type !== 'device' || n.data.labelOffset || !h) continue;
+      if (n?.type !== 'device' || n.data.labelOffset || !h) continue; // a dragged label stays where it was put
       const st = getStencil(n.data.stencilId);
       if (st?.style === 'icon' && st.ports.find((p) => p.id === h)?.side === 'bottom') out.add(id);
     }
@@ -149,7 +151,10 @@ function Canvas() {
   }, [page.nodes, page.edges]);
   const nodes = useMemo(
     () => [...bg.nodes, ...page.nodes].map((n) => {
-      if (n.type === 'device' && (labelBeside.has(n.id) || n.data.labelBeside)) n = { ...n, data: { ...n.data, labelBeside: labelBeside.has(n.id) || undefined } };
+      if (n.type === 'device') {
+        const beside = labelBeside.has(n.id) || n.data.labelSide === 'left';
+        if (beside || n.data.labelBeside) n = { ...n, data: { ...n.data, labelBeside: beside || undefined } };
+      }
       const layer = (n.type === 'device' || n.type === 'shape' || n.type === 'measure') ? n.data.layer : undefined;
       // ScreenTip (Insert → ScreenTip): hover text. Devices show theirs in the quick info card instead.
       if (n.type !== 'device' && n.type !== 'backdrop' && n.data.tip) n = { ...n, domAttributes: { title: n.data.tip } } as AppNode;
@@ -282,8 +287,20 @@ function Canvas() {
         setFind({ replace: key === 'h' });
         return;
       }
-      if (inField(e.target) || !mod) return;
+      if (inField(e.target)) return;
       const s = useDiagram.getState();
+      // Visio's keys: F2 edits the selected item's text, F1 lists the shortcuts.
+      if (e.key === 'F2') {
+        const sel = activePage(s.projects[s.currentId]).nodes.filter((n) => n.selected && (n.type === 'device' || n.type === 'shape'));
+        if (sel.length === 1) { e.preventDefault(); window.dispatchEvent(new CustomEvent(EDIT_TEXT_EVENT, { detail: sel[0].id })); }
+        return;
+      }
+      if (e.key === 'F1') { e.preventDefault(); window.dispatchEvent(new Event(SHORTCUTS_EVENT)); return; }
+      if (!mod) return;
+      const tools: Record<string, DrawTool | null> = { '1': null, '3': 'connector', '4': 'pencil', '6': 'line', '8': 'rect', '9': 'ellipse' };
+      if (!e.shiftKey && key in tools) { e.preventDefault(); setTool(tools[key]); return; }
+      if (!e.shiftKey && key === '2') { e.preventDefault(); const c = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); s.addShape('text', c); return; }
+      if (e.shiftKey && key === 'w') { e.preventDefault(); rf.fitView({ padding: 0.1, duration: 200 }); return; }
       if (key === 'd' && !e.shiftKey) { e.preventDefault(); duplicateSelected(); }
       else if (key === 'g') { e.preventDefault(); if (e.shiftKey) s.ungroupSelected(); else s.groupSelected(); }
       else if (key === 'a' && !e.shiftKey) { e.preventDefault(); s.selectAll(); }
@@ -292,7 +309,7 @@ function Canvas() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [duplicateSelected]);
+  }, [duplicateSelected, rf]);
 
   return (
     <div className="relative flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
@@ -453,6 +470,7 @@ export default function Editor() {
         )}
         {!presenting && <StatusBar />}
         <PromptHost />
+        <ShortcutsDialog />
       </div>
     </ReactFlowProvider>
   );

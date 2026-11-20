@@ -10,16 +10,18 @@ type Offset = { x: number; y: number };
  * Pointer handlers that drag something attached to a node (its label, its info box) and save how far it moved.
  * Movement is converted from screen pixels to diagram units at the current zoom; one drag = one undo step.
  */
-export function useDragOffset(offset: Offset | undefined, save: (o: Offset) => void, disabled = false) {
+/** `offset` may be a function, read when the drag starts (for a position that depends on what is drawn). */
+export function useDragOffset(offset: Offset | undefined | (() => Offset), save: (o: Offset) => void, disabled = false) {
   const rf = useReactFlow();
   const snapshot = useDiagram((s) => s.snapshot);
   const drag = useRef<{ x: number; y: number; ox: number; oy: number; zoom: number; moved: boolean } | null>(null);
-  const off = offset ?? { x: 0, y: 0 };
+  const current = () => (typeof offset === 'function' ? offset() : offset) ?? { x: 0, y: 0 };
   const end = () => { drag.current = null; };
   return {
     onPointerDown: (e: React.PointerEvent) => {
       if (e.button !== 0 || disabled) return;
       e.stopPropagation();
+      const off = current();
       drag.current = { x: e.clientX, y: e.clientY, ox: off.x, oy: off.y, zoom: rf.getZoom(), moved: false };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },

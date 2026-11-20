@@ -9,3 +9,8 @@ export type PaletteAction = 'import-image' | 'import-visio' | 'import-library' |
 
 export const openFind = (replace = false) => window.dispatchEvent(new CustomEvent(FIND_EVENT, { detail: { replace } }));
 export const paletteAction = (action: PaletteAction) => window.dispatchEvent(new CustomEvent(PALETTE_EVENT, { detail: action }));
+
+/** F2 (Visio: edit text): the item id whose text to edit in place. */
+export const EDIT_TEXT_EVENT = 'netcraft:edit-text';
+/** F1: open the keyboard shortcuts list. */
+export const SHORTCUTS_EVENT = 'netcraft:shortcuts';

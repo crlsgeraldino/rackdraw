@@ -31,7 +31,7 @@ function obstacleKey(s: NodesStore) {
     if (label) {
       const o = d.labelOffset ?? { x: 0, y: 0 };
       const icon = !!getStencil(d.stencilId) && getStencil(d.stencilId)!.style === 'icon';
-      if (icon && d.labelBeside) add(`${n.id}#label`, x - 8 - label.w, y + h / 2 - label.h / 2, label.w, label.h);
+      if (icon && d.labelBeside) add(`${n.id}#label`, x - 8 - label.w + o.x, y + h / 2 - label.h / 2 + o.y, label.w, label.h);
       else add(`${n.id}#label`, (icon ? x + w / 2 - label.w / 2 : x) + o.x, y + h + 4 + o.y, label.w, label.h);
     }
     const info = d.infoBox?.show ? overlaySize(`${n.id}|info`) : undefined;

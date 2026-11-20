@@ -444,7 +444,7 @@ function LabelEditor({ nodes }: { nodes: DeviceNode[] }) {
       </div>
       <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
         <span>Drag the label on the canvas to move it.</span>
-        {moved && <button className="text-blue-600 hover:underline" onClick={() => updateDevices(ids, { labelOffset: undefined })}>Reset position</button>}
+        {moved && <button className="text-blue-600 hover:underline" onClick={() => updateDevices(ids, { labelOffset: undefined, labelSide: undefined })}>Reset position</button>}
       </div>
     </div>
   );
