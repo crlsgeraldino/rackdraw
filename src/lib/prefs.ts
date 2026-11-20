@@ -11,8 +11,16 @@ const KEY = 'netcraft.prefs';
 export interface Prefs {
   /** Show a floating card with a device's details when hovering it. */
   quickInfo: boolean;
+  /** Pan & Zoom overview (minimap) on the canvas. */
+  minimap: boolean;
+  /** Shapes window on the left. */
+  shapesPane: boolean;
+  /** Properties / Shape Data pane on the right. */
+  propsPane: boolean;
+  /** Ribbon collapsed to its tab names (Ctrl+F1). */
+  ribbonCollapsed: boolean;
 }
-const DEFAULTS: Prefs = { quickInfo: true };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

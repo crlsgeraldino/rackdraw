@@ -4,7 +4,6 @@ import {
   Background,
   BackgroundVariant,
   ConnectionMode,
-  Controls,
   MarkerType,
   MiniMap,
   Panel,
@@ -13,29 +12,27 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/style.css';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
-import { printProject, type PrintOptions } from '@/lib/print';
-import { allNodes } from '@/lib/project';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FIND_EVENT } from '@/lib/events';
+import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
-import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
-import { ArrangeMenu } from './ArrangeMenu';
-import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
+import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
+import { edgeTypes } from './CableEdgeView';
+import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
 import { ContextMenu, editStencil, type MenuTarget } from './ContextMenu';
 import { FindBar } from './FindBar';
-import { PrintDialog } from './PrintDialog';
-import { edgeTypes } from './CableEdgeView';
 import { nodeTypes } from './nodes';
+import { PageTabs } from './PageTabs';
 import { DND_TYPE, Palette } from './Palette';
 import { PropertiesPanel } from './PropertiesPanel';
-import { DataMenu } from './DataMenu';
-import { useDisplay } from './useDisplay';
-import { Legend, ViewMenu } from './ViewMenu';
-import { PageTabs } from './PageTabs';
 import { RackView } from './RackView';
+import { Ribbon } from './ribbon/Ribbon';
+import { StatusBar } from './StatusBar';
+import { useDisplay } from './useDisplay';
+import { Legend } from './ViewMenu';
 
-function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
+export function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
     <button
       onClick={onClick}
@@ -104,218 +101,6 @@ function useClipboardEvents() {
   }, []);
 }
 
-function Toolbar() {
-  const rf = useReactFlow<AppNode>();
-  const project = useCurrentProject();
-  const projects = useDiagram((s) => s.projects);
-  const { newProject, openProject, deleteProject, importProject, undo, redo } = useDiagram.getState();
-  const canUndo = useDiagram((s) => s.past.length > 0);
-  const canRedo = useDiagram((s) => s.future.length > 0);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [menu, setMenu] = useState(false);
-  const [naming, setNaming] = useState<string | null>(null);
-  const [printing, setPrinting] = useState(false);
-
-  const view = useDiagram((s) => s.view);
-  const setView = useDiagram((s) => s.setView);
-  const page = useCurrentPage();
-  /**
-   * What to capture: the nodes (by id, so React Flow uses its live measurements rather than sizes saved in the
-   * diagram), widened to take in device labels and info boxes that sit outside their device.
-   */
-  const contentBounds = (ids: string[]) => {
-    const b = rf.getNodesBounds(ids);
-    let [x0, y0, x1, y1] = [b.x, b.y, b.x + b.width, b.y + b.height];
-    document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label, .react-flow__viewport .nc-measure *').forEach((el) => {
-      const r = el.getBoundingClientRect();
-      if (!r.width) return;
-      const a = rf.screenToFlowPosition({ x: r.left, y: r.top }, { snapToGrid: false });
-      const z = rf.screenToFlowPosition({ x: r.right, y: r.bottom }, { snapToGrid: false });
-      [x0, y0, x1, y1] = [Math.min(x0, a.x), Math.min(y0, a.y), Math.max(x1, z.x), Math.max(y1, z.y)];
-    });
-    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-  };
-  const bounds = () => contentBounds(page.nodes.map((n) => n.id));
-
-  /** For the PDF: show each page in turn and capture it. */
-  const renderPage: PageRenderer = async (pg) => {
-    if (!pg.nodes.length) return null;
-    useDiagram.getState().setActivePage(pg.id);
-    await new Promise((r) => setTimeout(r, 700));
-    return renderCanvasPng(contentBounds(pg.nodes.map((n) => n.id)));
-  };
-
-  const run = async (fn: () => Promise<void> | void, needsCanvas = true) => {
-    if (!allNodes(project).length && !(project.racks ?? []).length) return alert('This client has no diagram or racks yet.');
-    setMenu(false);
-    setBusy(true);
-    try {
-      // Picture exports capture the live canvas, so show the diagram first.
-      if (needsCanvas && useDiagram.getState().view !== 'diagram') {
-        setView('diagram');
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      await fn();
-    } catch (e) {
-      alert(`Export failed: ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onOpen = async (f?: File) => {
-    if (!f) return;
-    try {
-      const { project: p, stencils } = await readProjectFile(f);
-      importProject(p, stencils);
-      setTimeout(() => rf.fitView({ padding: 0.2 }), 50);
-    } catch (e) {
-      alert((e as Error).message);
-    }
-  };
-
-  // Installed app: open .netcraft.json files double-clicked in Explorer (File Handling API).
-  useEffect(() => {
-    const lq = (window as unknown as { launchQueue?: { setConsumer: (cb: (p: { files: { getFile: () => Promise<File> }[] }) => void) => void } }).launchQueue;
-    lq?.setConsumer(async ({ files }) => {
-      for (const h of files) await onOpen(await h.getFile());
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Ctrl+P prints the client documentation instead of the app screen.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        setPrinting(true);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const doPrint = (o: PrintOptions) => {
-    setPrinting(false);
-    const back = project.activePageId;
-    run(async () => {
-      try {
-        await printProject(project, renderPage, o);
-      } finally {
-        useDiagram.getState().setActivePage(back);
-      }
-    }, o.pageIds.length > 0);
-  };
-
-  // Menu copy/cut go through the browser's copy command, so the system clipboard gets them too.
-  const { copySelected, cutSelected, paste } = useDiagram.getState();
-  const menuCopy = () => { if (!document.execCommand('copy')) copySelected(); };
-  const menuCut = () => { if (!document.execCommand('cut')) cutSelected(); };
-
-  const sorted = Object.values(projects).sort((a, b) => a.name.localeCompare(b.name));
-
-  return (
-    <header className="flex h-12 shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-3">
-      <div className="mr-3 flex items-center gap-2">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4.5V14" /></svg>
-        <span className="hidden font-semibold text-gray-900 xl:inline">NetCraft</span>
-      </div>
-
-      <select
-        className="max-w-40 rounded border border-gray-300 px-2 py-1 text-sm xl:max-w-56"
-        value={project.id}
-        onChange={(e) => {
-          openProject(e.target.value);
-          setTimeout(() => rf.fitView({ padding: 0.2 }), 50);
-        }}
-        title="Client diagram"
-      >
-        {sorted.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
-      <Btn onClick={() => setNaming('')} title="New client diagram">+ New</Btn>
-      {naming !== null && (
-        <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/30 pt-32" onMouseDown={() => setNaming(null)}>
-          <form
-            className="w-80 rounded-lg bg-white p-4 shadow-xl"
-            onMouseDown={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (naming.trim()) {
-                newProject(naming.trim());
-                setNaming(null);
-              }
-            }}
-          >
-            <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="nc-client-name">New client</label>
-            <input
-              id="nc-client-name"
-              autoFocus
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500"
-              placeholder="Client name"
-              value={naming}
-              onChange={(e) => setNaming(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && setNaming(null)}
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button type="button" className="rounded px-3 py-1 text-sm text-gray-600 hover:bg-gray-100" onClick={() => setNaming(null)}>Cancel</button>
-              <button type="submit" disabled={!naming.trim()} className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Create</button>
-            </div>
-          </form>
-        </div>
-      )}
-      <Btn onClick={() => fileRef.current?.click()} title="Open a .netcraft.json file">Open</Btn>
-      <Btn onClick={() => saveProjectFile(project)} title="Save to a .netcraft.json file">Save file</Btn>
-      <Btn onClick={() => { if (confirm(`Delete "${project.name}" from this browser? This cannot be undone.`)) deleteProject(project.id); }} title="Delete this client diagram">Delete</Btn>
-      <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => { onOpen(e.target.files?.[0]); e.target.value = ''; }} />
-
-      <div className="mx-2 h-6 w-px bg-gray-200" />
-      <div className="flex rounded border border-gray-300 p-0.5 text-sm" role="tablist" aria-label="View">
-        {(['diagram', 'racks'] as const).map((v) => (
-          <button
-            key={v}
-            role="tab"
-            aria-selected={view === v}
-            onClick={() => setView(v)}
-            className={`rounded px-3 py-0.5 ${view === v ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-          >
-            {v === 'diagram' ? 'Diagram' : `Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`}
-          </button>
-        ))}
-      </div>
-
-      <div className="mx-2 h-6 w-px bg-gray-200" />
-      <Btn onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶<span className="hidden xl:inline"> Undo</span></Btn>
-      <Btn onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">↷<span className="hidden xl:inline"> Redo</span></Btn>
-
-      <div className="ml-auto" />
-      {view === 'diagram' && <ArrangeMenu onCopy={menuCopy} onCut={menuCut} onPaste={() => paste()} />}
-      <ViewMenu />
-      <DataMenu />
-      {printing && <PrintDialog onPrint={doPrint} onClose={() => setPrinting(false)} />}
-      <div className="relative">
-        <button
-          onClick={() => setMenu((m) => !m)}
-          disabled={busy}
-          className="whitespace-nowrap rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          {busy ? 'Working…' : 'Export ▾'}
-        </button>
-        {menu && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setMenu(false)}>
-            <button className="flex w-full items-center px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => { setMenu(false); setPrinting(true); }}>Print… <span className="ml-auto text-xs text-gray-400">Ctrl+P</span></button>
-            <div className="my-1 border-t border-gray-100" />
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(async () => { const back = project.activePageId; try { await exportPdf(project, renderPage); } finally { useDiagram.getState().setActivePage(back); } })}>PDF report <span className="text-xs text-gray-400">diagram, racks, tables</span></button>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => { if (!page.nodes.length) return alert('This page is empty.'); return exportImage('png', project, bounds(), page.name); })}>PNG image <span className="text-xs text-gray-400">Word, email</span></button>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => { if (!page.nodes.length) return alert('This page is empty.'); return exportImage('svg', project, bounds(), page.name); })}>SVG vector <span className="text-xs text-gray-400">Visio, Office</span></button>
-            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => run(() => exportCsv(project), false)}>CSV tables <span className="text-xs text-gray-400">Excel</span></button>
-          </div>
-        )}
-      </div>
-    </header>
-  );
-}
-
 function Canvas() {
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
@@ -346,6 +131,12 @@ function Canvas() {
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const open = (e: Event) => setFind({ replace: !!(e as CustomEvent<{ replace?: boolean }>).detail?.replace });
+    window.addEventListener(FIND_EVENT, open);
+    return () => window.removeEventListener(FIND_EVENT, open);
+  }, []);
+  const minimap = usePref('minimap');
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   // "Set scale": the user clicks two points a known distance apart.
   const [calib, setCalib] = useState<{ x: number; y: number }[] | null>(null);
@@ -418,6 +209,7 @@ function Canvas() {
       const s = useDiagram.getState();
       if (key === 'd' && !e.shiftKey) { e.preventDefault(); duplicateSelected(); }
       else if (key === 'g') { e.preventDefault(); if (e.shiftKey) s.ungroupSelected(); else s.groupSelected(); }
+      else if (key === 'a' && !e.shiftKey) { e.preventDefault(); s.selectAll(); }
       else if (key === 'f' && e.shiftKey) { e.preventDefault(); s.orderSelected('front'); }
       else if (key === 'b' && e.shiftKey) { e.preventDefault(); s.orderSelected('back'); }
     };
@@ -455,8 +247,7 @@ function Canvas() {
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
         <Panel position="top-left"><Legend /></Panel>
-        <Controls />
-        <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />
+        {minimap && <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />}
       </ReactFlow>
       {page.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -497,6 +288,8 @@ export default function Editor() {
     return unsub;
   }, [hydrated]);
   const view = useDiagram((s) => s.view);
+  const shapesPane = usePref('shapesPane');
+  const propsPane = usePref('propsPane');
 
   // Undo/redo work in both views (outside of text fields, which have their own undo).
   useEffect(() => {
@@ -516,19 +309,20 @@ export default function Editor() {
   return (
     <ReactFlowProvider>
       <div className="flex h-screen flex-col bg-gray-50 text-gray-900">
-        <Toolbar />
+        <Ribbon />
         {view === 'racks' ? (
           <RackView />
         ) : (
           <div className="flex min-h-0 flex-1">
-            <Palette />
+            {shapesPane && <Palette />}
             <div className="flex min-w-0 flex-1 flex-col">
               <Canvas />
               <PageTabs />
             </div>
-            <PropertiesPanel />
+            {propsPane && <PropertiesPanel />}
           </div>
         )}
+        <StatusBar />
       </div>
     </ReactFlowProvider>
   );

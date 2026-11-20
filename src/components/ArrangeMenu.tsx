@@ -12,7 +12,7 @@ import { OPEN_CHECK_EVENT } from './CheckPanel';
 const MOD = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
 /** Tiny line icons for the align/distribute commands. */
-function AlignIcon({ mode }: { mode: AlignMode | `dist-${DistributeAxis}` }) {
+export function AlignIcon({ mode }: { mode: AlignMode | `dist-${DistributeAxis}` }) {
   const bar = '#2563eb';
   const box = { fill: '#cbd5e1', stroke: '#475569', strokeWidth: 1 };
   const shapes: Record<string, React.ReactNode> = {
@@ -28,7 +28,7 @@ function AlignIcon({ mode }: { mode: AlignMode | `dist-${DistributeAxis}` }) {
   return <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>{shapes[mode]}</svg>;
 }
 
-const ALIGN: { mode: AlignMode; label: string }[] = [
+export const ALIGN: { mode: AlignMode; label: string }[] = [
   { mode: 'left', label: 'Align left' },
   { mode: 'center', label: 'Align center' },
   { mode: 'right', label: 'Align right' },
@@ -38,7 +38,7 @@ const ALIGN: { mode: AlignMode; label: string }[] = [
 ];
 
 /** What the current selection allows. */
-function useSelectionState() {
+export function useSelectionState() {
   const page = useCurrentPage();
   const sel = page.nodes.filter((n) => n.selected && n.type !== 'backdrop');
   const free = sel.filter((n) => !isLocked(n));
@@ -84,19 +84,12 @@ export function ArrangeButtons() {
   );
 }
 
-/** Toolbar "Arrange" menu: clipboard, align, distribute, group, order and lock, like Visio's Home/Arrange tab. */
-export function ArrangeMenu({ onCopy, onCut, onPaste }: { onCopy: () => void; onCut: () => void; onPaste: () => void }) {
-  const [open, setOpen] = useState(false);
-  const st = useSelectionState();
-  const { duplicateSelected, alignSelected, distributeSelected, groupSelected, ungroupSelected, orderSelected, setSelectionLocked, copyFormat, pasteFormat, formatKind, setPositions } = useDiagram.getState();
+/** Auto-arrange (top down): the selected devices (2 or more), else every device on the page. */
+export function useAutoArrange() {
   const rf = useReactFlow<AppNode>();
   const page = useCurrentPage();
-  const run = (fn: () => void) => () => { fn(); setOpen(false); };
-  const hasEdgeSel = page.edges.some((e) => e.selected);
-  const kind = formatKind();
-
-  /** Auto-arrange the selected devices (2 or more), else every device on the page. */
-  const autoArrange = () => {
+  const { setPositions } = useDiagram.getState();
+  return () => {
     const sel = page.nodes.filter((n) => n.selected && n.type === 'device');
     const nodes = (sel.length >= 2 ? sel : page.nodes.filter((n) => n.type === 'device')).filter((n) => !isLocked(n));
     if (nodes.length < 2) return alert('Add or select at least two devices to arrange.');
@@ -119,6 +112,18 @@ export function ArrangeMenu({ onCopy, onCut, onPaste }: { onCopy: () => void; on
     setPositions(layoutTopDown(items, page.edges, origin));
     setTimeout(() => rf.fitView({ padding: 0.2, duration: 300 }), 80);
   };
+}
+
+/** Toolbar "Arrange" menu: clipboard, align, distribute, group, order and lock, like Visio's Home/Arrange tab. */
+export function ArrangeMenu({ onCopy, onCut, onPaste }: { onCopy: () => void; onCut: () => void; onPaste: () => void }) {
+  const [open, setOpen] = useState(false);
+  const st = useSelectionState();
+  const { duplicateSelected, alignSelected, distributeSelected, groupSelected, ungroupSelected, orderSelected, setSelectionLocked, copyFormat, pasteFormat, formatKind } = useDiagram.getState();
+  const page = useCurrentPage();
+  const run = (fn: () => void) => () => { fn(); setOpen(false); };
+  const hasEdgeSel = page.edges.some((e) => e.selected);
+  const kind = formatKind();
+  const autoArrange = useAutoArrange();
   const item = (label: string, fn: () => void, disabled: boolean, keys?: string, icon?: React.ReactNode) => (
     <button key={label} className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent" onClick={run(fn)} disabled={disabled}>
       <span className="flex w-4 justify-center">{icon}</span>

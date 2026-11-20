@@ -89,6 +89,13 @@ interface DiagramState {
   ungroupSelected: () => void;
   orderSelected: (to: 'front' | 'back') => void;
   setSelectionLocked: (locked: boolean) => void;
+  /** Selects every visible item on the active page (Ctrl+A). */
+  selectAll: () => void;
+  /**
+   * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
+   * colour. `line: null` puts cables back to automatic colouring.
+   */
+  styleSelection: (style: { fill?: string; line?: string | null }) => void;
   /** Moves nodes on the active page to new positions (one undo step). */
   setPositions: (positions: Map<string, { x: number; y: number }>) => void;
   /** Remembers the formatting of the selected cable, shape or device; returns what kind was copied. */
@@ -579,6 +586,25 @@ export const useDiagram = create<DiagramState>()(
           return targets.length;
         },
         formatKind: () => formatClip?.kind ?? null,
+        selectAll: () =>
+          commit({
+            nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected ? n : { ...n, selected: true })),
+            edges: page().edges.map((e) => (e.selected ? e : { ...e, selected: true })),
+          }),
+        styleSelection: ({ fill, line }) => {
+          const pg = page();
+          if (!pg.nodes.some((n) => n.selected) && !pg.edges.some((e) => e.selected)) return;
+          get().snapshot();
+          commit({
+            nodes: pg.nodes.map((n) => {
+              if (!n.selected) return n;
+              if (n.type === 'shape') return { ...n, data: { ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}) } };
+              if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
+              return n;
+            }),
+            edges: line === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? { ...e, data: { ...(e.data as CableData), color: line ?? undefined } } : e)),
+          });
+        },
         setSelectionLocked: (locked) => {
           const pg = page();
           if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;

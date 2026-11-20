@@ -9,6 +9,7 @@ import { STENCILS, StencilThumb } from '@/lib/stencils';
 import { STENCIL_CATEGORIES, type ShapeKind, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
 import { editableCopy } from '@/lib/shapeCopy';
+import { PALETTE_EVENT, type PaletteAction } from '@/lib/events';
 import { EDIT_STENCIL_EVENT } from './ContextMenu';
 import { StencilEditor } from './StencilEditor';
 import { VisioImportDialog } from './VisioImportDialog';
@@ -73,6 +74,17 @@ export function Palette() {
     };
     window.addEventListener(EDIT_STENCIL_EVENT, open);
     return () => window.removeEventListener(EDIT_STENCIL_EVENT, open);
+  }, []);
+  // Ribbon commands (Insert tab) that use this window's import dialogs.
+  useEffect(() => {
+    const run = (e: Event) => {
+      const action = (e as CustomEvent<PaletteAction>).detail;
+      if (action === 'import-image') imageRef.current?.click();
+      else if (action === 'import-visio') visioRef.current?.click();
+      else if (action === 'import-library') libRef.current?.click();
+    };
+    window.addEventListener(PALETTE_EVENT, run);
+    return () => window.removeEventListener(PALETTE_EVENT, run);
   }, []);
   const imageRef = useRef<HTMLInputElement>(null);
   const libRef = useRef<HTMLInputElement>(null);

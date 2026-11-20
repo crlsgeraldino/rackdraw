@@ -48,7 +48,7 @@ export function Legend() {
 }
 
 /** Toolbar "View" menu: data colors, legend and layers. */
-export function ViewMenu() {
+export function ViewMenu({ label = 'View' }: { label?: string } = {}) {
   const project = useCurrentProject();
   const page = useCurrentPage();
   const { mapAllDevices, setDisplay, addLayer, renameLayer, deleteLayer, toggleLayer, assignSelectionToLayer } = useDiagram.getState();
@@ -65,7 +65,7 @@ export function ViewMenu() {
   return (
     <div className="relative">
       <button onClick={() => setOpen((o) => !o)} className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50">
-        View{hiddenCount ? ` (${hiddenCount} hidden)` : ''} ▾
+        {label}{hiddenCount ? ` (${hiddenCount} hidden)` : ''} ▾
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded border border-gray-200 bg-white p-3 text-sm shadow-lg">
