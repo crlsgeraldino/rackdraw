@@ -6,7 +6,7 @@ import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/ro
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import type { CableEdge, DeviceData } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
-import { findJumps, JUMP_R, otherRouteEntries, otherRoutes, publishRoute, separateParallel, useRoutesVersion } from '@/lib/jumps';
+import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
 /** Items cables steer around: devices, notes and drawing shapes (not zones or the backdrop). */
@@ -81,23 +81,32 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   useEffect(() => {
     publishRoute(id, pts);
   }, [id, pts]);
-  useEffect(() => () => publishRoute(id, null), [id]);
+  useEffect(() => () => { publishRoute(id, null); publishDrawn(id, null); }, [id]);
   const routesVersion = useRoutesVersion();
+  // Spread into lanes where it would run on top of other cables.
+  const laned = useMemo(
+    () => (pts ? separateParallel(id, pts, otherRouteEntries(id)) : null),
+    // routesVersion: re-lane when another cable moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id, pts, routesVersion],
+  );
+  useEffect(() => {
+    publishDrawn(id, laned);
+  }, [id, laned]);
 
   const [path, labelX, labelY] = useMemo((): [string, number, number] => {
     const pos = { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition };
     if (route === 'straight') return getStraightPath(pos).slice(0, 3) as [string, number, number];
     if (route === 'curved') return getBezierPath(pos).slice(0, 3) as [string, number, number];
-    if (pts) {
-      const laned = separateParallel(id, pts, otherRouteEntries(id));
-      const { d, mid } = roundedPath(laned, 8, jumpsOn ? findJumps(laned, otherRoutes(id)) : undefined, JUMP_R);
+    if (laned) {
+      const { d, mid } = roundedPath(laned, 8, jumpsOn ? findJumps(laned, otherDrawnRoutes(id)) : undefined, JUMP_R);
       return [d, mid.x, mid.y];
     }
     // No clear path (e.g. devices overlapping): fall back to a plain right-angle line.
     return getSmoothStepPath({ ...pos, borderRadius: 8, offset: 16 }).slice(0, 3) as [string, number, number];
     // routesVersion: recompute hops when another cable moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, pts, jumpsOn, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+  }, [route, laned, jumpsOn, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   // Text position along the cable (Visio lets you drag connector text); the middle unless moved.
   const at = data?.labelAt;

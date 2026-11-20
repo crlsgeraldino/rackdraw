@@ -34,6 +34,20 @@ export function useRoutesVersion() {
 
 export const otherRoutes = (id: string) => [...routes.entries()].filter(([k]) => k !== id).map(([, v]) => v);
 
+/**
+ * Where each cable is actually drawn, after parallel runs were spread into lanes. Line jumps use these, so a cable
+ * only hops where it really crosses another (the raw routes above are what the lanes are worked out from).
+ */
+const drawn = new Map<string, Pt[]>();
+export function publishDrawn(id: string, pts: Pt[] | null) {
+  if (pts ? same(drawn.get(id), pts) : !drawn.has(id)) return;
+  if (pts) drawn.set(id, pts);
+  else drawn.delete(id);
+  version++;
+  listeners.forEach((l) => l());
+}
+export const otherDrawnRoutes = (id: string) => [...drawn.entries()].filter(([k]) => k !== id).map(([, v]) => v);
+
 /** Hop radius, and how close to a corner or end a hop may sit. */
 export const JUMP_R = 5;
 const MARGIN = JUMP_R + 8;

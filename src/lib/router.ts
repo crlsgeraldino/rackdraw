@@ -128,7 +128,12 @@ export function routeOrthogonal(
 
   // Work in a window around the two ends, grown to take in any device it touches, so far-away devices cost nothing.
   let win: Box = pad({ left: Math.min(sa.x, sb.x), top: Math.min(sa.y, sb.y), right: Math.max(sa.x, sb.x), bottom: Math.max(sa.y, sb.y) }, 60);
-  const padded = obstacles.map(padOf);
+  // Each obstacle with its keep-clear margin; a stub end that lands in that margin (not in the item itself) keeps
+  // the bare item as an obstacle, so the cable still goes around it instead of through it.
+  const padded = obstacles.map((o) => {
+    const p = padOf(o);
+    return (inside(p, sa.x, sa.y) || inside(p, sb.x, sb.y)) && !inside(o, sa.x, sa.y) && !inside(o, sb.x, sb.y) ? { left: o.left, top: o.top, right: o.right, bottom: o.bottom } : p;
+  });
   let used: Box[] = [];
   for (let k = 0; k < 6; k++) {
     used = padded.filter((o) => overlaps(o, win));
@@ -136,7 +141,7 @@ export function routeOrthogonal(
     if (grown.left === win.left && grown.top === win.top && grown.right === win.right && grown.bottom === win.bottom) break;
     win = grown;
   }
-  // A stub can sit inside something next to the device (a touching device, its own label or info box):
+  // A stub can sit inside something touching the device (a device right next to it, its own label or info box):
   // route over that item rather than not at all.
   used = used.filter((o) => !inside(o, sa.x, sa.y) && !inside(o, sb.x, sb.y));
 
