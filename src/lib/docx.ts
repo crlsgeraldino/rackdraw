@@ -10,7 +10,9 @@ export type DocBlock =
   | { kind: 'para'; text: string; bold?: boolean; color?: string; sizePt?: number }
   | { kind: 'image'; media: string; wIn: number; hIn: number }
   | { kind: 'table'; header: string[]; rows: string[][]; widths?: number[] }
-  | { kind: 'pageBreak' };
+  | { kind: 'pageBreak' }
+  /** Starts a new section (on a new page) with this orientation. */
+  | { kind: 'section'; landscape: boolean };
 
 export interface DocxInput {
   blocks: DocBlock[];
@@ -32,11 +34,15 @@ function runs(text: string, rPr = '') {
 }
 
 export function writeDocx(input: DocxInput): Uint8Array {
-  const landscape = input.landscape ?? true;
+  let landscape = input.landscape ?? true;
   // Letter: 12240 × 15840 twips; 0.6" margins.
-  const [pw, ph] = landscape ? [15840, 12240] : [12240, 15840];
   const margin = 864;
-  const usable = pw - margin * 2;
+  const sectPr = () => {
+    const [pw, ph] = landscape ? [15840, 12240] : [12240, 15840];
+    return `<w:sectPr><w:pgSz w:w="${pw}" w:h="${ph}"${landscape ? ' w:orient="landscape"' : ''}/>` +
+      `<w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="432" w:footer="432" w:gutter="0"/></w:sectPr>`;
+  };
+  const usable = () => (landscape ? 15840 : 12240) - margin * 2;
   const rels: { id: string; target: string; type: string }[] = [
     { id: 'rId1', type: `${R}/styles`, target: 'styles.xml' },
   ];
@@ -48,6 +54,12 @@ export function writeDocx(input: DocxInput): Uint8Array {
       case 'h1': return `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>${runs(b.text)}</w:p>`;
       case 'h2': return `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>${runs(b.text)}</w:p>`;
       case 'pageBreak': return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      case 'section': {
+        // A section's properties sit in the paragraph that ends it.
+        const end = `<w:p><w:pPr>${sectPr()}</w:pPr></w:p>`;
+        landscape = b.landscape;
+        return end;
+      }
       case 'para': {
         const rPr = `${b.bold ? '<w:b/>' : ''}${b.color ? `<w:color w:val="${b.color.replace('#', '')}"/>` : ''}${b.sizePt ? `<w:sz w:val="${Math.round(b.sizePt * 2)}"/>` : ''}`;
         return `<w:p>${runs(b.text, rPr)}</w:p>`;
@@ -72,11 +84,11 @@ export function writeDocx(input: DocxInput): Uint8Array {
         const n = b.header.length;
         const fr = b.widths && b.widths.length === n ? b.widths : Array(n).fill(1 / n);
         const total = fr.reduce((s, x) => s + x, 0);
-        const cols = fr.map((f) => Math.round((f / total) * usable));
+        const cols = fr.map((f) => Math.round((f / total) * usable()));
         const cell = (text: string, w: number, header: boolean) =>
           `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${header ? '<w:shd w:val="clear" w:color="auto" w:fill="E5E7EB"/>' : ''}</w:tcPr>` +
           `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>${runs(text, `${header ? '<w:b/>' : ''}<w:sz w:val="17"/>`)}</w:p></w:tc>`;
-        return `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="${usable}" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>` +
+        return `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="${usable()}" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>` +
           `<w:tblGrid>${cols.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>` +
           `<w:tr><w:trPr><w:tblHeader/></w:trPr>${b.header.map((h, i) => cell(h, cols[i], true)).join('')}</w:tr>` +
           b.rows.map((r) => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${b.header.map((_, i) => cell(r[i] ?? '', cols[i], false)).join('')}</w:tr>`).join('') +
@@ -87,8 +99,7 @@ export function writeDocx(input: DocxInput): Uint8Array {
 
   const doc = `${XML}<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ` +
     'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-    `<w:body>${body.join('')}<w:sectPr><w:pgSz w:w="${pw}" w:h="${ph}"${landscape ? ' w:orient="landscape"' : ''}/>` +
-    `<w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="432" w:footer="432" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+    `<w:body>${body.join('')}${sectPr()}</w:body></w:document>`;
 
   const style = (id: string, name: string, size: number, extra = '', basedOn = 'Normal') =>
     `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="${basedOn}"/><w:next w:val="Normal"/><w:qFormat/>` +

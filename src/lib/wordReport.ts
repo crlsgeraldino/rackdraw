@@ -9,7 +9,8 @@ import type { Project } from './types';
  * of every page, rack elevations, and the device, connection, rack and port tables.
  */
 
-const MAX_W = 9.6, MAX_H = 6.2; // inches on a landscape Letter page with margins and a heading
+// Picture area in inches on a Letter page with margins and a heading: landscape for pages, portrait for racks.
+const LAND = { w: 9.6, h: 6.2 }, PORT = { w: 7.1, h: 8.7 };
 
 function dataUrlBytes(url: string): Uint8Array {
   const b64 = url.slice(url.indexOf(',') + 1);
@@ -19,18 +20,18 @@ function dataUrlBytes(url: string): Uint8Array {
   return out;
 }
 
-function fit(w: number, h: number) {
-  const k = Math.min(MAX_W / (w / 96), MAX_H / (h / 96), 1.5);
+function fit(w: number, h: number, box = LAND) {
+  const k = Math.min(box.w / (w / 96), box.h / (h / 96), 1.5);
   return { wIn: (w / 96) * k, hIn: (h / 96) * k };
 }
 
 export async function exportWordReport(p: Project, renderPage: PageRenderer): Promise<Uint8Array> {
   const blocks: DocBlock[] = [];
   const media: Record<string, Uint8Array> = {};
-  const add = (url: string, w: number, h: number) => {
+  const add = (url: string, w: number, h: number, box = LAND) => {
     const name = `image${Object.keys(media).length + 1}.png`;
     media[name] = dataUrlBytes(url);
-    blocks.push({ kind: 'image', media: name, ...fit(w, h) });
+    blocks.push({ kind: 'image', media: name, ...fit(w, h, box) });
   };
 
   blocks.push({ kind: 'title', text: p.name });
@@ -48,15 +49,19 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
     blocks.push({ kind: 'pageBreak' }, { kind: 'h1', text: `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` });
     add(img.url, img.width, img.height);
   }
-  for (const rack of p.racks ?? []) {
+  // Racks are tall: they go on portrait pages, like a Visio rack diagram; the tables go back to landscape.
+  const racks = p.racks ?? [];
+  for (const [i, rack] of racks.entries()) {
     const img = await renderRack(p, rack);
-    blocks.push({ kind: 'pageBreak' }, { kind: 'h1', text: `Rack: ${[rack.name, rack.location].filter(Boolean).join(' – ')}` });
-    add(img.url, img.width, img.height);
+    blocks.push(i === 0 ? { kind: 'section', landscape: false } : { kind: 'pageBreak' }, { kind: 'h1', text: `Rack: ${[rack.name, rack.location].filter(Boolean).join(' – ')}` });
+    add(img.url, img.width, img.height, PORT);
   }
+  let portrait = racks.length > 0;
 
   const table = (title: string, header: string[], rows: (string | number)[][], widths?: number[]) => {
     if (!rows.length) return;
-    blocks.push({ kind: 'pageBreak' }, { kind: 'h1', text: title }, { kind: 'table', header, rows: rows.map((r) => r.map((c) => String(c ?? ''))), widths });
+    blocks.push(portrait ? { kind: 'section', landscape: true } : { kind: 'pageBreak' }, { kind: 'h1', text: title }, { kind: 'table', header, rows: rows.map((r) => r.map((c) => String(c ?? ''))), widths });
+    portrait = false;
   };
   table('Devices', ['Page', 'Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack / location'],
     deviceRows(p).map((d) => [d.page, d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]), [0.1, 0.16, 0.14, 0.13, 0.11, 0.13, 0.09, 0.14]);

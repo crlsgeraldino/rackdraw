@@ -10,6 +10,7 @@ import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
 import { useDragOffset } from './useDragOffset';
+import { useIconPortOffsets } from './iconPorts';
 import MeasureNodeView from './MeasureNode';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
@@ -103,6 +104,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   const states = usePortStates(id);
   const snapshot = useDiagram((s) => s.snapshot);
   const display = useDisplay();
+  const iconPorts = useIconPortOffsets(id, stencil);
   if (!stencil) {
     return (
       <div className="w-48 rounded border border-red-400 bg-red-50 p-2 text-xs text-red-800">
@@ -147,6 +149,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
       [custom?.ip, custom?.vlan && `VLAN ${custom.vlan}`].filter(Boolean).join(' · '),
       custom?.notes,
     ].filter(Boolean).join('\n');
+    const off = iconPorts.offsets?.[p.id] ?? { x: 0, y: 0 };
     return (
       <Handle
         key={p.id}
@@ -155,7 +158,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         position={SIDE[p.side]}
         title={title}
         className={stencil.style === 'icon' ? 'nc-handle-dot' : 'nc-handle-port'}
-        style={{ left: p.x * k, top: p.y * k, width: p.w * k, height: p.h * k }}
+        style={{ left: (p.x + off.x) * k, top: (p.y + off.y) * k, width: p.w * k, height: p.h * k }}
       />
     );
   });
@@ -176,7 +179,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         {resizer}
         {quickInfo}
         <NodeBadges data={data} selected={selected} />
-        <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
+        <div ref={iconPorts.ref} className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
         </div>

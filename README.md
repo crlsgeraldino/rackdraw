@@ -221,9 +221,12 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 - **File → Export → Word report (.docx)** writes an editable Word document: client details and title block, a
   picture of every page, every rack elevation, and the Devices, Connections, Rack contents and Port notes tables
-  (header rows repeat on each page). Opens in Word, LibreOffice and Google Docs.
+  (header rows repeat on each page). Rack elevations go on portrait pages so tall racks stay readable. Opens in
+  Word, LibreOffice and Google Docs.
 
 ## Tidy-up tools
+
+- Cables end on an icon's picture (the modem's body, the cloud's outline) instead of the empty box around it.
 
 - **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).
   Turn off under **View → Line jumps where cables cross**.
@@ -280,6 +283,8 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - **+ Add rack** in any standard size (6U–48U); several racks per client.
 - Drag devices from **On the diagram, not racked** into the rack, or drag a **New device** in (it is added to the
   diagram too). Drag **accessories** in: blanking panels, cable managers, shelves, PDUs.
+- Drawn like Visio's rack diagrams: cabinet with top cap and base, equipment with mounting ears screwed to the
+  rails, and leader lines from each item to its label.
 - Front and rear views side by side. Items are **full depth** (both faces) or **front/rear only**, so a rear PDU can
   share a unit with a front blanking panel. Overlaps and out-of-rack positions are refused.
 - Drag mounted items to move them; set U position, height and depth precisely in the right panel.
