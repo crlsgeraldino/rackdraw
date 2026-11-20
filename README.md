@@ -101,6 +101,15 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Templates (File → New client)
+
+- Like Visio's template gallery: start from a **Blank drawing**, a **Small office network** (ISP → firewall → PoE switch
+  → access points, workstations, printer, NAS, all cabled), a **Server rack** (cabled and mounted in a 24U rack with
+  cable managers and a PDU) or an **Office floor plan** (a 40 × 30 ft room to scale with walls, door and window).
+  They use only the built-in stencils.
+- **File → Save as template…** turns the current client into your own starting point (client details are left
+  out); it appears under **My templates** in File → New. Hover a template there and click ✕ to delete it.
+
 ## Pages
 
 Each client project has **pages**, shown as tabs under the canvas (like Visio):

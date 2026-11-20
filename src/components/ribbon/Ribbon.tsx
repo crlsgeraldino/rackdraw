@@ -11,6 +11,7 @@ import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { reportFields } from '@/lib/report';
+import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { THEMES, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
@@ -300,17 +301,49 @@ export function Ribbon() {
   );
 }
 
+/** File → New: client name and a template (Blank, the built-in starters, or My templates), like Visio's gallery. */
 function NewClientDialog({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+  const mine = Object.values(useDiagram((s) => s.templates));
+  const [pick, setPick] = useState<string>('blank');
+  const all = [...BUILT_IN_TEMPLATES, ...mine];
+  const create = () => {
+    const name = value.trim();
+    if (!name) return;
+    const t = all.find((x) => x.id === pick);
+    if (t) useDiagram.getState().newFromTemplate(name, t);
+    else useDiagram.getState().newProject(name);
+    onClose();
+  };
+  const card = (id: string, title: string, sub: string, del?: () => void) => (
+    <div key={id} className={`group relative cursor-pointer rounded border p-2 text-left ${pick === id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-blue-300'}`} onClick={() => setPick(id)} onDoubleClick={() => { setPick(id); setTimeout(create, 0); }}>
+      <div className="text-sm font-medium text-gray-900">{title}</div>
+      <div className="text-[11px] text-gray-500">{sub}</div>
+      {del && <button type="button" className="absolute right-1 top-1 hidden rounded px-1 text-xs text-gray-400 hover:text-red-600 group-hover:block" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete the template "${title}"?`)) { del(); if (pick === id) setPick('blank'); } }} aria-label={`Delete template ${title}`}>✕</button>}
+    </div>
+  );
   return (
-    <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/30 pt-32" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/30 pt-24" onMouseDown={onClose}>
       <form
-        className="w-80 rounded-lg bg-white p-4 shadow-xl"
+        className="w-[min(640px,94vw)] rounded-lg bg-white p-4 shadow-xl"
         onMouseDown={(e) => e.stopPropagation()}
-        onSubmit={(e) => { e.preventDefault(); if (value.trim()) { useDiagram.getState().newProject(value.trim()); onClose(); } }}
+        onSubmit={(e) => { e.preventDefault(); create(); }}
       >
         <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="nc-client-name">New client</label>
         <input id="nc-client-name" autoFocus className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500" placeholder="Client name"
           value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && onClose()} />
+        <div className="mt-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Start from</div>
+        <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto">
+          {card('blank', 'Blank drawing', 'One empty network page.')}
+          {BUILT_IN_TEMPLATES.map((t) => card(t.id, t.name, t.description))}
+        </div>
+        {mine.length > 0 && (
+          <>
+            <div className="mt-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">My templates</div>
+            <div className="grid max-h-60 grid-cols-2 gap-2 overflow-y-auto">
+              {mine.map((t) => card(t.id, t.name, t.description || `${t.project.pages.length} page${t.project.pages.length === 1 ? '' : 's'}`, () => useDiagram.getState().deleteTemplate(t.id)))}
+            </div>
+          </>
+        )}
         <div className="mt-3 flex justify-end gap-2">
           <button type="button" className="rounded px-3 py-1 text-sm text-gray-600 hover:bg-gray-100" onClick={onClose}>Cancel</button>
           <button type="submit" disabled={!value.trim()} className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Create</button>
@@ -350,6 +383,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         {item('open', 'Open… (NetCraft or Visio .vsdx)', onOpen)}
         {item('save', 'Save', onSave)}
         {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
+        {item('titleBlock', 'Save as template…', () => void saveTemplate())}
         {item('print', 'Print…', onPrint)}
         <div className="my-2 border-t border-white/20" />
         {item('delete', 'Delete this client…', () => { if (confirm(`Delete "${project.name}" from this computer? This cannot be undone.`)) { useDiagram.getState().deleteProject(project.id); onClose(); } }, true)}
@@ -683,6 +717,17 @@ function DataGraphicsMenu() {
       </Drop>
     </div>
   );
+}
+
+/** File → Save as template: the current client's drawing becomes a starting point in File → New. */
+async function saveTemplate() {
+  const st = useDiagram.getState();
+  const p = st.projects[st.currentId];
+  const name = (await askText('Save as template\nName it, e.g. "Standard branch office". Client details (site, address, contact) are left out.', `${p.name} template`))?.trim();
+  if (!name) return;
+  const description = (await askText('Description (optional)', '')) ?? '';
+  st.saveAsTemplate(name, description.trim());
+  alert(`Saved. Choose "${name}" under File → New client.`);
 }
 
 /** Insert → ScreenTip: asks for the hover text of the selected items. */

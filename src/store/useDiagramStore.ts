@@ -13,6 +13,7 @@ import { findFreeU, fits } from '@/lib/rack';
 import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
 import { replaceHits, type FindHit } from '@/lib/find';
 import { themeById } from '@/lib/themes';
+import { projectFromTemplate, templateFromProject, type Template } from '@/lib/templates';
 import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
 import { normDeg, turnedBox } from '@/lib/rotation';
@@ -44,6 +45,13 @@ interface DiagramState {
   projects: Record<string, Project>;
   currentId: string;
   customStencils: Record<string, StencilDef>;
+  /** My templates (File → Save as template), shown in File → New. */
+  templates: Record<string, Template>;
+  /** New client from a template (built-in or saved). */
+  newFromTemplate: (name: string, template: Template) => void;
+  /** Saves the current client as a template. */
+  saveAsTemplate: (name: string, description: string) => void;
+  deleteTemplate: (id: string) => void;
   past: Snapshot[];
   future: Snapshot[];
 
@@ -363,6 +371,20 @@ export const useDiagram = create<DiagramState>()(
         projects: { [first.id]: first },
         currentId: first.id,
         customStencils: {},
+        templates: {},
+        newFromTemplate: (name, template) => {
+          const p = projectFromTemplate(template.project, name);
+          set({ projects: { ...get().projects, [p.id]: p }, currentId: p.id, past: [], future: [], activeRackId: p.racks?.[0]?.id ?? null, selectedRackItemId: null });
+        },
+        saveAsTemplate: (name, description) => {
+          const t = templateFromProject(cur(), name, description);
+          set({ templates: { ...get().templates, [t.id]: t } });
+        },
+        deleteTemplate: (id) => {
+          const rest = { ...get().templates };
+          delete rest[id];
+          set({ templates: rest });
+        },
         past: [],
         future: [],
 
@@ -1434,7 +1456,7 @@ export const useDiagram = create<DiagramState>()(
       name: 'netcraft',
       version: 4,
       storage: createJSONStorage(() => idbStorage),
-      partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, view: s.view, activeRackId: s.activeRackId }),
+      partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, templates: s.templates, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
         const state = persisted as Partial<DiagramState>;
         if (version < 2) state.customStencils = {};
