@@ -161,6 +161,8 @@ interface DiagramState {
   setDisplay: (patch: Partial<DisplaySettings>) => void;
   /** Design → Themes: recolours drawing shapes, callouts and zones (this page, or every page) and uses the theme for new ones. */
   applyTheme: (themeId: string, allPages: boolean) => void;
+  /** Print / PDF header and footer. */
+  setHeaderFooter: (hf: import('@/lib/types').HeaderFooter | null) => void;
   /** Replaces the client's saved report definitions. */
   saveReports: (reports: NonNullable<Project['reports']>) => void;
 
@@ -1002,6 +1004,10 @@ export const useDiagram = create<DiagramState>()(
           commit({ pages: cur().pages.map((pg) => (allPages || pg.id === active ? { ...pg, nodes: recolor(pg.nodes) } : pg)) });
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, theme: themeId } } });
+        },
+        setHeaderFooter: (hf) => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, headerFooter: hf ?? undefined, updatedAt: Date.now() } } });
         },
         saveReports: (reports) => {
           const p = cur();

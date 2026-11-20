@@ -346,7 +346,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   const [editing, setEditing] = useState(false);
   const w = width ?? 160, h = height ?? 80;
   const textStyle: React.CSSProperties = {
-    color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2,
+    color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2, fontFamily: data.fontFamily,
     fontWeight: data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textDecoration: data.underline ? 'underline' : undefined,
     textAlign: data.align ?? 'center',
   };

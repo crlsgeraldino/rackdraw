@@ -35,6 +35,7 @@ export interface VText {
   underline?: boolean;
   align?: 'left' | 'center' | 'right';
   valign?: 'top' | 'middle' | 'bottom';
+  font?: string;
 }
 
 export type VShape = {
@@ -126,7 +127,7 @@ function textXml(t: VText | undefined) {
   return (
     cell('VerticalAlign', t.valign === 'top' ? 0 : t.valign === 'bottom' ? 2 : 1) +
     cell('LeftMargin', 0.04) + cell('RightMargin', 0.04) + cell('TopMargin', 0.03) + cell('BottomMargin', 0.03) +
-    `<Section N="Character"><Row IX="0">${cell('Color', color)}${cell('Size', (t.sizePt ?? 8) / 72, ' U="PT"')}${cell('Style', (t.bold ? 1 : 0) + (t.italic ? 2 : 0) + (t.underline ? 4 : 0))}</Row></Section>` +
+    `<Section N="Character"><Row IX="0">${t.font ? cell('Font', t.font) : ''}${cell('Color', color)}${cell('Size', (t.sizePt ?? 8) / 72, ' U="PT"')}${cell('Style', (t.bold ? 1 : 0) + (t.italic ? 2 : 0) + (t.underline ? 4 : 0))}</Row></Section>` +
     `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', t.align === 'left' ? 0 : t.align === 'right' ? 2 : 1)}</Row></Section>`
   );
 }

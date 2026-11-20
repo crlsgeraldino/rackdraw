@@ -1,5 +1,6 @@
 import { connectionRows, deviceRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
 import type { Project } from './types';
+import { hasHeaderFooter, hfCss } from './headerFooter';
 
 import { PAPER, type PaperSize } from './pageSetup';
 
@@ -83,13 +84,23 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
   const body = sheets.filter(Boolean).join('');
   if (!body) throw new Error('Nothing to print: choose at least one page, the racks or the tables.');
 
+  // Page margins: the header / footer if set (Visio's Header & Footer), else "Page n of m" bottom right.
+  const hf = p.headerFooter;
+  const boxFont = "font: 8pt 'Segoe UI', Arial, sans-serif; color: #555;";
+  const marginBoxes = hasHeaderFooter(hf)
+    ? (['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'] as const)
+      .map((pos, i) => ({ pos, text: i < 3 ? hf!.header[i] : hf!.footer[i - 3] }))
+      .filter((b) => b.text.trim())
+      .map((b) => `@${b.pos} { content: ${hfCss(b.text, p)}; ${boxFont} }`).join(' ')
+    : `@bottom-right { content: "Page " counter(page) " of " counter(pages); ${boxFont} }`;
+
   document.getElementById(ROOT_ID)?.remove();
   const root = document.createElement('div');
   root.id = ROOT_ID;
   root.innerHTML = `<style>
 #${ROOT_ID} { display: none; }
 @media print {
-  @page { size: ${pw}in ${ph}in; margin: ${MARGIN}in; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt 'Segoe UI', Arial, sans-serif; color: #555; } }
+  @page { size: ${pw}in ${ph}in; margin: ${MARGIN}in; ${marginBoxes} }
   html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
   body > *:not(#${ROOT_ID}) { display: none !important; }
   #${ROOT_ID} { display: block; font-family: 'Segoe UI', Arial, sans-serif; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

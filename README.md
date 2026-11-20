@@ -240,8 +240,8 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 ## Text formatting and callouts
 
-- **Home → Font**: **B**old, *Italic*, Underline, and A+ / A− for the text of the selected shapes, notes and
-  callouts. **Home → Paragraph**: align left / center / right and top / middle / bottom.
+- **Home → Font**: font name and size, **B**old, *Italic*, Underline, and A+ / A− for the text of the selected
+  shapes, notes and callouts (the font is kept in `.vsdx`). **Home → Paragraph**: align left / center / right and top / middle / bottom.
 - **Insert → Callout** (or the Callout tile in the Shapes pane): with a device or shape selected, the callout is
   attached to it — a leader line points at it and the callout moves with it. Change what it points to under
   **Points to** in the right panel. Callouts and text formatting carry over to `.vsdx`.
@@ -271,6 +271,10 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   details* for devices without IP, serial or connections. It updates as you edit; click a line to go there.
 
 ## Title block and printing
+
+- **Header & footer** (File → Print, or the right panel with nothing selected): left, centre and right text at the top
+  and bottom of every printed and PDF sheet, with codes for page number, number of pages, date, client, site, sheet
+  title and author. Without one, sheets show "Page n of m".
 
 - In the right panel (with nothing selected), turn on the **Title block** and fill in *Prepared by* (your company),
   *Drawn by*, *Revision* and *Date* (empty = the day you print). Client and site come from the client details.

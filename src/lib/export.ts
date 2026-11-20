@@ -1,3 +1,4 @@
+import { expandHF, hasHeaderFooter } from './headerFooter';
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { createElement } from 'react';
@@ -357,6 +358,26 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.16, 0.08, 0.07, 0.22, 0.12, 0.07, 0.28].map((f) => f * avail),
     portRows(p).map((r) => [r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes]));
+
+  // Header and footer (Design / Print → Header & Footer), on every sheet.
+  const hf = p.headerFooter;
+  if (hasHeaderFooter(hf)) {
+    const total = doc.getNumberOfPages();
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(90);
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i);
+      const ctx = { page: i, pages: total, sheet: sheetTitles[i - 1] ?? '' };
+      ([[hf!.header, 20], [hf!.footer, H - 14]] as const).forEach(([parts, y]) => {
+        parts.forEach((t, k) => {
+          const s = expandHF(t, p, ctx);
+          if (s) doc.text(s, k === 0 ? m : k === 1 ? W / 2 : W - m, y, { align: k === 0 ? 'left' : k === 1 ? 'center' : 'right' });
+        });
+      });
+    }
+    doc.setTextColor(0);
+  }
 
   if (tbH) {
     const total = doc.getNumberOfPages();

@@ -1,5 +1,7 @@
 'use client';
 
+import { HeaderFooterEditor } from './HeaderFooterEditor';
+
 import { useState } from 'react';
 import { PAPER, type PaperSize, type PrintOptions } from '@/lib/print';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -92,6 +94,10 @@ export function PrintDialog({ onPrint, onClose }: { onPrint: (o: PrintOptions) =
             </button>
             {' '}(edit it in the right panel with nothing selected).
           </p>
+          <details className="rounded border border-gray-200 px-2 py-1">
+            <summary className="cursor-pointer text-[11px] font-medium text-gray-600">Header &amp; footer</summary>
+            <div className="pt-1.5"><HeaderFooterEditor /></div>
+          </details>
         </div>
         <footer className="flex justify-end gap-2 border-t border-gray-200 px-4 py-2.5">
           <button type="button" className="rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" onClick={onClose}>Cancel</button>

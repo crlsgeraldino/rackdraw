@@ -205,6 +205,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   layer?: string;
   /** Line weight in px (default 2). */
   lineWidth?: number;
+  /** Font name; missing = the app font. */
+  fontFamily?: string;
   /** Drop shadow (Shape Style → Shadow). */
   shadow?: boolean;
   /** Freeform (Pencil tool): the drawn path as fractions (0–1) of the shape's box. */
@@ -227,6 +229,15 @@ export interface TextFormat {
   valign?: 'top' | 'middle' | 'bottom';
   /** Change the font size by this many px. */
   sizeDelta?: number;
+  /** Set the font size (px). */
+  fontSize?: number;
+  fontFamily?: string;
+}
+
+/** Print / PDF header and footer (Visio's Page Setup → Header/Footer): left, centre and right text, with codes. */
+export interface HeaderFooter {
+  header: [string, string, string];
+  footer: [string, string, string];
 }
 
 export type ShapeNode = Node<ShapeData, 'shape'>;
@@ -401,6 +412,8 @@ export interface Project {
   /** The spreadsheet last imported, so it can be re-applied with Refresh. */
   dataLink?: DataLink;
   layers?: Layer[];
+  /** Header and footer on printed and PDF sheets. */
+  headerFooter?: HeaderFooter;
   /** Design → Themes: colours for new drawing shapes, callouts and zones. */
   theme?: string;
   /** Saved report definitions (Data → Reports). */

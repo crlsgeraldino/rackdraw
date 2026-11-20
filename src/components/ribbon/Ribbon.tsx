@@ -416,12 +416,33 @@ function HomeTab() {
         </Column>
       </Group>
       <Group label="Font">
-        <div className="grid grid-cols-3 content-start gap-px py-0.5">
+        <div className="flex flex-col gap-0.5 py-0.5">
+        <div className="flex gap-0.5">
+          <select
+            className="h-[22px] w-28 rounded border border-gray-300 bg-white px-0.5 text-[11px] disabled:opacity-40" disabled={!shapeSel.length} title="Font"
+            value={shapeSel.length && shapeSel.every((n) => (n.data.fontFamily ?? '') === (shapeSel[0].data.fontFamily ?? '')) ? shapeSel[0].data.fontFamily ?? '' : '*'}
+            onChange={(e) => s.styleSelection({ text: { fontFamily: e.target.value || undefined } })}
+          >
+            <option value="*" disabled hidden>—</option>
+            <option value="">(Default)</option>
+            {FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
+          </select>
+          <select
+            className="h-[22px] w-12 rounded border border-gray-300 bg-white px-0.5 text-[11px] disabled:opacity-40" disabled={!shapeSel.length} title="Font size"
+            value={shapeSel.length && shapeSel.every((n) => n.data.fontSize === shapeSel[0].data.fontSize) ? String(shapeSel[0].data.fontSize) : '*'}
+            onChange={(e) => s.styleSelection({ text: { fontSize: Number(e.target.value) } })}
+          >
+            <option value="*" disabled hidden>—</option>
+            {[...new Set([8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72, ...shapeSel.map((n) => n.data.fontSize)])].sort((a, b) => a - b).map((z) => <option key={z} value={z}>{z}</option>)}
+          </select>
+        </div>
+        <div className="flex gap-px">
           <FmtBtn label="Bold" active={fmtOn('bold')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { bold: !fmtOn('bold') } })}><b>B</b></FmtBtn>
           <FmtBtn label="Italic" active={fmtOn('italic')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { italic: !fmtOn('italic') } })}><i className="font-serif">I</i></FmtBtn>
           <FmtBtn label="Underline" active={fmtOn('underline')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { underline: !fmtOn('underline') } })}><u>U</u></FmtBtn>
           <FmtBtn label="Larger text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: 2 } })}>A<sup>+</sup></FmtBtn>
           <FmtBtn label="Smaller text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: -2 } })}>A<sup>−</sup></FmtBtn>
+        </div>
         </div>
       </Group>
       <Group label="Paragraph">
@@ -593,6 +614,8 @@ function InsertTab() {
 const DEVICE_COLOR: { value: DeviceColorBy; label: string }[] = [
   { value: 'none', label: 'No colour' }, { value: 'status', label: 'Status' }, { value: 'location', label: 'Location' }, { value: 'model', label: 'Model' }, { value: 'layer', label: 'Layer' },
 ];
+
+const FONTS = ['Segoe UI', 'Arial', 'Calibri', 'Cambria', 'Consolas', 'Courier New', 'Georgia', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
 
 /** Design → Themes: a row of theme swatches; click applies to this page, the menu applies to every page. */
 function ThemeGallery() {

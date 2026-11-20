@@ -1,5 +1,7 @@
 'use client';
 
+import { HeaderFooterEditor } from './HeaderFooterEditor';
+
 import { turnedBox } from '@/lib/rotation';
 import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
@@ -770,6 +772,9 @@ function ProjectProps() {
       <p className="mt-1 text-[10px] text-gray-400">Select a device or cable to edit it.</p>
       <hr className="my-4 border-gray-200" />
       <TitleBlockProps />
+      <hr className="my-4 border-gray-200" />
+      <div className="mb-1 text-[11px] uppercase tracking-wide text-gray-500">Header &amp; footer</div>
+      <HeaderFooterEditor />
     </>
   );
 }
