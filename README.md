@@ -265,6 +265,22 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - Exports: the **PDF** gets a front/rear elevation page per rack and a **Rack contents** table; the **CSV** gets a
   RACKS section and rack positions in the device list.
 
+## Visio drawings (.vsdx)
+
+- **File → Save as Visio drawing** writes a `.vsdx` that opens in Microsoft Visio, one Visio page per page:
+  - devices as pictures with their details as **Shape Data** (name, model, IP, MAC, serial, asset tag, location,
+    status, your own fields, notes) and their ports as named **connection points** (glue new connectors in Visio);
+  - cables as lines along the drawn route with their colour, dashes, arrows, label, and Shape Data (cable type,
+    from, to, VLAN, length);
+  - zones, notes, drawing shapes, dimension lines, device labels and info boxes as native Visio shapes and text.
+- **File → Open** also opens Visio drawings (`.vsdx`): every page comes in; pictures and stencil shapes become
+  devices (Shape Data such as *IP Address*, *Serial Number*, *Model* fill the device fields, the rest become your own
+  fields; the shapes go into a library named after the file), plain boxes/ellipses/text become drawing shapes,
+  transparent dashed boxes become zones, and connectors glued to shapes become cables on the nearest ports. A
+  drawing saved by NetCraft comes back with its devices, fields, ports, cables, labels and info boxes.
+- Not carried over yet: Visio themes, layers, containers and background pages; connectors that aren't glued to two
+  shapes are left out (the count is shown).
+
 ## Your own stencils (no code needed)
 
 **+ Import image as device** (top of the shapes palette) takes an SVG, PNG, JPG or WebP — a vendor product photo, a datasheet

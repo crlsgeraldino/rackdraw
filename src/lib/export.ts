@@ -21,7 +21,7 @@ function download(name: string, href: string) {
   a.click();
 }
 
-function downloadBlob(name: string, blob: Blob) {
+export function downloadBlob(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   download(name, url);
   setTimeout(() => URL.revokeObjectURL(url), 1000);

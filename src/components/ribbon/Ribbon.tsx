@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, type PaperSize } from '@/lib/pageSetup';
 import { openFind, paletteAction } from '@/lib/events';
-import { exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { exportVsdx } from '@/lib/visio/vsdxExport';
+import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
@@ -91,11 +93,41 @@ function useDocument() {
     png: () => run(() => (page.nodes.length ? exportImage('png', project, contentBounds(page.nodes.map((n) => n.id)), page.name) : alert('This page is empty.'))),
     svg: () => run(() => (page.nodes.length ? exportImage('svg', project, contentBounds(page.nodes.map((n) => n.id)), page.name) : alert('This page is empty.'))),
     csv: () => run(() => exportCsv(project), false),
+    vsdx: () => run(async () => {
+      try {
+        const bytes = await exportVsdx(project, {
+          rf,
+          stencilOf: getStencil,
+          showPage: async (pg) => { useDiagram.getState().setActivePage(pg.id); await new Promise((r) => setTimeout(r, 800)); },
+        });
+        downloadBlob(`${safeName(project.name)}.vsdx`, new Blob([bytes as BlobPart], { type: 'application/vnd.ms-visio.drawing' }));
+      } finally {
+        back();
+      }
+    }),
     print: (o: PrintOptions) => run(async () => { try { await printProject(project, renderPage, o); } finally { back(); } }, o.pageIds.length > 0),
     save: () => saveProjectFile(project),
     open: async (f?: File) => {
       if (!f) return;
       try {
+        if (/\.vsdx$/i.test(f.name)) {
+          setBusy(true);
+          try {
+            const { project: p, stencils, summary } = await importVsdx(f);
+            useDiagram.getState().importProject(p, stencils);
+            setTimeout(() => rf.fitView({ padding: 0.2 }), 80);
+            const notes = [...new Set(summary.warnings)];
+            alert(
+              `Opened ${f.name}: ${summary.pages} page${summary.pages === 1 ? '' : 's'}, ${summary.devices} devices, ${summary.cables} cables, ${summary.shapes} other shapes.` +
+              (summary.skippedLines ? `\n${summary.skippedLines} line${summary.skippedLines === 1 ? ' was' : 's were'} not connected to two shapes and ${summary.skippedLines === 1 ? 'was' : 'were'} left out.` : '') +
+              (stencils.length ? `\nIts shapes are in the "${stencils[0].library}" library.` : '') +
+              (notes.length ? `\n\nNotes:\n• ${notes.join('\n• ')}` : ''),
+            );
+          } finally {
+            setBusy(false);
+          }
+          return;
+        }
         const { project: p, stencils } = await readProjectFile(f);
         useDiagram.getState().importProject(p, stencils);
         setTimeout(() => rf.fitView({ padding: 0.2 }), 50);
@@ -237,10 +269,10 @@ export function Ribbon() {
           onOpen={() => { setFile(false); openRef.current?.click(); }}
           onSave={() => { setFile(false); doc.save(); }}
           onPrint={() => { setFile(false); setPrinting(true); }}
-          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv })[kind](); }}
+          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx })[kind](); }}
         />
       )}
-      <input ref={openRef} type="file" accept=".json,application/json" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={openRef} type="file" accept=".json,application/json,.vsdx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
       {printing && <PrintDialog onPrint={(o) => { setPrinting(false); doc.print(o); }} onClose={() => setPrinting(false)} />}
       {naming !== null && <NewClientDialog value={naming} onChange={setNaming} onClose={() => setNaming(null)} />}
     </header>
@@ -270,7 +302,7 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
 /** The File tab's full-window page (Office "backstage"). */
 function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onClose: () => void; onNew: () => void; onOpen: () => void; onSave: () => void; onPrint: () => void;
-  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv') => void;
+  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx') => void;
 }) {
   const project = useCurrentProject();
   useEffect(() => {
@@ -283,7 +315,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <Icon name={icon} size={18} /> {label}
     </button>
   );
-  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv') => (
+  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx') => (
     <button key={kind} className="flex items-start gap-3 rounded border border-gray-200 p-3 text-left hover:border-blue-400 hover:bg-blue-50" onClick={() => onExport(kind)}>
       <Icon name={icon} size={28} className="shrink-0 text-gray-700" />
       <span><span className="block text-sm font-medium text-gray-900">{title}</span><span className="text-xs text-gray-500">{sub}</span></span>
@@ -294,8 +326,9 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <nav className="flex w-56 shrink-0 flex-col bg-[#3955a3] py-3 text-white">
         <button className="mb-3 flex items-center gap-2 px-5 py-1 text-sm hover:bg-white/15" onClick={onClose}><Icon name="goBack" size={22} /> Back</button>
         {item('new', 'New client…', onNew)}
-        {item('open', 'Open…', onOpen)}
+        {item('open', 'Open… (NetCraft or Visio .vsdx)', onOpen)}
         {item('save', 'Save', onSave)}
+        {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
         {item('print', 'Print…', onPrint)}
         <div className="my-2 border-t border-white/20" />
         {item('delete', 'Delete this client…', () => { if (confirm(`Delete "${project.name}" from this computer? This cannot be undone.`)) { useDiagram.getState().deleteProject(project.id); onClose(); } }, true)}
@@ -305,6 +338,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         <p className="mb-6 text-sm text-gray-500">{[project.site, project.address].filter(Boolean).join(' · ') || 'Client diagram'} · {project.pages.length} page{project.pages.length === 1 ? '' : 's'}</p>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Export</h2>
         <div className="grid max-w-3xl grid-cols-2 gap-3">
+          {exp('visio', 'Visio drawing (.vsdx)', 'Every page as a Visio drawing: devices with their Shape Data, cables, zones, labels and info boxes', 'vsdx')}
           {exp('pdf', 'PDF report', 'Every page, rack elevations and the device, connection and port tables, with the title block', 'pdf')}
           {exp('image', 'PNG picture of this page', 'For Word documents and email', 'png')}
           {exp('exportFile', 'SVG drawing of this page', 'Scalable vector picture for Office and Visio', 'svg')}

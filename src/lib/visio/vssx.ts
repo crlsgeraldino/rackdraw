@@ -51,10 +51,16 @@ function color(v: string | null | undefined): string | null {
 
 export class VisioPackage {
   private cache = new Map<string, Uint8Array>();
+  /** Every master by ID, hidden ones included (page shapes refer to them). */
+  private allMasters = new Map<string, VisioMasterInfo>();
+  private masterRenders = new Map<string, RenderedMaster | null>();
 
   private constructor(private data: Uint8Array, readonly masters: VisioMasterInfo[], private styles: Map<string, Element>) {}
 
-  static async open(file: File): Promise<VisioPackage> {
+  /** Pages of a drawing (.vsdx); empty for a stencil. */
+  pages: VisioPageInfo[] = [];
+
+  static async open(file: File, opts: { drawing?: boolean } = {}): Promise<VisioPackage> {
     if (/\.(vss|vsd|vst)$/i.test(file.name)) {
       throw new Error('This is an older binary Visio file (.vss/.vsd). Open it in Visio and save it as a .vssx stencil, then import that.');
     }
@@ -62,15 +68,37 @@ export class VisioPackage {
     if (data[0] !== 0x50 || data[1] !== 0x4b) throw new Error('This is not a Visio .vssx/.vsdx file.');
     const pkg = new VisioPackage(data, [], new Map());
     const mastersXml = pkg.text('visio/masters/masters.xml');
-    if (!mastersXml) throw new Error('This Visio file has no stencil masters.');
-    const rels = pkg.rels('visio/masters/masters.xml');
-    const doc = new DOMParser().parseFromString(mastersXml, 'application/xml');
-    for (const m of Array.from(doc.getElementsByTagNameNS(NS, 'Master'))) {
-      if (m.getAttribute('Hidden') === '1') continue;
-      const relId = m.getElementsByTagNameNS(NS, 'Rel')[0]?.getAttributeNS(REL_NS, 'id');
-      const target = relId && rels.get(relId);
-      if (!target) continue;
-      pkg.masters.push({ id: m.getAttribute('ID') ?? target, name: m.getAttribute('Name') || m.getAttribute('NameU') || `Master ${m.getAttribute('ID')}`, file: `visio/masters/${target}` });
+    if (!mastersXml && !opts.drawing) throw new Error('This Visio file has no stencil masters.');
+    if (mastersXml) {
+      const rels = pkg.rels('visio/masters/masters.xml');
+      const doc = new DOMParser().parseFromString(mastersXml, 'application/xml');
+      for (const m of Array.from(doc.getElementsByTagNameNS(NS, 'Master'))) {
+        const relId = m.getElementsByTagNameNS(NS, 'Rel')[0]?.getAttributeNS(REL_NS, 'id');
+        const target = relId && rels.get(relId);
+        if (!target) continue;
+        const info = { id: m.getAttribute('ID') ?? target, name: m.getAttribute('Name') || m.getAttribute('NameU') || `Master ${m.getAttribute('ID')}`, file: `visio/masters/${target}` };
+        pkg.allMasters.set(info.id, info);
+        // Hidden masters (e.g. Dynamic connector) are used by drawings but not offered as stencil shapes.
+        if (m.getAttribute('Hidden') !== '1') pkg.masters.push(info);
+      }
+    }
+    if (opts.drawing) {
+      const pagesXml = pkg.text('visio/pages/pages.xml');
+      if (!pagesXml) throw new Error('This Visio file has no drawing pages.');
+      const prels = pkg.rels('visio/pages/pages.xml');
+      for (const pg of Array.from(new DOMParser().parseFromString(pagesXml, 'application/xml').getElementsByTagNameNS(NS, 'Page'))) {
+        if (pg.getAttribute('Background') === '1') continue;
+        const relId = pg.getElementsByTagNameNS(NS, 'Rel')[0]?.getAttributeNS(REL_NS, 'id');
+        const target = relId && prels.get(relId);
+        if (!target) continue;
+        const sheet = pg.getElementsByTagNameNS(NS, 'PageSheet')[0];
+        pkg.pages.push({
+          name: pg.getAttribute('Name') || pg.getAttribute('NameU') || `Page ${pkg.pages.length + 1}`,
+          file: `visio/pages/${target}`,
+          widthIn: num(sheet ? cell(sheet, 'PageWidth') : null, 11),
+          heightIn: num(sheet ? cell(sheet, 'PageHeight') : null, 8.5),
+        });
+      }
     }
     // Style sheets supply default line/fill/text formatting.
     const docXml = pkg.text('visio/document.xml');
@@ -219,6 +247,140 @@ export class VisioPackage {
     return `<g transform="matrix(${r3(a)} ${r3(b)} ${r3(c)} ${r3(d)} ${r3(e)} ${r3(f)})">${parts.join('')}</g>`;
   }
 
+  /**
+   * Reads one drawing page: each top-level shape becomes a picture (devices and anything complex, with its Shape
+   * Data and connection points), a box, an ellipse, a text block or a line, plus which connector ends are glued
+   * to which shapes. Positions are in pixels (96 per inch) from the page's top-left.
+   */
+  readPage(page: VisioPageInfo, encodeDib: DibEncoder): { items: PageItem[]; connects: PageConnect[]; warnings: string[] } {
+    const xml = this.text(page.file);
+    if (!xml) throw new Error(`Page "${page.name}" is missing from the file.`);
+    const rels = this.rels(page.file);
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const warnings: string[] = [];
+    const ctx: Ctx = { pkg: this, rels, folder: page.file.slice(0, page.file.lastIndexOf('/')), encodeDib, warnings };
+    const shapesEl = doc.getElementsByTagNameNS(NS, 'Shapes')[0];
+    const tops = shapesEl ? children(shapesEl, 'Shape') : [];
+    const H = page.heightIn;
+    const toPx = ([x, y]: [number, number]): [number, number] => [x * PX, (H - y) * PX];
+    const items: PageItem[] = [];
+
+    for (const s of tops) {
+      const id = s.getAttribute('ID') ?? '';
+      const t = xf(s);
+      const name = s.getAttribute('Name') || s.getAttribute('NameU') || '';
+      const textEl = children(s, 'Text')[0];
+      const text = (textEl?.textContent ?? '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').trim();
+      const data: Record<string, string> = {};
+      const prop = section(s, 'Property');
+      if (prop) for (const row of children(prop, 'Row')) {
+        const v = cell(row, 'Value');
+        if (v != null && v !== '') data[cell(row, 'Label') || row.getAttribute('N') || 'Field'] = v;
+      }
+      const corners = ([[0, 0], [t.w, 0], [0, t.h], [t.w, t.h]] as [number, number][]).map(([x, y]) => toPx(apply(t.m, x, y)));
+      const xs = corners.map((c) => c[0]), ys = corners.map((c) => c[1]);
+      const bbox = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+      const get = (n: string, kind: 'line' | 'fill' | 'text') => styleCell(s, n, kind, this.styles);
+      const linePattern = num(get('LinePattern', 'line'), 1);
+      const lineColor = linePattern === 0 ? null : color(get('LineColor', 'line')) ?? '#000000';
+      const lineWidthPx = Math.max(0.5, num(get('LineWeight', 'line'), 0.01) * PX);
+      const fillColor = num(get('FillPattern', 'fill'), 1) === 0 ? null : color(get('FillForegnd', 'fill')) ?? '#ffffff';
+      const charSec = section(s, 'Character');
+      const charRow = charSec ? children(charSec, 'Row')[0] : undefined;
+      const textColor = color(charRow ? cell(charRow, 'Color') : null) ?? '#000000';
+      const fontPx = num(charRow ? cell(charRow, 'Size') : get('Size', 'text'), 0.1111) * PX;
+      const base = { id, name, text, data, ...bbox, textColor, fontPx };
+
+      const geos = sections(s, 'Geometry').filter((g) => cell(g, 'NoShow') !== '1');
+      const sub = s.getElementsByTagNameNS(NS, 'Shapes')[0];
+      const hasKids = !!sub && sub.parentElement === s && children(sub, 'Shape').length > 0;
+      const masterId = s.getAttribute('Master');
+      const oneD = cell(s, 'BeginX') != null && cell(s, 'EndX') != null;
+      const foreign = s.getAttribute('Type') === 'Foreign';
+
+      // Lines and connectors: their geometry (or begin/end points) in page coordinates.
+      const lineGeo = geos.length === 1 && !hasKids && !foreign ? lineRows(geos[0]) : null;
+      if (oneD || (lineGeo && (cell(geos[0], 'NoFill') === '1' || !fillColor))) {
+        let pts: [number, number][];
+        if (lineGeo && lineGeo.length >= 2) pts = lineGeo.map(([x, y]) => toPx(apply(t.m, x, y)));
+        else pts = [toPx([num(cell(s, 'BeginX')), num(cell(s, 'BeginY'))]), toPx([num(cell(s, 'EndX')), num(cell(s, 'EndY'))])];
+        items.push({
+          ...base, kind: 'line', points: pts, lineColor: lineColor ?? '#000000', lineWidthPx, dashed: linePattern > 1,
+          arrows: { start: num(get('BeginArrow', 'line')) > 0, end: num(get('EndArrow', 'line')) > 0 },
+        });
+        continue;
+      }
+
+      // Plain boxes, ellipses and text: kept as editable drawing shapes.
+      const simple = !hasKids && !foreign && !masterId && !Object.keys(data).length;
+      if (simple && geos.length === 0 && text) {
+        items.push({ ...base, kind: 'text' });
+        continue;
+      }
+      if (simple && geos.length === 1 && Math.abs(num(cell(s, 'Angle'))) < 1e-6) {
+        const kind = isRect(geos[0], t.w, t.h) ? 'box' : isEllipse(geos[0]) ? 'ellipse' : null;
+        if (kind) {
+          items.push({ ...base, kind, fill: cell(geos[0], 'NoFill') === '1' ? null : fillColor, stroke: cell(geos[0], 'NoLine') === '1' ? null : lineColor, dashed: linePattern > 1, rounding: num(get('Rounding', 'line')) * PX, fillTransparency: num(get('FillForegndTrans', 'fill')) });
+          continue;
+        }
+      }
+
+      // Everything else is a picture: the shape as drawn, or its master's drawing when the shape only refers to it.
+      const master = masterId ? this.masterRender(masterId, encodeDib) : null;
+      let svg: string;
+      let ports: PortDef[] = [];
+      if (master && !geos.length && !hasKids && !foreign) {
+        // Scale the master's drawing (and its ports) into this shape's box.
+        const mw = master.widthIn * PX, mh = master.heightIn * PX;
+        const inner = master.svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r3(mw)} ${r3(mh)}" width="${r3(bbox.w)}" height="${r3(bbox.h)}" preserveAspectRatio="none">${inner}</svg>`;
+        ports = master.ports.map((p) => ({ ...p, x: (p.x / mw) * bbox.w, y: (p.y / mh) * bbox.h, w: (p.w / mw) * bbox.w, h: (p.h / mh) * bbox.h }));
+        if (!text && !data.Name) base.text = this.allMasters.get(masterId!)?.name ?? '';
+      } else {
+        const own = this.shape(s, ctx);
+        if (!own) continue;
+        const W = bbox.w, Hh = bbox.h;
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r3(W)} ${r3(Hh)}" width="${r3(W)}" height="${r3(Hh)}"><g transform="matrix(${PX} 0 0 ${-PX} ${r3(-bbox.x)} ${r3(H * PX - bbox.y)})">${own}</g></svg>`;
+        const sec = section(s, 'Connection');
+        if (sec) {
+          const size = Math.max(6, Math.min(16, Math.min(W, Hh) * 0.15));
+          ports = children(sec, 'Row').map((row, i) => {
+            const [px, py] = toPx(apply(t.m, num(cell(row, 'X')), num(cell(row, 'Y'))));
+            const lx = px - bbox.x, ly = py - bbox.y;
+            // Named connection points (NetCraft writes the port's name) keep their name.
+            const label = row.getAttribute('N')?.replace(/^_(?=\d)/, '').replace(/_/g, ' ') || `${i + 1}`;
+            return { id: `C${i + 1}`, label, kind: 'rj45', x: Math.max(0, Math.min(W - size, lx - size / 2)), y: Math.max(0, Math.min(Hh - size, ly - size / 2)), w: size, h: size, side: ly < Hh / 2 ? 'top' : 'bottom' } as PortDef;
+          });
+        }
+      }
+      items.push({ ...base, kind: 'picture', svg, ports, masterId: masterId ?? undefined });
+    }
+
+    // Glue: which end of which connector is attached to which shape.
+    const connects: PageConnect[] = [];
+    for (const c of Array.from(doc.getElementsByTagNameNS(NS, 'Connect'))) {
+      const fromCell = c.getAttribute('FromCell');
+      if (fromCell !== 'BeginX' && fromCell !== 'EndX') continue;
+      connects.push({ connector: c.getAttribute('FromSheet') ?? '', end: fromCell === 'BeginX' ? 'begin' : 'end', shape: c.getAttribute('ToSheet') ?? '' });
+    }
+    return { items, connects, warnings };
+  }
+
+  /** A master's drawing, rendered once per file. */
+  private masterRender(id: string, encodeDib: DibEncoder): RenderedMaster | null {
+    if (!this.masterRenders.has(id)) {
+      const m = this.allMasters.get(id);
+      let r: RenderedMaster | null = null;
+      try {
+        r = m ? this.render(m, encodeDib) : null;
+      } catch {
+        r = null;
+      }
+      this.masterRenders.set(id, r);
+    }
+    return this.masterRenders.get(id)!;
+  }
+
   private pictures = new Map<string, string | null>();
 
   private picture(path: string, ctx: Ctx): string | null {
@@ -249,6 +411,83 @@ export class VisioPackage {
     this.pictures.set(path, url);
     return url;
   }
+}
+
+/** Points of a single open path made only of MoveTo/LineTo rows (a polyline), else null. */
+function lineRows(geo: Element): [number, number][] | null {
+  const pts: [number, number][] = [];
+  for (const row of children(geo, 'Row')) {
+    if (row.getAttribute('Del') === '1') continue;
+    const T = row.getAttribute('T');
+    if (T !== 'MoveTo' && T !== 'LineTo') return null;
+    if (T === 'MoveTo' && pts.length) return null;
+    pts.push([num(cell(row, 'X')), num(cell(row, 'Y'))]);
+  }
+  if (pts.length < 2) return null;
+  const [a, z] = [pts[0], pts[pts.length - 1]];
+  // A closed outline is a shape, not a line.
+  if (pts.length > 2 && Math.abs(a[0] - z[0]) < 1e-6 && Math.abs(a[1] - z[1]) < 1e-6) return null;
+  return pts;
+}
+
+/** Is this geometry the shape's own rectangle (0,0)–(w,h)? */
+function isRect(geo: Element, w: number, h: number) {
+  const rows = children(geo, 'Row').filter((r) => r.getAttribute('Del') !== '1');
+  if (rows.length < 4 || rows.length > 5) return false;
+  const kinds = ['MoveTo', 'LineTo', 'RelMoveTo', 'RelLineTo'];
+  if (!rows.every((r) => kinds.includes(r.getAttribute('T') ?? ''))) return false;
+  const pts = rows.map((r) => {
+    const rel = (r.getAttribute('T') ?? '').startsWith('Rel');
+    return [num(cell(r, 'X')) * (rel ? w : 1), num(cell(r, 'Y')) * (rel ? h : 1)];
+  });
+  const near = (a: number, b: number) => Math.abs(a - b) < Math.max(w, h) * 0.01 + 1e-6;
+  return pts.every(([x, y]) => (near(x, 0) || near(x, w)) && (near(y, 0) || near(y, h)));
+}
+
+function isEllipse(geo: Element) {
+  const rows = children(geo, 'Row').filter((r) => r.getAttribute('Del') !== '1');
+  return rows.length === 1 && rows[0].getAttribute('T') === 'Ellipse';
+}
+
+export interface VisioPageInfo {
+  name: string;
+  file: string;
+  widthIn: number;
+  heightIn: number;
+}
+
+/** A shape read from a drawing page. Positions in pixels from the page's top-left. */
+export interface PageItem {
+  id: string;
+  kind: 'picture' | 'box' | 'ellipse' | 'text' | 'line';
+  name: string;
+  text: string;
+  /** Shape Data (label → value). */
+  data: Record<string, string>;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  textColor: string;
+  fontPx: number;
+  svg?: string;
+  ports?: PortDef[];
+  masterId?: string;
+  fill?: string | null;
+  stroke?: string | null;
+  dashed?: boolean;
+  rounding?: number;
+  fillTransparency?: number;
+  points?: [number, number][];
+  lineColor?: string;
+  lineWidthPx?: number;
+  arrows?: { start: boolean; end: boolean };
+}
+
+export interface PageConnect {
+  connector: string;
+  end: 'begin' | 'end';
+  shape: string;
 }
 
 interface Ctx {
