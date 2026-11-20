@@ -1,11 +1,26 @@
 'use client';
 
-import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
-import { memo, useMemo, useState } from 'react';
+import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type NodeProps } from '@xyflow/react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import type { BackdropNode, DeviceNode, NoteNode, PortDef, ShapeData, ShapeNode, StencilDef, ZoneNode } from '@/lib/types';
-import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { deviceFieldValue } from '@/lib/report';
+import { DeviceInfoBox } from './DeviceInfoBox';
+import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
+import { useOverlaySize } from '@/lib/overlays';
+import { useDragOffset } from './useDragOffset';
+import { EDIT_TEXT_EVENT } from '@/lib/events';
+import { normDeg, turnedBox } from '@/lib/rotation';
+import { useIconPortOffsets } from './iconPorts';
+import MeasureNodeView from './MeasureNode';
+import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
+
+const SIDES: PortDef['side'][] = ['top', 'right', 'bottom', 'left'];
+/** Which way a port faces once the device is turned clockwise by `deg` (quarter turns). */
+const turnSide = (side: PortDef['side'], deg: number) => SIDES[(SIDES.indexOf(side) + Math.round(deg / 90)) % 4];
 
 const SIDE: Record<PortDef['side'], Position> = {
   top: Position.Top,
@@ -50,17 +65,112 @@ function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates:
   );
 }
 
+/**
+ * The device's text on the diagram (name, IP… as chosen in the properties panel). Drag it to move it;
+ * its offset is saved with the device.
+ */
+function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; variant: 'icon' | 'panel' }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const sizeRef = useOverlaySize<HTMLDivElement>(`${id}|label`);
+  // Dragging a label that sits beside its icon keeps it on that side (moved from there).
+  const drag = useDragOffset(data.labelOffset, (labelOffset) => update(id, data.labelBeside ? { labelOffset, labelSide: 'left' } : { labelOffset }), !!data.locked);
+  const snapshot = useDiagram((s) => s.snapshot);
+  // Double-click the label (or F2) to rename the device right there (like typing on a Visio shape).
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked) setEditing(true); };
+    window.addEventListener(EDIT_TEXT_EVENT, on);
+    return () => window.removeEventListener(EDIT_TEXT_EVENT, on);
+  }, [id, data.locked]);
+  const fields = data.labelFields ?? DEFAULT_LABEL_FIELDS;
+  const lines = fields.map((f) => ({ f, v: f === 'name' ? data.name : (data[f] as string | undefined) })).filter((l) => l.v);
+  if (!lines.length) return null;
+  const off = data.labelOffset ?? { x: 0, y: 0 };
+
+  const text = (f: string, v: string) => (
+    <span key={f} className={f === 'name' ? 'font-semibold' : f === 'ip' ? 'font-mono text-gray-500' : 'text-gray-600'}>{v}</span>
+  );
+  return (
+    <div
+      ref={sizeRef}
+      className={`nc-device-label nodrag nopan absolute cursor-move select-none text-[11px] leading-tight text-gray-800 ${
+        variant === 'icon' && data.labelBeside ? 'right-full top-1/2 mr-2 flex -translate-y-1/2 flex-col items-end whitespace-nowrap text-right'
+          : variant === 'icon' ? 'top-full mt-1 flex w-40 flex-col items-center text-center' : 'left-0 top-full mt-1 flex gap-2 whitespace-nowrap'}`}
+      style={{ translate: `${off.x}px ${off.y}px` }}
+      {...(editing ? {} : drag)}
+      onDoubleClick={(e) => { if (data.locked || id.startsWith('bg:')) return; e.stopPropagation(); setEditing(true); }}
+      title={data.locked ? undefined : 'Drag to move the label · double-click to rename'}
+    >
+      {editing ? (
+        <input
+          autoFocus
+          className="nodrag w-40 rounded border border-blue-400 bg-white px-1 text-[11px] font-semibold outline-none"
+          defaultValue={data.name}
+          onFocus={(e) => e.currentTarget.select()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') { e.currentTarget.value = data.name; e.currentTarget.blur(); }
+          }}
+          onBlur={(e) => {
+            const v = e.currentTarget.value.trim();
+            if (v && v !== data.name) { snapshot(); update(id, { name: v }); }
+            setEditing(false);
+          }}
+        />
+      ) : lines.map((l) => text(l.f, l.v!))}
+    </div>
+  );
+}
+
+/**
+ * Data Graphics (Visio): the chosen fields as small tags above the device — ✔ / ✘ for yes-no values and a coloured
+ * dot for status when shown as icons.
+ */
+function DataGraphics({ data }: { data: DeviceData }) {
+  const graphics = useCurrentProject().display?.dataGraphics;
+  if (!graphics?.length) return null;
+  const items = graphics.flatMap((g) => {
+    const v = deviceFieldValue(data, g.field).trim();
+    if (!v) return [];
+    const label = g.field.startsWith('x:') ? g.field.slice(2) : g.field;
+    if (g.style === 'icon') {
+      if (/^(yes|true|y|1)$/i.test(v)) return [<span key={g.field} title={`${label}: ${v}`} className="rounded bg-green-600 px-1 text-[10px] font-bold text-white">✔</span>];
+      if (/^(no|false|n|0)$/i.test(v)) return [<span key={g.field} title={`${label}: ${v}`} className="rounded bg-red-600 px-1 text-[10px] font-bold text-white">✘</span>];
+      if (g.field === 'status') {
+        const c = DEVICE_STATUSES.find((s) => s.label === v)?.color ?? '#6b7280';
+        return [<span key={g.field} title={`Status: ${v}`} className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-white" style={{ background: c }} />];
+      }
+    }
+    return [<span key={g.field} title={label} className="max-w-40 truncate rounded border border-slate-300 bg-white/95 px-1 text-[10px] leading-4 text-slate-700 shadow-sm">{v}</span>];
+  });
+  if (!items.length) return null;
+  return <div className="nc-data-graphics pointer-events-none absolute bottom-full left-0 mb-1 flex items-center gap-1 whitespace-nowrap">{items}</div>;
+}
+
 /** Diagram size of a stencil before any resizing. */
 export function baseSize(stencil: StencilDef) {
   const k = stencil.style === 'icon' ? 1 : stencil.scale;
   return { width: stencil.width * k, height: stencil.height * k };
 }
 
-function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
+function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>) {
   const stencil = useStencil(data.stencilId);
+  const hover = useQuickInfoHover(!!dragging);
+  const quickInfo = <DeviceQuickInfo id={id} data={data} stencil={stencil} visible={hover.visible} card={hover.card} />;
+  // Only a size the user set (resize handles / properties panel) scales the device. React Flow's `width` prop falls
+  // back to the measured size, which would feed back into the drawing: one bad measurement (e.g. taken while the
+  // canvas remounts at another zoom) would then stick and grow the device.
+  const width = useDiagram((s) => {
+    const p = s.projects[s.currentId];
+    // Devices from a background page are shown with an id prefixed "bg:".
+    if (id.startsWith('bg:')) return p.pages.flatMap((pg) => pg.nodes).find((n) => n.id === id.slice(3))?.width;
+    return activePage(p).nodes.find((n) => n.id === id)?.width;
+  });
   const states = usePortStates(id);
   const snapshot = useDiagram((s) => s.snapshot);
   const display = useDisplay();
+  const iconPorts = useIconPortOffsets(id, stencil);
   if (!stencil) {
     return (
       <div className="w-48 rounded border border-red-400 bg-red-50 p-2 text-xs text-red-800">
@@ -71,16 +181,20 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
   }
   // Resizing sets the node's width; everything (art, ports, highlights) scales from it, keeping proportions.
   const base = baseSize(stencil);
-  const zoom = width ? width / base.width : 1;
-  const k = (stencil.style === 'icon' ? 1 : stencil.scale) * zoom;
+  // Turned devices: the box is the one around the turned drawing; the drawing turns inside it. Icons turn in place.
+  const rot = normDeg(data.rotation ?? 0);
+  const icon = stencil.style === 'icon';
+  const tb = icon ? { w: base.width, h: base.height } : turnedBox(base.width, base.height, rot);
+  const zoom = width ? width / tb.w : 1;
+  const k = (icon ? 1 : stencil.scale) * zoom;
   const resizer = (
     <NodeResizer
-      isVisible={selected}
+      isVisible={selected && !data.locked}
       keepAspectRatio
-      minWidth={Math.min(base.width, Math.max(24, base.width * 0.2))}
-      minHeight={Math.min(base.height, Math.max(8, base.height * 0.2))}
-      maxWidth={base.width * 6}
-      maxHeight={base.height * 6}
+      minWidth={Math.min(tb.w, Math.max(24, tb.w * 0.2))}
+      minHeight={Math.min(tb.h, Math.max(8, tb.h * 0.2))}
+      maxWidth={tb.w * 6}
+      maxHeight={tb.h * 6}
       color="#3b82f6"
       handleStyle={{ width: 9, height: 9, borderRadius: 2 }}
       lineStyle={{ borderWidth: 0 }}
@@ -98,49 +212,80 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
 
   const handles = stencil.ports.map((p) => {
     const custom = data.ports?.[p.id];
-    const title = [custom?.label || p.label, p.role, custom?.description, custom?.vlan && `VLAN ${custom.vlan}`].filter(Boolean).join(' · ');
+    // Hovering a port shows everything written about it.
+    const title = [
+      [custom?.label || p.label, custom?.uplink && 'UPLINK', p.role].filter(Boolean).join(' · '),
+      custom?.description && `→ ${custom.description}`,
+      [custom?.ip, custom?.vlan && `VLAN ${custom.vlan}`].filter(Boolean).join(' · '),
+      custom?.notes,
+    ].filter(Boolean).join('\n');
+    const off = iconPorts.offsets?.[p.id] ?? { x: 0, y: 0 };
     return (
       <Handle
         key={p.id}
         id={p.id}
         type="source"
-        position={SIDE[p.side]}
+        position={SIDE[turnSide(p.side, rot)]}
         title={title}
         className={stencil.style === 'icon' ? 'nc-handle-dot' : 'nc-handle-port'}
-        style={{ left: p.x * k, top: p.y * k, width: p.w * k, height: p.h * k }}
+        style={{ left: (p.x + off.x) * k, top: (p.y + off.y) * k, width: p.w * k, height: p.h * k }}
       />
     );
   });
 
+  // Ports with notes: an orange frame for uplinks, a small blue dot for any other documented port.
+  const markers = stencil.style === 'icon' ? null : stencil.ports.map((p) => {
+    const pd = data.ports?.[p.id];
+    if (!isDocumented(pd)) return null;
+    const box = { left: p.x * k, top: p.y * k, width: p.w * k, height: p.h * k };
+    return pd!.uplink
+      ? <div key={p.id} className="pointer-events-none absolute rounded-sm" style={{ ...box, outline: '2px solid #f97316', outlineOffset: 1 }} />
+      : <div key={p.id} className="pointer-events-none absolute" style={box}><span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-blue-600 ring-1 ring-white" /></div>;
+  });
+
   if (stencil.style === 'icon') {
     return (
-      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }}>
+      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }} {...hover.bind}>
         {resizer}
-        <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
+        {quickInfo}
+        <NodeBadges data={data} selected={selected} />
+        <DataGraphics data={data} />
+        <div ref={iconPorts.ref} className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade, transform: rot ? `rotate(${rot}deg)` : undefined }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
         </div>
-        <div className="pointer-events-none absolute top-full mt-1 w-40 text-center text-[11px] leading-tight text-gray-800">
-          <div className="font-semibold">{data.name}</div>
-          {data.ip && <div className="font-mono text-gray-500">{data.ip}</div>}
-        </div>
+        {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
+        <DeviceLabel id={id} data={data} variant="icon" />
+        <DeviceInfoBox id={id} data={data} />
       </div>
     );
   }
 
+  const aw = stencil.width * k, ah = stencil.height * k;
+  const tbk = turnedBox(aw, ah, rot);
+  const box = { width: tbk.w, height: tbk.h };
   return (
-    <div className={`relative ${selected ? 'nc-selected-panel' : ''}`}>
+    <div className={`relative ${selected ? 'nc-selected-panel' : ''}`} style={rot ? box : undefined} {...hover.bind}>
       {resizer}
-      <div style={{ ...(selected ? {} : outline), ...fade }}>
-        {stencil.style === 'image'
-          ? <ImageArt stencil={stencil} portStates={states} k={k} />
-          : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
+      {quickInfo}
+      <NodeBadges data={data} selected={selected} />
+      {/* The drawing, its port markers and its ports turn together; React Flow reads the turned port positions. */}
+      <div
+        className={rot ? 'absolute' : undefined}
+        style={rot ? { width: aw, height: ah, left: (box.width - aw) / 2, top: (box.height - ah) / 2, transform: `rotate(${rot}deg)` } : undefined}
+      >
+        <div style={{ ...(selected ? {} : outline), ...fade }}>
+          {stencil.style === 'image'
+            ? <ImageArt stencil={stencil} portStates={states} k={k} />
+            : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
+        </div>
+        {markers}
+        {handles}
       </div>
-      {handles}
-      <div className="pointer-events-none absolute left-0 top-full mt-1 flex gap-2 whitespace-nowrap text-[11px] text-gray-800">
-        <span className="font-semibold">{data.name}</span>
-        {data.ip && <span className="font-mono text-gray-500">{data.ip}</span>}
-      </div>
+      {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
+      <DataGraphics data={data} />
+      <DeviceLabel id={id} data={data} variant="panel" />
+      <DeviceInfoBox id={id} data={data} />
     </div>
   );
 }
@@ -148,11 +293,12 @@ function DeviceNodeView({ id, data, selected, width }: NodeProps<DeviceNode>) {
 function ZoneNodeView({ data, selected }: NodeProps<ZoneNode>) {
   return (
     <>
-      <NodeResizer isVisible={selected} minWidth={160} minHeight={100} color={data.color} />
+      <NodeResizer isVisible={selected && !data.locked} minWidth={160} minHeight={100} color={data.color} />
       <div
-        className="h-full w-full rounded-lg border-2 border-dashed"
+        className="relative h-full w-full rounded-lg border-2 border-dashed"
         style={{ borderColor: data.color, background: `${data.color}12` }}
       >
+        <NodeBadges data={data} selected={selected} />
         <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color }}>
           {data.title}
         </div>
@@ -176,12 +322,34 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
 }
 
 function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
-  const common = { fill: d.fill, stroke: d.stroke, strokeWidth: 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
+  const common = { fill: d.fill, stroke: d.stroke, strokeWidth: d.lineWidth ?? 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
   switch (d.kind) {
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
+    case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
+    case 'freeform': return <polyline points={(d.points ?? []).map(([px, py]) => `${px * w},${py * h}`).join(' ')} {...common} fill={d.fill === 'transparent' ? 'none' : d.fill} strokeLinecap="round" strokeLinejoin="round" />;
     case 'diamond': return <polygon points={`${w / 2},1 ${w - 1},${h / 2} ${w / 2},${h - 1} 1,${h / 2}`} {...common} />;
+    case 'door': {
+      // Floor-plan door: the leaf (hinged bottom-left, drawn open) and its swing arc; flip mirrors the swing.
+      const r = Math.min(w, h) - 2;
+      const g = d.flip ? `matrix(-1 0 0 1 ${w} 0)` : undefined;
+      return (
+        <g transform={g}>
+          <line x1={1} y1={h - 1} x2={r + 1} y2={h - 1} stroke={d.stroke} strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+          <line x1={1} y1={h - 1} x2={1} y2={h - 1 - r} stroke={d.stroke} strokeWidth={3} vectorEffect="non-scaling-stroke" />
+          <path d={`M1 ${h - 1 - r} A${r} ${r} 0 0 1 ${r + 1} ${h - 1}`} fill="none" stroke={d.stroke} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />
+        </g>
+      );
+    }
+    case 'window':
+      // Floor-plan window: the frame with a centre line for the glass.
+      return (
+        <g>
+          <rect x={1} y={1} width={w - 2} height={h - 2} fill={d.fill} stroke={d.stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <line x1={1} y1={h / 2} x2={w - 1} y2={h / 2} stroke={d.stroke} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        </g>
+      );
     case 'arrow': {
       const head = Math.min(w * 0.4, h);
       return <polygon points={`1,${h * 0.28} ${w - head},${h * 0.28} ${w - head},1 ${w - 1},${h / 2} ${w - head},${h - 1} ${w - head},${h * 0.72} 1,${h * 0.72}`} {...common} />;
@@ -191,37 +359,194 @@ function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
 }
 
 /** Drawing shape: box, ellipse, diamond, arrow or free text. Double-click to edit the text. */
-function ShapeNodeView({ id, data, selected, width, height }: NodeProps<ShapeNode>) {
+/** Leader line of a callout: from the edge of its box to the middle of the item it points to. */
+function CalloutLeader({ target, x, y, w, h, color }: { target: string; x: number; y: number; w: number; h: number; color: string }) {
+  const t = useInternalNode(target);
+  if (!t) return null;
+  const tw = t.measured.width ?? 0, th = t.measured.height ?? 0;
+  const tx = t.internals.positionAbsolute.x + tw / 2 - x, ty = t.internals.positionAbsolute.y + th / 2 - y;
+  // Start where the line from the box centre to the target leaves the box.
+  const cx = w / 2, cy = h / 2, dx = tx - cx, dy = ty - cy;
+  const k = Math.min(Math.abs(dx) > 1e-6 ? w / 2 / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-6 ? h / 2 / Math.abs(dy) : Infinity, 1);
+  const sx = cx + dx * k, sy = cy + dy * k;
+  return (
+    <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: -1 }}>
+      <line x1={sx} y1={sy} x2={tx} y2={ty} stroke={color} strokeWidth={1.5} />
+      <circle cx={tx} cy={ty} r={3} fill={color} />
+    </svg>
+  );
+}
+
+function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, positionAbsoluteY }: NodeProps<ShapeNode>) {
   const update = useDiagram((s) => s.updateNodeData);
   const snapshot = useDiagram((s) => s.snapshot);
   const [editing, setEditing] = useState(false);
   const w = width ?? 160, h = height ?? 80;
-  const textStyle: React.CSSProperties = { color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2 };
+  const textStyle: React.CSSProperties = {
+    color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2, fontFamily: data.fontFamily,
+    fontWeight: data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textDecoration: data.underline ? 'underline' : undefined,
+    textAlign: data.align ?? 'center',
+  };
+  const justify = data.align === 'left' ? 'justify-start' : data.align === 'right' ? 'justify-end' : 'justify-center';
+  const items = data.valign === 'top' ? 'items-start' : data.valign === 'bottom' ? 'items-end' : 'items-center';
+  // Free rotation (Visio's rotation handle) for drawing shapes; doors turn in 90° steps, windows and callouts don't.
+  const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout';
+  const outer = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked) { snapshot(); setEditing(true); } };
+    window.addEventListener(EDIT_TEXT_EVENT, on);
+    return () => window.removeEventListener(EDIT_TEXT_EVENT, on);
+  }, [id, data.locked, snapshot]);
+  // A turned shape gets its own resize handles, turned with it (React Flow's only work square to the page).
+  const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (
-    <div className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
-      <NodeResizer isVisible={selected} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
-      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'arrow' && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
+      <NodeResizer isVisible={selected && !data.locked && !turned} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
+      <NodeBadges data={data} selected={selected} />
+      {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
+      <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
       {data.kind === 'text' && selected && !editing && <div className="pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
       {editing ? (
         <textarea
           autoFocus
-          className="nodrag absolute inset-1 resize-none bg-white/80 text-center outline-none"
+          className="nodrag absolute inset-1 resize-none bg-white/80 outline-none"
           style={textStyle}
           defaultValue={data.text}
           onBlur={(e) => { update(id, { text: e.target.value }); setEditing(false); }}
           onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
         />
       ) : (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center whitespace-pre-wrap px-2 text-center" style={textStyle}>
+        <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={textStyle}>
           {data.text}
         </div>
       )}
+      {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}
+      {turned && selected && !data.locked && !editing && <TurnedResizer id={id} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} rotation={data.rotation ?? 0} />}
+      </div>
       {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
         <Handle key={side} id={side} type="source" position={SIDE[side]} className="nc-handle-side" />
       ))}
     </div>
+  );
+}
+
+const RESIZE_HANDLES: [number, number][] = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
+
+/**
+ * Resize handles for a rotated shape, drawn turned with it. Dragging one keeps the opposite side where it is: the
+ * pointer is measured in the shape's own (turned) axes, then the new box is placed back on the page.
+ */
+function TurnedResizer({ id, x, y, w, h, rotation }: { id: string; x: number; y: number; w: number; h: number; rotation: number }) {
+  const rf = useReactFlow();
+  const setBox = useDiagram((s) => s.setNodeBox);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const drag = useRef<{ ax: number; ay: number; sx: number; sy: number } | null>(null);
+  const t = (rotation * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  const turn = (vx: number, vy: number) => ({ x: vx * c - vy * s, y: vx * s + vy * c });
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 border border-dashed border-blue-500" />
+      {RESIZE_HANDLES.map(([sx, sy]) => (
+        <span
+          key={`${sx}${sy}`}
+          className="nodrag nopan absolute h-[9px] w-[9px] rounded-sm border border-white bg-blue-500"
+          style={{ left: w / 2 + (sx * w) / 2 - 4.5, top: h / 2 + (sy * h) / 2 - 4.5, cursor: 'move' }}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            snapshot();
+            // The fixed point: the opposite corner / side, on the page.
+            const a = turn((-sx * w) / 2, (-sy * h) / 2);
+            drag.current = { ax: x + w / 2 + a.x, ay: y + h / 2 + a.y, sx, sy };
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            if (!d) return;
+            const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false });
+            const vx = p.x - d.ax, vy = p.y - d.ay;
+            const lx = vx * c + vy * s, ly = -vx * s + vy * c; // pointer in the shape's axes
+            const nw = d.sx ? Math.max(30, Math.round(lx * d.sx)) : w;
+            const nh = d.sy ? Math.max(20, Math.round(ly * d.sy)) : h;
+            const off = turn((d.sx * nw) / 2, (d.sy * nh) / 2);
+            const cx = d.ax + off.x, cy = d.ay + off.y;
+            setBox(id, { x: cx - nw / 2, y: cy - nh / 2 }, nw, nh);
+          }}
+          onPointerUp={() => { drag.current = null; }}
+          onPointerCancel={() => { drag.current = null; }}
+        />
+      ))}
+    </>
+  );
+}
+
+/** Rotate handle for a device: drag it round to turn the device (whole degrees, 15° with Shift, catches 0/90/180/270). */
+function DeviceRotateHandle({ id }: { id: string }) {
+  const setRotation = useDiagram((s) => s.setDeviceRotation);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const node = useRef<HTMLSpanElement>(null);
+  const active = useRef(false);
+  return (
+    <>
+      <span className="pointer-events-none absolute left-1/2 h-4 w-px -translate-x-1/2 bg-blue-500" style={{ top: -20 }} />
+      <span
+        ref={node}
+        className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
+        style={{ top: -26 }}
+        title="Drag to rotate (Shift: 15° steps)"
+        onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => {
+          if (!active.current) return;
+          const r = (node.current!.parentElement as HTMLElement).getBoundingClientRect();
+          let a = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI + 90;
+          if (e.shiftKey) a = Math.round(a / 15) * 15;
+          else {
+            a = Math.round(a);
+            const right = Math.round(a / 90) * 90;
+            if (Math.abs(a - right) <= 4) a = right;
+          }
+          setRotation(id, a);
+        }}
+        onPointerUp={() => { active.current = false; }}
+        onPointerCancel={() => { active.current = false; }}
+      />
+    </>
+  );
+}
+
+/** Drag to turn the shape about its centre; snaps to whole degrees, to 15° steps with Shift, and to 0/90/180/270. */
+function RotateHandle({ id, center }: { id: string; center: React.RefObject<HTMLDivElement | null> }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const active = useRef(false);
+  const angleAt = (e: React.PointerEvent) => {
+    const r = center.current!.getBoundingClientRect();
+    let a = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI + 90;
+    a = ((a % 360) + 360) % 360;
+    if (e.shiftKey) a = Math.round(a / 15) * 15;
+    else {
+      a = Math.round(a);
+      const right = Math.round(a / 90) * 90;
+      if (Math.abs(a - right) <= 4) a = right;
+    }
+    return a % 360;
+  };
+  return (
+    <>
+      <span className="pointer-events-none absolute left-1/2 h-5 w-px -translate-x-1/2 bg-blue-500" style={{ top: -22 }} />
+      <span
+        className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
+        style={{ top: -28 }}
+        title="Drag to rotate (Shift: 15° steps)"
+        onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => { if (active.current) update(id, { rotation: angleAt(e) }); }}
+        onPointerUp={() => { active.current = false; }}
+        onPointerCancel={() => { active.current = false; }}
+      />
+    </>
   );
 }
 
@@ -243,6 +568,7 @@ function BackdropNodeView({ data, selected, width, height }: NodeProps<BackdropN
 }
 
 export const nodeTypes = {
+  measure: memo(MeasureNodeView),
   device: memo(DeviceNodeView),
   zone: memo(ZoneNodeView),
   note: memo(NoteNodeView),

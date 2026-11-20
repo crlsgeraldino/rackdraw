@@ -74,7 +74,11 @@ export function displayColors(p: Project): DisplayColors {
     cableLegend = (Object.keys(CABLE_STYLES) as CableType[]).filter((t) => used.has(t)).map((t) => ({ label: t, color: CABLE_STYLES[t].color, dashed: !!CABLE_STYLES[t].dash }));
   }
 
-  return { device, cable, deviceLegend, cableLegend, deviceTitle, cableTitle };
+  // A color picked for one cable wins over the type/VLAN color.
+  const byData = cable;
+  const withOverride: DisplayColors['cable'] = (d) => ({ ...byData(d), ...(d?.color ? { color: d.color } : {}), ...(d?.weight ? { width: d.weight } : {}) });
+
+  return { device, cable: withOverride, deviceLegend, cableLegend, deviceTitle, cableTitle };
 }
 
 /** Is this device or cable on a hidden layer? */

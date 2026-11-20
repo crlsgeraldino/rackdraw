@@ -7,7 +7,8 @@ import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 /** Visio-style page tabs under the canvas: switch, add, rename (double-click), and a menu per page. */
 export function PageTabs() {
   const project = useCurrentProject();
-  const { setActivePage, addPage, renamePage, duplicatePage, deletePage, movePage } = useDiagram.getState();
+  const { setActivePage, addPage, renamePage, duplicatePage, deletePage, movePage, setPageBackground, setBackgroundOf, addBackgroundPage } = useDiagram.getState();
+  const backgrounds = project.pages.filter((p) => p.background);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [menu, setMenu] = useState<{ id: string; x: number } | null>(null);
@@ -43,11 +44,27 @@ export function PageTabs() {
             aria-selected={active}
             className={`group -mt-px flex items-center gap-1.5 border-x border-b px-3 ${active ? 'border-gray-200 bg-white font-medium text-gray-900' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}
             onClick={() => setActivePage(p.id)}
+            draggable={renaming !== p.id}
+            onDragStart={(e) => { e.dataTransfer.setData('application/x-netcraft-page', p.id); e.dataTransfer.effectAllowed = 'move'; }}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes('application/x-netcraft-page')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+            onDrop={(e) => {
+              const id = e.dataTransfer.getData('application/x-netcraft-page');
+              if (!id || id === p.id) return;
+              e.preventDefault();
+              // Dropped on the right half of a tab: after it; left half: before it.
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const from = project.pages.findIndex((x) => x.id === id);
+              let to = i + (e.clientX > r.left + r.width / 2 ? 1 : 0);
+              if (from < to) to--;
+              useDiagram.getState().movePageTo(id, to);
+            }}
             onDoubleClick={() => startRename(p.id, p.name)}
             onContextMenu={(e) => { e.preventDefault(); setMenu({ id: p.id, x: (e.currentTarget as HTMLElement).offsetLeft }); }}
-            title={`${p.kind === 'floorplan' ? 'Floor plan' : 'Network'} page · double-click to rename`}
+            title={p.background
+              ? 'Background page: shown behind the pages that use it · double-click to rename'
+              : `${p.kind === 'floorplan' ? 'Floor plan' : 'Network'} page${p.backgroundId ? ` · background: ${project.pages.find((x) => x.id === p.backgroundId)?.name ?? ''}` : ''} · double-click to rename`}
           >
-            <span aria-hidden className="text-[11px] text-gray-400">{p.kind === 'floorplan' ? '▦' : '⧉'}</span>
+            <span aria-hidden className="text-[11px] text-gray-400">{p.background ? '▭' : p.kind === 'floorplan' ? '▦' : '⧉'}</span>
             {renaming === p.id ? (
               <input
                 autoFocus
@@ -59,7 +76,7 @@ export function PageTabs() {
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span className="max-w-40 truncate">{p.name}</span>
+              <span className={`max-w-40 truncate ${p.background ? 'italic text-gray-500' : ''}`}>{p.name}</span>
             )}
             <button
               className={`rounded px-0.5 text-xs text-gray-400 hover:bg-gray-200 hover:text-gray-700 ${active ? '' : 'invisible group-hover:visible'}`}
@@ -69,9 +86,25 @@ export function PageTabs() {
               ▾
             </button>
             {menu?.id === p.id && (
-              <div className="absolute bottom-full z-50 mb-1 w-44 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" style={{ left: menu.x }} onClick={(e) => e.stopPropagation()}>
+              <div className="absolute bottom-full z-50 mb-1 w-52 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" style={{ left: menu.x }} onClick={(e) => e.stopPropagation()}>
                 <button className="block w-full px-3 py-1 text-left hover:bg-gray-50" onClick={() => startRename(p.id, p.name)}>Rename</button>
                 <button className="block w-full px-3 py-1 text-left hover:bg-gray-50" onClick={() => { duplicatePage(p.id); setMenu(null); }}>Duplicate</button>
+                {!p.background && (
+                  <label className="block px-3 py-1 text-gray-700">
+                    <span className="text-xs text-gray-500">Background</span>
+                    <select className="mt-0.5 w-full rounded border border-gray-300 px-1 py-0.5 text-sm" value={p.backgroundId ?? ''} onChange={(e) => { setBackgroundOf(p.id, e.target.value || null); setMenu(null); }}>
+                      <option value="">None</option>
+                      {backgrounds.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </label>
+                )}
+                <button
+                  className="block w-full px-3 py-1 text-left hover:bg-gray-50"
+                  title={p.background ? 'Make this a normal page again' : 'Draw this page behind other pages (title block, logo, border)'}
+                  onClick={() => { setPageBackground(p.id, !p.background); setMenu(null); }}
+                >
+                  {p.background ? 'Make foreground page' : 'Make background page'}
+                </button>
                 <button className="block w-full px-3 py-1 text-left hover:bg-gray-50 disabled:opacity-40" disabled={i === 0} onClick={() => { movePage(p.id, -1); setMenu(null); }}>Move left</button>
                 <button className="block w-full px-3 py-1 text-left hover:bg-gray-50 disabled:opacity-40" disabled={i === project.pages.length - 1} onClick={() => { movePage(p.id, 1); setMenu(null); }}>Move right</button>
                 <button
@@ -96,6 +129,7 @@ export function PageTabs() {
           <div className="absolute bottom-full left-0 z-50 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg">
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => add('network')}>⧉ Network diagram</button>
             <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => add('floorplan')}>▦ Floor plan</button>
+            <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" title="A page drawn behind other pages: put the title block, logo or border here once" onClick={() => { addBackgroundPage(); setAdding(false); }}>▭ Background page</button>
           </div>
         )}
       </div>

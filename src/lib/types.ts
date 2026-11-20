@@ -42,6 +42,8 @@ export interface StencilDef {
   image?: string;
   /** True for stencils the user imported (stored with their data, not in the app). */
   custom?: boolean;
+  /** Library (palette folder) a custom stencil belongs to, e.g. the Visio file it came from. Missing = "My stencils". */
+  library?: string;
   /** Height in rack units when mounted; undefined = not rack-mount (sits on a shelf, 1U by default). */
   rackUnits?: number;
   defaults?: Partial<DeviceData>;
@@ -51,16 +53,51 @@ export interface StencilDef {
 export interface StencilLibraryFile {
   format: 'netcraft-stencils';
   version: 1;
+  /** Library name when the file holds one library; each stencil also carries its own `library`. */
+  name?: string;
   stencils: StencilDef[];
 }
 
+/** What you know about one port: what is plugged into it, even when that device isn't drawn on the diagram. */
 export interface PortData {
   label?: string;
+  /** "Connected to": what is plugged in (e.g. "Front desk printer", "Core switch port 48"). */
   description?: string;
+  /** IP of what is plugged in. */
+  ip?: string;
   vlan?: string;
+  /** This port is an uplink (to the core, firewall, ISP…). */
+  uplink?: boolean;
+  notes?: string;
 }
 
-export interface DeviceData extends Record<string, unknown> {
+/** Does this port have anything written down about it? */
+export const isDocumented = (pd?: PortData) => !!(pd && (pd.description || pd.ip || pd.vlan || pd.uplink || pd.notes));
+
+/** Editing state shared by every kind of diagram item (Arrange menu, hyperlinks). */
+export interface NodeExtras {
+  /** Items with the same group id are selected and moved together. */
+  group?: string;
+  /** Locked items can't be moved, deleted or aligned until unlocked. */
+  locked?: boolean;
+  /** Hyperlink: a web/mailto address, or `page:<pageId>` to jump to another page of the project. */
+  link?: string;
+  /** Review comments on this item (Review → New Comment). */
+  comments?: ItemComment[];
+  /** ScreenTip (Insert → ScreenTip): text shown when hovering the item. */
+  tip?: string;
+}
+
+export interface ItemComment {
+  id: string;
+  author?: string;
+  text: string;
+  /** Epoch ms. */
+  at: number;
+  resolved?: boolean;
+}
+
+export interface DeviceData extends Record<string, unknown>, NodeExtras {
   stencilId: string;
   name: string;
   model?: string;
@@ -76,14 +113,90 @@ export interface DeviceData extends Record<string, unknown> {
   /** Layer id (see Project.layers). */
   layer?: string;
   ports?: Record<string, PortData>;
+  /** Which fields the label on the diagram shows; missing = name and IP. Empty = no label. */
+  labelFields?: DeviceLabelField[];
+  /** Where the label was dragged to, relative to its default spot. */
+  labelOffset?: { x: number; y: number };
+  /** Your own details, e.g. WAN IP, LAN subnet, gateway, ISP circuit ID, firmware. */
+  extraFields?: ExtraField[];
+  /** The printable info box drawn beside the device. */
+  infoBox?: InfoBoxSettings;
+  /**
+   * Set while drawing (never saved): an icon whose bottom port is cabled shows its label to the left, so the cable
+   * doesn't run through the text.
+   */
+  labelBeside?: boolean;
+  /** The label was dragged while beside its icon: it stays on that side, moved by labelOffset. */
+  labelSide?: 'left';
+  /** Turned clockwise by this many degrees (0–359). */
+  rotation?: number;
 }
 
-export interface ZoneData extends Record<string, unknown> {
+export interface ExtraField {
+  label: string;
+  value: string;
+}
+
+/** Define Shape Data (Visio): a field every device of the client gets, with a type and optional pick-list. */
+export type FieldType = 'text' | 'number' | 'date' | 'list' | 'yesno';
+export interface FieldDef {
+  id: string;
+  label: string;
+  type: FieldType;
+  /** Choices for a list field. */
+  options?: string[];
+  /** Check Diagram flags devices where it is empty. */
+  required?: boolean;
+  /** Only devices of this category (empty = every device). */
+  category?: StencilCategory;
+}
+
+/** Suggested names for extra fields. */
+export const EXTRA_FIELD_SUGGESTIONS = [
+  'WAN IP', 'LAN subnet', 'Gateway', 'DNS', 'DHCP range', 'Public IP block', 'ISP', 'Circuit ID', 'Firmware',
+  'Management VLAN', 'Wi-Fi SSID', 'License expiry', 'Warranty', 'Admin URL', 'VPN', 'Console',
+];
+
+export type InfoBoxField = 'model' | 'ip' | 'mac' | 'serial' | 'assetTag' | 'location' | 'extra' | 'notes';
+export const INFO_BOX_FIELDS: { value: InfoBoxField; label: string }[] = [
+  { value: 'model', label: 'Model' },
+  { value: 'ip', label: 'IP' },
+  { value: 'mac', label: 'MAC' },
+  { value: 'serial', label: 'Serial' },
+  { value: 'assetTag', label: 'Asset tag' },
+  { value: 'location', label: 'Location' },
+  { value: 'extra', label: 'My fields' },
+  { value: 'notes', label: 'Notes' },
+];
+export const DEFAULT_INFO_FIELDS: InfoBoxField[] = ['model', 'ip', 'serial', 'extra'];
+
+/** Which ports the info box lists: none, uplinks only, or every port that has a cable or notes. */
+export type InfoBoxPorts = 'none' | 'uplinks' | 'used';
+
+export interface InfoBoxSettings {
+  show: boolean;
+  fields?: InfoBoxField[];
+  ports?: InfoBoxPorts;
+  /** Where the box was dragged to, relative to its default spot (right of the device). */
+  offset?: { x: number; y: number };
+}
+
+export type DeviceLabelField = 'name' | 'ip' | 'model' | 'location' | 'serial';
+export const DEVICE_LABEL_FIELDS: { value: DeviceLabelField; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'ip', label: 'IP' },
+  { value: 'model', label: 'Model' },
+  { value: 'location', label: 'Location' },
+  { value: 'serial', label: 'Serial' },
+];
+export const DEFAULT_LABEL_FIELDS: DeviceLabelField[] = ['name', 'ip'];
+
+export interface ZoneData extends Record<string, unknown>, NodeExtras {
   title: string;
   color: string;
 }
 
-export interface NoteData extends Record<string, unknown> {
+export interface NoteData extends Record<string, unknown>, NodeExtras {
   text: string;
 }
 
@@ -97,10 +210,10 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
-export interface ShapeData extends Record<string, unknown> {
+export interface ShapeData extends Record<string, unknown>, NodeExtras {
   kind: ShapeKind;
   text: string;
   fill: string;
@@ -108,17 +221,73 @@ export interface ShapeData extends Record<string, unknown> {
   textColor: string;
   fontSize: number;
   dashed?: boolean;
-  /** Arrow direction in degrees (0 = pointing right). */
+  /** Arrow direction / door rotation in degrees (0 = arrow pointing right, door hinged bottom-left). */
   rotation?: number;
+  /** Door swings the other way. */
+  flip?: boolean;
   layer?: string;
+  /** Line weight in px (default 2). */
+  lineWidth?: number;
+  /** Font name; missing = the app font. */
+  fontFamily?: string;
+  /** Drop shadow (Shape Style → Shadow). */
+  shadow?: boolean;
+  /** Freeform (Pencil tool): the drawn path as fractions (0–1) of the shape's box. */
+  points?: [number, number][];
+  // Font and paragraph (Home tab)
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  align?: 'left' | 'center' | 'right';
+  valign?: 'top' | 'middle' | 'bottom';
+  /** Callout: the item its leader line points to (moves with it). */
+  target?: string;
+}
+
+export interface TextFormat {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  align?: 'left' | 'center' | 'right';
+  valign?: 'top' | 'middle' | 'bottom';
+  /** Change the font size by this many px. */
+  sizeDelta?: number;
+  /** Set the font size (px). */
+  fontSize?: number;
+  fontFamily?: string;
+}
+
+/** Print / PDF header and footer (Visio's Page Setup → Header/Footer): left, centre and right text, with codes. */
+export interface HeaderFooter {
+  header: [string, string, string];
+  footer: [string, string, string];
 }
 
 export type ShapeNode = Node<ShapeData, 'shape'>;
+
+/** A dimension line: from the node's position to position + (dx, dy). Its length is shown with the page scale. */
+export interface MeasureData extends Record<string, unknown>, NodeExtras {
+  dx: number;
+  dy: number;
+  /** Optional text shown instead of / before the measured length. */
+  label?: string;
+  /** 'wall' draws a floor-plan wall (thick line), 'line' a plain line (Line tool), instead of a dimension line. */
+  variant?: 'dimension' | 'wall' | 'line';
+  /** Wall thickness / line width in diagram units. */
+  thickness?: number;
+  /** Line tool: colour, dashes and arrowheads. */
+  color?: string;
+  dashed?: boolean;
+  arrowStart?: boolean;
+  arrowEnd?: boolean;
+  layer?: string;
+}
+export type MeasureNode = Node<MeasureData, 'measure'>;
 export type DeviceNode = Node<DeviceData, 'device'>;
 export type ZoneNode = Node<ZoneData, 'zone'>;
 export type NoteNode = Node<NoteData, 'note'>;
 export type BackdropNode = Node<BackdropData, 'backdrop'>;
-export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode | ShapeNode;
+export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode | ShapeNode | MeasureNode;
 
 export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' | 'Wireless' | 'VPN' | 'Line';
 
@@ -132,6 +301,16 @@ export interface CableData extends Record<string, unknown> {
   layer?: string;
   route?: CableRoute;
   arrows?: CableArrows;
+  /** Line color chosen for this cable; missing = color by type or VLAN (View menu). */
+  color?: string;
+  /** Cable run length as text, e.g. "42 ft" (typed, or measured from a scaled drawing). */
+  length?: string;
+  /** Show the length on the cable's label. */
+  showLength?: boolean;
+  /** Where the cable's text sits along it, 0 (source) … 1 (target); missing = the middle. */
+  labelAt?: number;
+  /** Line weight chosen for this cable (px); missing = by cable type. */
+  weight?: number;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';
@@ -147,6 +326,12 @@ export interface Layer {
   id: string;
   name: string;
   visible: boolean;
+  /** Printed and exported (default true). Visio's "Print" column. */
+  print?: boolean;
+  /** Items can't be selected, moved or deleted. */
+  locked?: boolean;
+  /** New devices, shapes and cables go on the active layer. */
+  active?: boolean;
 }
 
 export type DeviceColorBy = 'none' | 'status' | 'location' | 'model' | 'layer';
@@ -156,6 +341,17 @@ export interface DisplaySettings {
   deviceColor: DeviceColorBy;
   cableColor: CableColorBy;
   showLegend: boolean;
+  /** Hop where cables cross (Visio line jumps); missing = on. */
+  lineJumps?: boolean;
+  /** Data Graphics (Visio): fields shown as small tags or icons on every device. */
+  dataGraphics?: DataGraphic[];
+}
+
+export interface DataGraphic {
+  /** Field key, as in Reports: 'ip', 'model', 'status', … or 'x:<field name>'. */
+  field: string;
+  /** 'tag' shows the value as text; 'icon' shows ✔ / ✘ for yes-no values, a coloured dot for status, else the text. */
+  style: 'tag' | 'icon';
 }
 
 export type CableEdge = Edge<CableData, 'cable'>;
@@ -199,13 +395,39 @@ export interface DataLink {
 
 export type PageKind = 'network' | 'floorplan';
 
+/** Drawing title block printed along the bottom of every PDF and printed page (client and site come from the project). */
+export interface TitleBlock {
+  show: boolean;
+  /** Your company (the MSP preparing the document). */
+  preparedBy?: string;
+  author?: string;
+  revision?: string;
+  /** Free text; empty = the day it's printed or exported. */
+  date?: string;
+}
+
 /** One drawing in a client project (like a Visio page). Cables connect devices on the same page. */
+export type LengthUnit = 'ft' | 'm';
+
+/** Drawing scale of a page: how many real units one diagram unit (px) stands for. */
+export interface PageScale {
+  perPx: number;
+  unit: LengthUnit;
+}
+
 export interface Page {
   id: string;
   name: string;
   kind: PageKind;
   nodes: AppNode[];
   edges: CableEdge[];
+  scale?: PageScale;
+  /** Paper size and orientation of the drawing page (Design → Page Setup); missing = Letter landscape. */
+  setup?: { paper: 'letter' | 'legal' | 'tabloid' | 'a4' | 'a3'; landscape: boolean };
+  /** A background page (Visio): drawn behind the pages that use it; not printed on its own. */
+  background?: boolean;
+  /** The background page shown behind this page. */
+  backgroundId?: string;
 }
 
 export interface Project {
@@ -222,7 +444,16 @@ export interface Project {
   /** The spreadsheet last imported, so it can be re-applied with Refresh. */
   dataLink?: DataLink;
   layers?: Layer[];
+  /** Define Shape Data: fields every device gets (values live in each device's extra fields, by name). */
+  fieldDefs?: FieldDef[];
+  /** Header and footer on printed and PDF sheets. */
+  headerFooter?: HeaderFooter;
+  /** Design → Themes: colours for new drawing shapes, callouts and zones. */
+  theme?: string;
+  /** Saved report definitions (Data → Reports). */
+  reports?: import('./report').ReportDef[];
   display?: DisplaySettings;
+  titleBlock?: TitleBlock;
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */
   nodes?: AppNode[];
   edges?: CableEdge[];

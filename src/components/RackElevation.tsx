@@ -11,12 +11,13 @@ import type { DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
 export const U_H = 40; // one rack unit (1.75") at 19" = 440px wide, roughly to scale
 export const INNER_W = 440;
 export const RAIL = 34;
-export const TOP = 30;
-const BOTTOM = 14;
-const LABEL_W = 230;
+export const TOP = 44;
+const BOTTOM = 40;
+const LABEL_W = 250;
+const LEADER = 26; // gap between the rack and the labels, crossed by a leader line (like Visio's rack callouts)
 
 export function rackSize(rack: Rack) {
-  return { width: RAIL * 2 + INNER_W + LABEL_W, height: TOP + rack.units * U_H + BOTTOM };
+  return { width: RAIL * 2 + INNER_W + LEADER + LABEL_W, height: TOP + rack.units * U_H + BOTTOM };
 }
 
 /** Top y of a slot starting at `u` that is `h` units tall. */
@@ -64,6 +65,31 @@ function Plate({ x, y, w, h, fill = '#27272a' }: { x: number; y: number; w: numb
       <rect x={x} y={y + 1} width={w} height={3} fill="#ffffff14" />
     </>
   );
+}
+
+/** Mounting ears over the rails, screwed in at each unit, like rack-mount equipment in Visio's rack stencils. */
+function Ears({ x, y, h, units, fill }: { x: number; y: number; h: number; units: number; fill: string }) {
+  const ear = 14;
+  const screws: ReactNode[] = [];
+  for (let i = 0; i < units; i++) {
+    const cy = y + i * U_H + U_H / 2;
+    screws.push(<circle key={`l${i}`} cx={x - ear / 2} cy={cy} r={3} fill="#a1a1aa" stroke="#18181b" strokeWidth={1} />);
+    screws.push(<circle key={`r${i}`} cx={x + INNER_W + ear / 2} cy={cy} r={3} fill="#a1a1aa" stroke="#18181b" strokeWidth={1} />);
+  }
+  return (
+    <>
+      <rect x={x - ear} y={y + 1} width={ear + 2} height={h - 2} rx={2} fill={fill} stroke="#00000055" />
+      <rect x={x + INNER_W - 2} y={y + 1} width={ear + 2} height={h - 2} rx={2} fill={fill} stroke="#00000055" />
+      {screws}
+    </>
+  );
+}
+
+/** Plate color of an item, for its ears. */
+function earFill(it: RackItem, face: 'front' | 'rear') {
+  if (it.kind === 'shelf') return null;
+  if (it.kind === 'device') return face === 'rear' ? '#52525b' : '#3f3f46';
+  return '#3f3f46';
 }
 
 function ItemArt({ it, face, x, y, h, device, stencil }: { it: RackItem; face: 'front' | 'rear'; x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef }) {
@@ -119,7 +145,9 @@ function ItemArt({ it, face, x, y, h, device, stencil }: { it: RackItem; face: '
 export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width }: Props) {
   const size = rackSize(rack);
   const x0 = RAIL;
-  const labelX = RAIL * 2 + INNER_W + 10;
+  const frameR = RAIL * 2 + INNER_W;
+  const labelX = frameR + LEADER + 6;
+  const bodyBottom = TOP + rack.units * U_H;
 
   return (
     <svg
@@ -131,12 +159,17 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
       fontFamily="Segoe UI, Arial, sans-serif"
       style={{ display: 'block' }}
     >
-      <text x={RAIL + INNER_W / 2} y={18} fontSize={14} fontWeight={700} textAnchor="middle" fill="#111827">
-        {rack.name} — {face === 'front' ? 'FRONT' : 'REAR'}
+      <text x={RAIL + INNER_W / 2} y={16} fontSize={14} fontWeight={700} textAnchor="middle" fill="#111827">
+        {rack.name} — {face === 'front' ? 'FRONT' : 'REAR'} ({rack.units}U)
       </text>
 
-      {/* Frame, cavity and rails */}
-      <rect x={0} y={TOP - 6} width={RAIL * 2 + INNER_W} height={rack.units * U_H + 12} rx={4} fill="#3f3f46" />
+      {/* Cabinet: top cap, frame with rails, cavity, base with feet */}
+      <rect x={-2} y={TOP - 18} width={frameR + 4} height={14} rx={3} fill="#27272a" />
+      {[0.25, 0.4, 0.55, 0.7].map((f) => <rect key={f} x={frameR * f} y={TOP - 13} width={frameR * 0.1} height={3} rx={1.5} fill="#52525b" />)}
+      <rect x={0} y={TOP - 6} width={frameR} height={rack.units * U_H + 12} rx={2} fill="#3f3f46" />
+      <rect x={-2} y={bodyBottom + 6} width={frameR + 4} height={16} rx={3} fill="#27272a" />
+      <rect x={10} y={bodyBottom + 22} width={30} height={10} rx={2} fill="#18181b" />
+      <rect x={frameR - 40} y={bodyBottom + 22} width={30} height={10} rx={2} fill="#18181b" />
       <rect x={x0} y={TOP} width={INNER_W} height={rack.units * U_H} fill="#e5e7eb" />
       {Array.from({ length: rack.units }, (_, i) => {
         const u = rack.units - i;
@@ -144,8 +177,8 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
         return (
           <g key={u}>
             <line x1={x0} x2={x0 + INNER_W} y1={y} y2={y} stroke="#d1d5db" />
-            <text x={RAIL / 2} y={y + U_H / 2 + 4} fontSize={11} textAnchor="middle" fill="#e4e4e7">{u}</text>
-            <text x={RAIL * 1.5 + INNER_W} y={y + U_H / 2 + 4} fontSize={11} textAnchor="middle" fill="#e4e4e7">{u}</text>
+            <text x={RAIL / 2 - 4} y={y + U_H / 2 + 4} fontSize={11} textAnchor="middle" fill="#e4e4e7">{u}</text>
+            <text x={RAIL * 1.5 + INNER_W + 4} y={y + U_H / 2 + 4} fontSize={11} textAnchor="middle" fill="#e4e4e7">{u}</text>
             {[8, 20, 32].map((dy) => (
               <g key={dy}>
                 <rect x={x0 - 8} y={y + dy - 2} width={4} height={4} fill="#18181b" />
@@ -171,7 +204,10 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
             style={onItemPointerDown ? { cursor: 'grab' } : undefined}
             opacity={ghost ? 0.4 : 1}
           >
+            {earFill(it, face) && <Ears x={x0} y={y} h={h} units={it.height} fill={earFill(it, face)!} />}
             <ItemArt it={it} face={face} x={x0} y={y} h={h} device={device} stencil={st} />
+            <line x1={frameR + 2} x2={labelX - 4} y1={y + h / 2} y2={y + h / 2} stroke="#9ca3af" strokeWidth={1} strokeDasharray="3 2" />
+            <circle cx={labelX - 4} cy={y + h / 2} r={2} fill="#9ca3af" />
             {selectedId === it.id && <rect x={x0 - 2} y={y - 1} width={INNER_W + 4} height={h + 2} fill="none" stroke="#3b82f6" strokeWidth={3} rx={3} />}
             <text x={labelX} y={y + h / 2 - (extra ? 2 : -4)} fontSize={12} fill="#111827">
               <tspan fontWeight={600}>{rackLabel(it)}</tspan> {name}

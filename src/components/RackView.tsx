@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { allDevices } from '@/lib/project';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
+import { groupLibraries } from '@/lib/libraries';
 import { STENCILS } from '@/lib/stencils';
 import type { Rack, RackDepth, RackItem, StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -47,7 +48,13 @@ function SideList({ rack }: { rack: Rack | undefined }) {
 
   const mounted = new Set(racks.flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
   const unracked = [...devices.values()].filter((n) => !mounted.has(n.id));
-  const stencils = [...Object.values(custom), ...STENCILS].filter((s) => !q || s.name.toLowerCase().includes(q.toLowerCase()));
+  const term = q.trim().toLowerCase();
+  const hit = (s: StencilDef) => !term || s.name.toLowerCase().includes(term);
+  // Imported stencils grouped by library (a matching library name lists all of it), then the built-ins.
+  const stencilGroups = [
+    ...groupLibraries(Object.values(custom)).map((l) => ({ name: l.name, items: !term || l.name.toLowerCase().includes(term) ? l.stencils : l.stencils.filter(hit) })),
+    { name: 'Built-in', items: STENCILS.filter(hit) },
+  ].filter((g) => g.items.length);
 
   const start = (e: React.DragEvent, p: Payload) => {
     payload = p;
@@ -112,14 +119,19 @@ function SideList({ rack }: { rack: Rack | undefined }) {
 
           <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">New device</h3>
           <input className={`${inputCls} mb-1 text-xs`} placeholder="Search devices…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <div className="space-y-0.5">
-            {stencils.map((s) => (
-              <div key={s.id} draggable onDragStart={(e) => start(e, { type: 'stencil', stencilId: s.id, height: heightOf(s) })} className="flex cursor-grab items-center justify-between rounded px-2 py-1 text-xs hover:bg-gray-50" title="Drag into the rack: also adds it to the diagram">
-                <span className="truncate">{s.name}</span>
-                <span className="ml-1 shrink-0 text-[10px] text-gray-400">{heightOf(s)}U</span>
+          {stencilGroups.map((g) => (
+            <div key={g.name} className="mb-2">
+              <h4 className="truncate px-1 pb-0.5 text-[10px] font-semibold text-gray-500" title={g.name}>{g.name}</h4>
+              <div className="space-y-0.5">
+                {g.items.map((s) => (
+                  <div key={s.id} draggable onDragStart={(e) => start(e, { type: 'stencil', stencilId: s.id, height: heightOf(s) })} className="flex cursor-grab items-center justify-between rounded px-2 py-1 text-xs hover:bg-gray-50" title="Drag into the rack: also adds it to the diagram">
+                    <span className="truncate">{s.name}</span>
+                    <span className="ml-1 shrink-0 text-[10px] text-gray-400">{heightOf(s)}U</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </>
       )}
     </aside>

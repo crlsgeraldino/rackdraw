@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
+import { setPref, usePref } from '@/lib/prefs';
 import type { CableColorBy, DeviceColorBy } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { useDisplay } from './useDisplay';
@@ -47,26 +48,27 @@ export function Legend() {
 }
 
 /** Toolbar "View" menu: data colors, legend and layers. */
-export function ViewMenu() {
+export function ViewMenu({ label = 'View' }: { label?: string } = {}) {
   const project = useCurrentProject();
   const page = useCurrentPage();
-  const { setDisplay, addLayer, renameLayer, deleteLayer, toggleLayer, assignSelectionToLayer } = useDiagram.getState();
+  const { mapAllDevices, setDisplay, addLayer, renameLayer, deleteLayer, toggleLayer, assignSelectionToLayer, updateLayer, setActiveLayer } = useDiagram.getState();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const quickInfo = usePref('quickInfo');
   const s = project.display ?? DEFAULT_DISPLAY;
   const layers = project.layers ?? [];
-  const selected = page.nodes.filter((n) => n.selected && n.type === 'device').length + page.edges.filter((e) => e.selected).length;
+  const selected = page.nodes.filter((n) => n.selected && (n.type === 'device' || n.type === 'shape')).length + page.edges.filter((e) => e.selected).length;
   const count = (id: string) =>
-    project.pages.reduce((n, pg) => n + pg.nodes.filter((x) => x.type === 'device' && x.data.layer === id).length + pg.edges.filter((e) => e.data?.layer === id).length, 0);
+    project.pages.reduce((n, pg) => n + pg.nodes.filter((x) => (x.type === 'device' || x.type === 'shape') && x.data.layer === id).length + pg.edges.filter((e) => e.data?.layer === id).length, 0);
   const hiddenCount = layers.filter((l) => !l.visible).length;
 
   return (
     <div className="relative">
       <button onClick={() => setOpen((o) => !o)} className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50">
-        View{hiddenCount ? ` (${hiddenCount} hidden)` : ''} ▾
+        {label}{hiddenCount ? ` (${hiddenCount} hidden)` : ''} ▾
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded border border-gray-200 bg-white p-3 text-sm shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1 w-[27rem] rounded border border-gray-200 bg-white p-3 text-sm shadow-lg">
           <div className="mb-3 grid grid-cols-2 gap-2">
             <label className="block text-xs text-gray-600">
               Color devices by
@@ -84,15 +86,35 @@ export function ViewMenu() {
           <label className="mb-3 flex items-center gap-1.5 text-xs text-gray-600">
             <input type="checkbox" checked={s.showLegend} onChange={(e) => setDisplay({ showLegend: e.target.checked })} /> Show legend
           </label>
+          <label className="-mt-2 mb-3 flex items-center gap-1.5 text-xs text-gray-600" title="Where two cables cross, the horizontal one hops over the other (also in prints and exports)">
+            <input type="checkbox" checked={s.lineJumps !== false} onChange={(e) => setDisplay({ lineJumps: e.target.checked })} /> Line jumps where cables cross
+          </label>
+          <label className="-mt-2 mb-3 flex items-center gap-1.5 text-xs text-gray-600" title="Hover a device to see its details (IP, serial, rack, ports…) in a floating card">
+            <input type="checkbox" checked={quickInfo} onChange={(e) => setPref('quickInfo', e.target.checked)} /> Quick info on hover
+          </label>
+          <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600">
+            Info boxes on all devices:
+            <button className="rounded border border-gray-300 px-1.5 py-0.5 hover:bg-gray-50" onClick={() => mapAllDevices((d) => ({ infoBox: { ...d.infoBox, show: true } }))}>Show</button>
+            <button className="rounded border border-gray-300 px-1.5 py-0.5 hover:bg-gray-50" onClick={() => mapAllDevices((d) => (d.infoBox ? { infoBox: { ...d.infoBox, show: false } } : {}))}>Hide</button>
+          </div>
 
-          <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Layers</h4>
-          {layers.length === 0 && <p className="mb-1 text-xs text-gray-400">Group devices and cables (e.g. Cameras, Wi-Fi, Power, Planned work) to show or hide them together.</p>}
-          <ul className="mb-2 space-y-0.5">
+          <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Layer properties</h4>
+          {layers.length === 0 && <p className="mb-1 text-xs text-gray-400">Group devices, shapes and cables (e.g. Cameras, Wi-Fi, Power, Planned work) to show, hide, lock or leave them out of prints together.</p>}
+          {layers.length > 0 && (
+            <div className="grid grid-cols-[1fr_2rem_2.5rem_2.25rem_2rem_2.5rem_4.5rem_1rem] items-center gap-x-1 border-b border-gray-200 pb-0.5 text-[10px] font-medium text-gray-500">
+              <span>Name</span><span className="text-right">#</span><span className="text-center">Visible</span><span className="text-center">Print</span>
+              <span className="text-center">Lock</span><span className="text-center" title="New devices, shapes and cables go on the active layer">Active</span><span /><span />
+            </div>
+          )}
+          <ul className="mb-2 space-y-0.5 pt-0.5">
             {layers.map((l) => (
-              <li key={l.id} className="group flex items-center gap-1.5">
-                <input type="checkbox" checked={l.visible} onChange={() => toggleLayer(l.id)} aria-label={`Show ${l.name}`} />
-                <input className="min-w-0 flex-1 rounded border border-transparent px-1 text-sm hover:border-gray-200 focus:border-blue-400 focus:outline-none" value={l.name} onChange={(e) => renameLayer(l.id, e.target.value)} />
-                <span className="text-[10px] text-gray-400">{count(l.id)}</span>
+              <li key={l.id} className="group grid grid-cols-[1fr_2rem_2.5rem_2.25rem_2rem_2.5rem_4.5rem_1rem] items-center gap-x-1">
+                <input className="min-w-0 rounded border border-transparent px-1 text-sm hover:border-gray-200 focus:border-blue-400 focus:outline-none" value={l.name} onChange={(e) => renameLayer(l.id, e.target.value)} />
+                <span className="text-right text-[10px] text-gray-400">{count(l.id)}</span>
+                <input className="justify-self-center" type="checkbox" checked={l.visible} onChange={() => toggleLayer(l.id)} aria-label={`Show ${l.name}`} />
+                <input className="justify-self-center" type="checkbox" checked={l.print !== false} onChange={(e) => updateLayer(l.id, { print: e.target.checked ? undefined : false })} aria-label={`Print ${l.name}`} title="Include in prints, PDF, pictures and the Word report" />
+                <input className="justify-self-center" type="checkbox" checked={!!l.locked} onChange={(e) => updateLayer(l.id, { locked: e.target.checked || undefined })} aria-label={`Lock ${l.name}`} title="Items on this layer can't be selected, moved or deleted" />
+                <input className="justify-self-center" type="radio" name="nc-active-layer" checked={!!l.active} onChange={() => setActiveLayer(l.id)} onClick={() => { if (l.active) setActiveLayer(null); }} aria-label={`Make ${l.name} the active layer`} />
                 <button
                   className="rounded px-1 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-30"
                   disabled={!selected}
