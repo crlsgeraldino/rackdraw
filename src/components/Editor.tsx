@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
-import { DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
+import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, usePresenting } from '@/lib/tools';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
@@ -307,6 +307,7 @@ function Canvas() {
       >
         <PageSheet />
         <GuidesLayer />
+        {!presenting && <AutoConnectArrows />}
         <Panel position="top-left"><Legend /></Panel>
         {minimap && <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />}
       </ReactFlow>

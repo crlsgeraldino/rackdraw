@@ -187,6 +187,9 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   Shift, catches 0/90/180/270), type the **Angle** under Size & Position, or use **Home → Arrange → Rotate Right /
   Rotate Left** (90°) or right-click → Rotate. The ports turn with the picture, so cables leave from the right
   place; the label stays upright below. Saved to `.vsdx` with Visio's angle.
+- **AutoConnect** (Visio's blue arrows): select one device or shape and click one of the four blue arrows around it to
+  add a copy on that side, already connected (devices get a Cat6 cable between facing ports, named Server 3, 4…).
+- **Favorites**: hover a shape in the Shapes window and click ☆ to pin it to **★ Favorites** at the top (per computer).
 - **Connector tool** (Home → Tools): drag from one device or shape to another and a cable joins them at the nearest
   free ports (on a 48-port switch, the free port closest to the other device). Stays on until Esc / Pointer.
 - **Shape Style → Weight** (0.5–6 px, or Automatic) for cables, shapes and lines, and **Shadow** for shapes. Both are

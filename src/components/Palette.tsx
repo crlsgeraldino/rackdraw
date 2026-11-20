@@ -9,7 +9,7 @@ import { STENCILS, StencilThumb } from '@/lib/stencils';
 import { STENCIL_CATEGORIES, type ShapeKind, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
 import { editableCopy } from '@/lib/shapeCopy';
-import { setPref } from '@/lib/prefs';
+import { setPref, usePref } from '@/lib/prefs';
 import { Drop } from './ribbon/parts';
 import { PALETTE_EVENT, type PaletteAction } from '@/lib/events';
 import { EDIT_STENCIL_EVENT } from './ContextMenu';
@@ -125,6 +125,13 @@ export function Palette() {
   const customList = useMemo(() => Object.values(custom), [custom]);
   const libraries = useMemo(() => groupLibraries(customList), [customList]);
   const term = q.trim().toLowerCase();
+  // Favorites (Visio): starred shapes from any stencil, kept at the top.
+  const favIds = usePref('favorites');
+  const favorites = useMemo(
+    () => favIds.map((id) => custom[id] ?? STENCILS.find((s) => s.id === id)).filter((s): s is StencilDef => !!s && (!term || searchText(s).includes(term))),
+    [favIds, custom, term],
+  );
+  const toggleFav = (id: string) => setPref('favorites', favIds.includes(id) ? favIds.filter((x) => x !== id) : [...favIds, id]);
 
   /** Libraries with the stencils that match the search (a matching library name shows all of it). */
   const shownLibraries = useMemo(
@@ -220,6 +227,14 @@ export function Palette() {
     >
       <div className={s.style === 'icon' ? 'flex w-10 shrink-0 justify-center' : ''}><StencilThumb stencil={s} /></div>
       <span className="text-xs text-gray-700">{s.name}</span>
+      <button
+        className={`absolute bottom-1 right-1 rounded px-0.5 text-[12px] leading-none ${favIds.includes(s.id) ? 'text-amber-500' : 'hidden text-gray-400 hover:text-amber-500 group-hover:block'}`}
+        onClick={(e) => { e.stopPropagation(); toggleFav(s.id); }}
+        title={favIds.includes(s.id) ? 'Remove from Favorites' : 'Add to Favorites'}
+        aria-label={favIds.includes(s.id) ? `Remove ${s.name} from Favorites` : `Add ${s.name} to Favorites`}
+      >
+        {favIds.includes(s.id) ? '★' : '☆'}
+      </button>
       {s.custom && (
         <div className="absolute right-1 top-1 hidden gap-0.5 group-hover:flex">
           <button className="rounded bg-white px-1 text-[11px] text-gray-600 shadow hover:text-blue-600" onClick={() => setEditing(s)} title="Edit stencil, ports and library">✎</button>
@@ -273,6 +288,12 @@ export function Palette() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
+        {favorites.length > 0 && (
+          <section className="mb-3" aria-label="Favorites">
+            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">★ Favorites ({favorites.length})</h3>
+            <div className="rounded border border-amber-200 bg-amber-50/40 p-1">{favorites.map(item)}</div>
+          </section>
+        )}
         {shownLibraries.length > 0 && (
           <section className="mb-3" aria-label="My libraries">
             <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">My libraries ({libraries.length})</h3>

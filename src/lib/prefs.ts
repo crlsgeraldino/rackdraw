@@ -25,10 +25,12 @@ export interface Prefs {
   pageBreaks: boolean;
   /** Dynamic grid: snap to and show alignment with other items while dragging. */
   dynamicGrid: boolean;
+  /** Stencil ids starred in the Shapes window (Visio's Favorites). */
+  favorites: string[];
   /** Your name on comments. */
   author: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, author: '' };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, favorites: [], author: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

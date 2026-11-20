@@ -1,6 +1,6 @@
 'use client';
 
-import { useReactFlow, useViewport, ViewportPortal } from '@xyflow/react';
+import { NodeToolbar, Position, useReactFlow, useViewport, ViewportPortal } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { guideZoom, useGuides } from '@/lib/guides';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
@@ -168,4 +168,40 @@ export function pickPorts(A: { center: { x: number; y: number }; ports: PortPt[]
   const sa = near(A.ports, B.center);
   const sb = sa ? near(B.ports, sa) : null;
   return sa && sb ? [sa.id, sb.id] : null;
+}
+
+const ARROWS = [
+  { dir: 'top', pos: Position.Top, path: 'M7 1 L13 9 H9 V13 H5 V9 H1 Z' },
+  { dir: 'right', pos: Position.Right, path: 'M13 7 L5 13 V9 H1 V5 H5 V1 Z' },
+  { dir: 'bottom', pos: Position.Bottom, path: 'M7 13 L1 5 H5 V1 H9 V5 H13 Z' },
+  { dir: 'left', pos: Position.Left, path: 'M1 7 L9 1 V5 H13 V9 H9 V13 Z' },
+] as const;
+
+/**
+ * AutoConnect (Visio): around the one selected device or shape, four blue arrows; clicking one adds a copy of it on
+ * that side, already connected (devices with a cable between facing ports).
+ */
+export function AutoConnectArrows() {
+  const tool = useTool((s) => s.tool);
+  const s = useDiagram();
+  const proj = s.projects[s.currentId];
+  const page = proj.pages.find((p) => p.id === proj.activePageId);
+  const sel = page?.nodes.filter((n) => n.selected) ?? [];
+  const n = sel.length === 1 ? sel[0] : null;
+  if (tool || !n || (n.type !== 'device' && n.type !== 'shape') || n.data.locked || (n.type === 'shape' && n.data.kind === 'callout')) return null;
+  return (
+    <>
+      {ARROWS.map((a) => (
+        <NodeToolbar key={a.dir} nodeId={n.id} position={a.pos} offset={a.dir === 'top' ? 34 : 12} isVisible>
+          <button
+            className="nodrag nopan flex h-5 w-5 items-center justify-center rounded opacity-60 hover:bg-blue-50 hover:opacity-100"
+            title={`Add a connected copy ${a.dir === 'top' ? 'above' : a.dir === 'bottom' ? 'below' : `to the ${a.dir}`}`}
+            onClick={() => s.autoConnect(n.id, a.dir)}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14"><path d={a.path} fill="#3b82f6" /></svg>
+          </button>
+        </NodeToolbar>
+      ))}
+    </>
+  );
 }

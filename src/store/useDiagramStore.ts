@@ -68,6 +68,8 @@ interface DiagramState {
   rotateSelection: (delta: 90 | -90) => void;
   /** Moves and resizes one node (rotated-shape resize handles). No undo step: the drag takes one at its start. */
   setNodeBox: (id: string, position: { x: number; y: number }, width: number, height: number) => void;
+  /** AutoConnect (Visio's blue arrows): adds a copy of the item next to it in that direction, connected to it. */
+  autoConnect: (id: string, dir: 'top' | 'right' | 'bottom' | 'left') => void;
   /** Line tool: a straight line from a to b. */
   addLine: (a: { x: number; y: number }, b: { x: number; y: number }) => void;
   /** Pencil tool: a freeform shape through these diagram points. */
@@ -522,6 +524,46 @@ export const useDiagram = create<DiagramState>()(
         },
         setNodeBox: (id, position, width, height) =>
           commit({ nodes: page().nodes.map((n) => (n.id === id ? { ...n, position, width, height, style: { ...n.style, width, height } } : n)) }),
+        autoConnect: (id, dir) => {
+          const pg = page();
+          const src = pg.nodes.find((n) => n.id === id);
+          if (!src || (src.type !== 'device' && src.type !== 'shape')) return;
+          const size = nodeSize(src);
+          const w = size.w || 120, h = size.h || 60;
+          const gap = 80;
+          const pos = {
+            x: src.position.x + (dir === 'right' ? w + gap : dir === 'left' ? -(w + gap) : 0),
+            y: src.position.y + (dir === 'bottom' ? h + gap : dir === 'top' ? -(h + gap) : 0),
+          };
+          const opposite = ({ top: 'bottom', bottom: 'top', left: 'right', right: 'left' } as const)[dir];
+          get().snapshot();
+          let copy: AppNode;
+          let sourceHandle: string, targetHandle: string;
+          if (src.type === 'device') {
+            const st = findStencil(src.data.stencilId, get().customStencils);
+            const count = pg.nodes.filter((n) => n.type === 'device' && n.data.stencilId === src.data.stencilId).length;
+            copy = {
+              id: `n-${uid()}`, type: 'device', position: pos, ...(src.width ? { width: src.width, height: src.height } : {}),
+              data: { stencilId: src.data.stencilId, name: `${st?.name ?? 'Device'} ${count + 1}`, ...st?.defaults, layer: src.data.layer, rotation: src.data.rotation },
+            } as AppNode;
+            // A free port facing the new device, and on the new device the port facing back.
+            const used = new Set(pg.edges.flatMap((e) => [e.source === id ? e.sourceHandle : null, e.target === id ? e.targetHandle : null]));
+            const ports = st?.ports ?? [];
+            const pick = (list: typeof ports, side: string) => (list.find((p) => p.side === side) ?? list[0])?.id;
+            sourceHandle = pick(ports.filter((p) => !used.has(p.id)), dir) ?? pick(ports, dir) ?? '';
+            targetHandle = pick(ports, opposite) ?? '';
+          } else {
+            copy = { ...src, id: `s-${uid()}`, position: pos, selected: false, data: { ...src.data, comments: undefined, group: undefined, locked: undefined, target: undefined } } as AppNode;
+            sourceHandle = dir;
+            targetHandle = opposite;
+          }
+          const cable = src.type === 'device';
+          const edge: CableEdge = {
+            id: `e-${uid()}`, type: 'cable', source: id, target: copy.id, sourceHandle, targetHandle,
+            data: { ...(cable ? { cable: 'Cat6' } : { cable: 'Line', arrows: 'end', route: 'step' }), layer: activeLayer(cur()) },
+          } as CableEdge;
+          commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }], edges: [...pg.edges, edge] });
+        },
         addLine: (a, b) => {
           get().snapshot();
           const node: AppNode = {
