@@ -1,6 +1,6 @@
 'use client';
 
-import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
+import { Handle, NodeResizer, Position, useInternalNode, type NodeProps } from '@xyflow/react';
 import { memo, useMemo, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
@@ -239,6 +239,7 @@ function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
   const common = { fill: d.fill, stroke: d.stroke, strokeWidth: 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
   switch (d.kind) {
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
+    case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
     case 'diamond': return <polygon points={`${w / 2},1 ${w - 1},${h / 2} ${w / 2},${h - 1} 1,${h / 2}`} {...common} />;
@@ -271,16 +272,41 @@ function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
 }
 
 /** Drawing shape: box, ellipse, diamond, arrow or free text. Double-click to edit the text. */
-function ShapeNodeView({ id, data, selected, width, height }: NodeProps<ShapeNode>) {
+/** Leader line of a callout: from the edge of its box to the middle of the item it points to. */
+function CalloutLeader({ target, x, y, w, h, color }: { target: string; x: number; y: number; w: number; h: number; color: string }) {
+  const t = useInternalNode(target);
+  if (!t) return null;
+  const tw = t.measured.width ?? 0, th = t.measured.height ?? 0;
+  const tx = t.internals.positionAbsolute.x + tw / 2 - x, ty = t.internals.positionAbsolute.y + th / 2 - y;
+  // Start where the line from the box centre to the target leaves the box.
+  const cx = w / 2, cy = h / 2, dx = tx - cx, dy = ty - cy;
+  const k = Math.min(Math.abs(dx) > 1e-6 ? w / 2 / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-6 ? h / 2 / Math.abs(dy) : Infinity, 1);
+  const sx = cx + dx * k, sy = cy + dy * k;
+  return (
+    <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: -1 }}>
+      <line x1={sx} y1={sy} x2={tx} y2={ty} stroke={color} strokeWidth={1.5} />
+      <circle cx={tx} cy={ty} r={3} fill={color} />
+    </svg>
+  );
+}
+
+function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, positionAbsoluteY }: NodeProps<ShapeNode>) {
   const update = useDiagram((s) => s.updateNodeData);
   const snapshot = useDiagram((s) => s.snapshot);
   const [editing, setEditing] = useState(false);
   const w = width ?? 160, h = height ?? 80;
-  const textStyle: React.CSSProperties = { color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2 };
+  const textStyle: React.CSSProperties = {
+    color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2,
+    fontWeight: data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textDecoration: data.underline ? 'underline' : undefined,
+    textAlign: data.align ?? 'center',
+  };
+  const justify = data.align === 'left' ? 'justify-start' : data.align === 'right' ? 'justify-end' : 'justify-center';
+  const items = data.valign === 'top' ? 'items-start' : data.valign === 'bottom' ? 'items-end' : 'items-center';
   return (
     <div className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
       <NodeResizer isVisible={selected && !data.locked} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
+      {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
       <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: (data.kind === 'arrow' || data.kind === 'door') && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
@@ -288,14 +314,14 @@ function ShapeNodeView({ id, data, selected, width, height }: NodeProps<ShapeNod
       {editing ? (
         <textarea
           autoFocus
-          className="nodrag absolute inset-1 resize-none bg-white/80 text-center outline-none"
+          className="nodrag absolute inset-1 resize-none bg-white/80 outline-none"
           style={textStyle}
           defaultValue={data.text}
           onBlur={(e) => { update(id, { text: e.target.value }); setEditing(false); }}
           onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
         />
       ) : (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center whitespace-pre-wrap px-2 text-center" style={textStyle}>
+        <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={textStyle}>
           {data.text}
         </div>
       )}

@@ -185,7 +185,7 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
 export interface ShapeData extends Record<string, unknown>, NodeExtras {
@@ -201,6 +201,24 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   /** Door swings the other way. */
   flip?: boolean;
   layer?: string;
+  // Font and paragraph (Home tab)
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  align?: 'left' | 'center' | 'right';
+  valign?: 'top' | 'middle' | 'bottom';
+  /** Callout: the item its leader line points to (moves with it). */
+  target?: string;
+}
+
+export interface TextFormat {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  align?: 'left' | 'center' | 'right';
+  valign?: 'top' | 'middle' | 'bottom';
+  /** Change the font size by this many px. */
+  sizeDelta?: number;
 }
 
 export type ShapeNode = Node<ShapeData, 'shape'>;

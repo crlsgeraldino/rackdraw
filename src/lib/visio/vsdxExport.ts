@@ -122,7 +122,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'shape': {
           const d = n.data;
           const style = { fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, lineWeightPt: 1.5 };
-          const text = d.text ? { text: d.text, color: d.textColor, sizePt: pt(d.fontSize) } : undefined;
+          const text = d.text ? { text: d.text, color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign } : undefined;
           const bb = ibox(b);
           if (d.kind === 'ellipse') front.push({ kind: 'ellipse', box: bb, ...style, text });
           else if (d.kind === 'diamond') front.push({ kind: 'polygon', box: bb, points: [{ x: 0.5, y: 0 }, { x: 1, y: 0.5 }, { x: 0.5, y: 1 }, { x: 0, y: 0.5 }], ...style, text });
@@ -148,6 +148,16 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           } else if (d.kind === 'window') {
             front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1 });
             front.push({ kind: 'line', points: [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75 });
+          } else if (d.kind === 'callout') {
+            front.push({ kind: 'rect', name: 'Callout', box: bb, ...style, rounding: inch(6), text });
+            const t = d.target ? box(d.target) : null;
+            if (t) {
+              // Leader from the callout box edge to the middle of the item it points to.
+              const cx = b.x + b.w / 2, cy = b.y + b.h / 2, tx = t.x + t.w / 2, ty = t.y + t.h / 2;
+              const dx = tx - cx, dy = ty - cy;
+              const k = Math.min(Math.abs(dx) > 1e-6 ? b.w / 2 / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-6 ? b.h / 2 / Math.abs(dy) : Infinity, 1);
+              cables.push({ kind: 'line', name: 'Callout leader', points: [{ x: X(cx + dx * k), y: Y(cy + dy * k) }, { x: X(tx), y: Y(ty) }], line: style.line ?? '#D97706', lineWeightPt: 1 });
+            }
           } else if (d.kind === 'text') front.push({ kind: 'rect', box: bb, fill: null, line: null, text });
           else front.push({ kind: 'rect', box: bb, ...style, rounding: d.kind === 'rounded' ? Math.min(inch(16), bb.h / 3) : undefined, text });
           break;

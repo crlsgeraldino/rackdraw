@@ -552,6 +552,7 @@ function CableProps({ edge }: { edge: CableEdge }) {
 const SWATCHES = ['transparent', '#ffffff', '#f3f4f6', '#dbeafe', '#dcfce7', '#fef9c3', '#fee2e2', '#ede9fe', '#93c5fd', '#374151', '#111827'];
 
 function ShapeProps({ node }: { node: ShapeNode }) {
+  const pageNodes = useCurrentPage().nodes;
   const update = useDiagram((s) => s.updateNodeData);
   const snapshot = useDiagram((s) => s.snapshot);
   const d = node.data;
@@ -589,6 +590,18 @@ function ShapeProps({ node }: { node: ShapeNode }) {
       {swatchRow('Text color', 'textColor')}
       {d.kind !== 'text' && (
         <label className="mb-2 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.dashed} onChange={(e) => set({ dashed: e.target.checked })} /> Dashed border</label>
+      )}
+      {d.kind === 'callout' && (
+        <label className="mb-2 block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Points to</span>
+          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.target ?? ''} onChange={(e) => set({ target: e.target.value || undefined })}>
+            <option value="">Nothing (free text)</option>
+            {pageNodes.filter((n) => n.id !== node.id && n.type !== 'backdrop' && n.type !== 'measure').map((n) => (
+              <option key={n.id} value={n.id}>{n.type === 'device' ? n.data.name : n.type === 'zone' ? `Zone: ${n.data.title}` : n.type === 'shape' ? `Shape: ${n.data.text || n.data.kind}` : 'Note'}</option>
+            ))}
+          </select>
+          <span className="text-[10px] text-gray-400">It moves along when you move what it points to.</span>
+        </label>
       )}
       {d.kind === 'door' && (
         <div className="mb-2 flex gap-2">

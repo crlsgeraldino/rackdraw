@@ -7,13 +7,14 @@ import { DEFAULT_SETUP, PAPER, type PaperSize } from '@/lib/pageSetup';
 import { openFind, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
+import { exportWordReport } from '@/lib/wordReport';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { allNodes } from '@/lib/project';
 import { SET_SCALE_EVENT } from '@/lib/units';
-import type { AppNode, CableColorBy, DeviceColorBy, ShapeKind } from '@/lib/types';
+import type { AppNode, CableColorBy, DeviceColorBy, ShapeKind, ShapeNode } from '@/lib/types';
 import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
@@ -94,6 +95,14 @@ function useDocument() {
     png: () => run(() => (page.nodes.length ? exportImage('png', project, contentBounds(page.nodes.map((n) => n.id)), page.name) : alert('This page is empty.'))),
     svg: () => run(() => (page.nodes.length ? exportImage('svg', project, contentBounds(page.nodes.map((n) => n.id)), page.name) : alert('This page is empty.'))),
     csv: () => run(() => exportCsv(project), false),
+    docx: () => run(async () => {
+      try {
+        const bytes = await exportWordReport(project, renderPage);
+        downloadBlob(`${safeName(project.name)}.docx`, new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+      } finally {
+        back();
+      }
+    }),
     vsdx: () => run(async () => {
       try {
         const bytes = await exportVsdx(project, {
@@ -270,7 +279,7 @@ export function Ribbon() {
           onOpen={() => { setFile(false); openRef.current?.click(); }}
           onSave={() => { setFile(false); doc.save(); }}
           onPrint={() => { setFile(false); setPrinting(true); }}
-          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx })[kind](); }}
+          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx })[kind](); }}
         />
       )}
       <input ref={openRef} type="file" accept=".json,application/json,.vsdx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
@@ -303,7 +312,7 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
 /** The File tab's full-window page (Office "backstage"). */
 function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onClose: () => void; onNew: () => void; onOpen: () => void; onSave: () => void; onPrint: () => void;
-  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx') => void;
+  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx') => void;
 }) {
   const project = useCurrentProject();
   useEffect(() => {
@@ -316,7 +325,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <Icon name={icon} size={18} /> {label}
     </button>
   );
-  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx') => (
+  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx') => (
     <button key={kind} className="flex items-start gap-3 rounded border border-gray-200 p-3 text-left hover:border-blue-400 hover:bg-blue-50" onClick={() => onExport(kind)}>
       <Icon name={icon} size={28} className="shrink-0 text-gray-700" />
       <span><span className="block text-sm font-medium text-gray-900">{title}</span><span className="text-xs text-gray-500">{sub}</span></span>
@@ -340,6 +349,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Export</h2>
         <div className="grid max-w-3xl grid-cols-2 gap-3">
           {exp('visio', 'Visio drawing (.vsdx)', 'Every page as a Visio drawing: devices with their Shape Data, cables, zones, labels and info boxes', 'vsdx')}
+          {exp('page', 'Word report (.docx)', 'An editable report: client details, every page, rack elevations and all the tables', 'docx')}
           {exp('pdf', 'PDF report', 'Every page, rack elevations and the device, connection and port tables, with the title block', 'pdf')}
           {exp('image', 'PNG picture of this page', 'For Word documents and email', 'png')}
           {exp('exportFile', 'SVG drawing of this page', 'Scalable vector picture for Office and Visio', 'svg')}
@@ -364,6 +374,8 @@ function HomeTab() {
   const page = useCurrentPage();
   const anyEdge = page.edges.some((e) => e.selected);
   const fmt = s.formatKind();
+  const shapeSel = page.nodes.filter((n): n is ShapeNode => !!n.selected && n.type === 'shape');
+  const fmtOn = (k: 'bold' | 'italic' | 'underline') => shapeSel.length > 0 && shapeSel.every((n) => !!n.data[k]);
   return (
     <>
       <Group label="Clipboard">
@@ -384,6 +396,29 @@ function HomeTab() {
           <Small icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Add a dimension line" />
           <Small icon="zone" label="Zone" onClick={() => s.addZone(center())} title="Add a zone / room" />
         </Column>
+      </Group>
+      <Group label="Font">
+        <div className="grid grid-cols-3 content-start gap-px py-0.5">
+          <FmtBtn label="Bold" active={fmtOn('bold')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { bold: !fmtOn('bold') } })}><b>B</b></FmtBtn>
+          <FmtBtn label="Italic" active={fmtOn('italic')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { italic: !fmtOn('italic') } })}><i className="font-serif">I</i></FmtBtn>
+          <FmtBtn label="Underline" active={fmtOn('underline')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { underline: !fmtOn('underline') } })}><u>U</u></FmtBtn>
+          <FmtBtn label="Larger text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: 2 } })}>A<sup>+</sup></FmtBtn>
+          <FmtBtn label="Smaller text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: -2 } })}>A<sup>−</sup></FmtBtn>
+        </div>
+      </Group>
+      <Group label="Paragraph">
+        <div className="grid grid-cols-3 content-start gap-px py-0.5">
+          {(['left', 'center', 'right'] as const).map((a) => (
+            <FmtBtn key={a} label={`Align ${a}`} active={shapeSel.length > 0 && shapeSel.every((n) => (n.data.align ?? 'center') === a)} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { align: a } })}>
+              <AlignGlyph h={a} />
+            </FmtBtn>
+          ))}
+          {(['top', 'middle', 'bottom'] as const).map((v) => (
+            <FmtBtn key={v} label={`${v[0].toUpperCase()}${v.slice(1)} of the shape`} active={shapeSel.length > 0 && shapeSel.every((n) => (n.data.valign ?? 'middle') === v)} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { valign: v } })}>
+              <AlignGlyph v={v} />
+            </FmtBtn>
+          ))}
+        </div>
       </Group>
       <Group label="Shape Style">
         <Column>
@@ -426,6 +461,24 @@ function HomeTab() {
   );
 }
 
+function FmtBtn({ label, active, disabled, onClick, children }: { label: string; active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" className={`flex h-[22px] w-[24px] items-center justify-center rounded text-[12px] text-gray-800 hover:bg-blue-50 disabled:opacity-40 ${active ? 'bg-blue-100 ring-1 ring-blue-300' : ''}`} disabled={disabled} onClick={onClick} title={label} aria-label={label} aria-pressed={active}>
+      {children}
+    </button>
+  );
+}
+
+/** Lines showing horizontal (h) or vertical (v) text alignment. */
+function AlignGlyph({ h, v }: { h?: 'left' | 'center' | 'right'; v?: 'top' | 'middle' | 'bottom' }) {
+  if (h) {
+    const x = (w: number) => (h === 'left' ? 2 : h === 'right' ? 14 - w : 8 - w / 2);
+    return <svg width="16" height="14" viewBox="0 0 16 14" aria-hidden>{[12, 8, 12, 6].map((w, i) => <rect key={i} x={x(w)} y={1 + i * 3.3} width={w} height="1.6" fill="#374151" />)}</svg>;
+  }
+  const y = v === 'top' ? 2 : v === 'bottom' ? 9 : 5.5;
+  return <svg width="16" height="14" viewBox="0 0 16 14" aria-hidden><rect x="1" y="0.5" width="14" height="13" fill="none" stroke="#9ca3af" /><rect x="4" y={y} width="8" height="1.6" fill="#374151" /><rect x="5" y={y + 2.4} width="6" height="1.6" fill="#374151" /></svg>;
+}
+
 function AlignBtn({ label, mode, disabled, onClick }: { label: string; mode: Parameters<typeof AlignIcon>[0]['mode']; disabled: boolean; onClick: () => void }) {
   return (
     <button type="button" className="flex h-[22px] w-[24px] items-center justify-center rounded hover:bg-blue-50 disabled:opacity-40" disabled={disabled} onClick={onClick} title={label} aria-label={label}>
@@ -441,6 +494,15 @@ function InsertTab() {
   const project = useCurrentProject();
   const n = project.pages.length + 1;
   const shape = (kind: ShapeKind) => s.addShape(kind, center());
+  const rfi = useReactFlow<AppNode>();
+  const page = useCurrentPage();
+  /** Callout up and to the right of the selected item, pointing at it. */
+  const insertCallout = () => {
+    const sel = page.nodes.find((n) => n.selected && n.type !== 'backdrop');
+    const b = sel && rfi.getInternalNode(sel.id);
+    if (sel && b) s.addCallout({ x: b.internals.positionAbsolute.x + (b.measured.width ?? 0) + 40, y: b.internals.positionAbsolute.y - 80 }, sel.id);
+    else { const c = center(); s.addCallout({ x: c.x - 80, y: c.y - 28 }); }
+  };
   return (
     <>
       <Group label="Pages">
@@ -483,6 +545,7 @@ function InsertTab() {
       <Group label="Diagram Parts">
         <Big icon="zone" label="Zone" onClick={() => s.addZone(center())} title="A room, rack or area outline" />
         <Big icon="note" label="Note" onClick={() => s.addNote(center())} />
+        <Big icon="info" label="Callout" onClick={() => insertCallout()} title="A callout pointing at the selected item (or a free one)" />
         <Big icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Dimension line (uses the page scale)" />
       </Group>
     </>

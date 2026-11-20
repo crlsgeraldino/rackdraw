@@ -12,7 +12,7 @@ import { activePage, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
 import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
 import { replaceHits, type FindHit } from '@/lib/find';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -101,7 +101,9 @@ interface DiagramState {
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
    */
-  styleSelection: (style: { fill?: string; line?: string | null }) => void;
+  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat }) => void;
+  /** Adds a callout; with `target` its leader line points at that item and it moves with it. */
+  addCallout: (position: { x: number; y: number }, target?: string) => void;
   /** Moves nodes on the active page to new positions (one undo step). */
   setPositions: (positions: Map<string, { x: number; y: number }>) => void;
   /** Remembers the formatting of the selected cable, shape or device; returns what kind was copied. */
@@ -317,6 +319,20 @@ export const useDiagram = create<DiagramState>()(
                 return next;
               });
             }
+          }
+          // Callouts follow the item they point to (unless they are being dragged themselves).
+          const dragged = new Map<string, { dx: number; dy: number }>();
+          for (const c of arr) {
+            if (c.type !== 'position' || !c.position || !c.dragging) continue;
+            const old = before.find((n) => n.id === c.id);
+            if (old) dragged.set(c.id, { dx: c.position.x - old.position.x, dy: c.position.y - old.position.y });
+          }
+          if (dragged.size) {
+            nodes = nodes.map((n) => {
+              const t = n.type === 'shape' && n.data.kind === 'callout' ? n.data.target : undefined;
+              const d = t && !dragged.has(n.id) ? dragged.get(t) : undefined;
+              return d && (d.dx || d.dy) ? { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } } : n;
+            });
           }
           // Removing a device removes its cables too.
           const ids = new Set(nodes.map((n) => n.id));
@@ -620,14 +636,31 @@ export const useDiagram = create<DiagramState>()(
             nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected ? n : { ...n, selected: true })),
             edges: page().edges.map((e) => (e.selected ? e : { ...e, selected: true })),
           }),
-        styleSelection: ({ fill, line }) => {
+        addCallout: (position, target) => {
+          get().snapshot();
+          const node: AppNode = {
+            id: `s-${uid()}`, type: 'shape', position, width: 160, height: 56,
+            data: { kind: 'callout', text: 'Callout', fill: '#fffbeb', stroke: '#d97706', textColor: '#111827', fontSize: 13, rotation: 0, target },
+          };
+          commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        styleSelection: ({ fill, line, text }) => {
           const pg = page();
           if (!pg.nodes.some((n) => n.selected) && !pg.edges.some((e) => e.selected)) return;
           get().snapshot();
           commit({
             nodes: pg.nodes.map((n) => {
               if (!n.selected) return n;
-              if (n.type === 'shape') return { ...n, data: { ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}) } };
+              if (n.type === 'shape') {
+                const { sizeDelta, ...fmt } = text ?? {};
+                return {
+                  ...n,
+                  data: {
+                    ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}), ...fmt,
+                    ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
+                  },
+                };
+              }
               if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
               return n;
             }),

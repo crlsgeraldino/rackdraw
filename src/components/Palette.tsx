@@ -48,6 +48,7 @@ const SHAPES: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
   { kind: 'rounded', label: 'Rounded', icon: <rect x="3" y="3" width="28" height="16" rx="6" {...ink} /> },
   { kind: 'ellipse', label: 'Ellipse', icon: <ellipse cx="17" cy="11" rx="14" ry="8" {...ink} /> },
   { kind: 'diamond', label: 'Diamond', icon: <polygon points="17,2 32,11 17,20 2,11" {...ink} /> },
+  { kind: 'callout', label: 'Callout', icon: <><path d="M20 15l-8 6" stroke="#d97706" /><rect x="10" y="2" width="22" height="13" rx="3" fill="#fffbeb" stroke="#d97706" /></> },
   { kind: 'arrow', label: 'Arrow', icon: <polygon points="2,7 20,7 20,2 32,11 20,20 20,15 2,15" fill="#93c5fd" stroke="#374151" strokeWidth="1.5" /> },
 ];
 
