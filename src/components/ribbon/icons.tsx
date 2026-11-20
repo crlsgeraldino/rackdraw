@@ -51,6 +51,7 @@ const P: Record<string, React.ReactNode> = {
   rectTool: <><rect x="3" y="5" width="14" height="10" rx="1" /></>,
   ellipseTool: <><ellipse cx="10" cy="10" rx="7.5" ry="5.5" /></>,
   keyboard: <><rect x="2" y="5" width="16" height="10" rx="1.5" /><path d="M5 8h1M8 8h1M11 8h1M14 8h1M5 11h1M14 11h1M8 11h4" /></>,
+  changeShape: <><rect x="2" y="3" width="7" height="7" rx="1" /><circle cx="14.5" cy="13.5" r="3.5" fill="#93c5fd" /><path d="M11 5h4l-1.5-1.5M15 5l-1.5 1.5M9 15H5l1.5 1.5M5 15l1.5-1.5" /></>,
   pointer: <><path d="M5 2l10 9-4.5.8L13 17l-2 1-2.6-5.2L5 15z" /></>,
   lineTool: <><path d="M3 17L17 3" /><circle cx="3" cy="17" r="1.5" /><circle cx="17" cy="3" r="1.5" /></>,
   pencil: <><path d="M3 17l1-4L14 3l3 3L7 16z" /><path d="M12 5l3 3" /><path d="M3 17l4-1" stroke="#2563eb" /></>,

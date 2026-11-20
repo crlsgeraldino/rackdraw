@@ -17,6 +17,7 @@ import { projectFromTemplate, templateFromProject, type Template } from '@/lib/t
 import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
 import { normDeg, turnedBox } from '@/lib/rotation';
+import { mapPorts } from '@/lib/changeShape';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
 
 /**
@@ -123,6 +124,13 @@ interface DiagramState {
   setSelectionLocked: (locked: boolean) => void;
   /** Selects every visible item on the active page (Ctrl+A). */
   selectAll: () => void;
+  /**
+   * Change Shape (Visio): the selected devices take another stencil, keeping their details; cables and port notes move
+   * to matching ports. Returns how many cables had no matching port and were removed.
+   */
+  changeShape: (stencilId: string) => number;
+  /** Change Shape for drawing shapes: rectangle, ellipse, diamond… */
+  changeShapeKind: (kind: ShapeKind) => void;
   /** Arrow keys: move the selection by dx, dy (locked items stay). */
   nudgeSelection: (dx: number, dy: number) => void;
   /** Drag a page tab: put the page at this position. */
@@ -909,6 +917,53 @@ export const useDiagram = create<DiagramState>()(
           if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;
           get().snapshot();
           commit({ nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, tip: tip.trim() || undefined } } as AppNode) : n)) });
+        },
+        changeShape: (stencilId) => {
+          const pg = page();
+          const st = findStencil(stencilId, get().customStencils);
+          const sel = pg.nodes.filter((n) => n.selected && n.type === 'device' && !n.data.locked);
+          if (!st || !sel.length) return 0;
+          get().snapshot();
+          const maps = new Map<string, Map<string, string>>();
+          const nodes = pg.nodes.map((n) => {
+            if (n.type !== 'device' || !sel.includes(n)) return n;
+            const old = findStencil(n.data.stencilId, get().customStencils);
+            const used = [...new Set([
+              ...pg.edges.flatMap((e) => [e.source === n.id ? e.sourceHandle : null, e.target === n.id ? e.targetHandle : null]),
+              ...Object.keys(n.data.ports ?? {}),
+            ].filter((x): x is string => !!x))];
+            const map = mapPorts(old?.ports ?? [], st.ports, used);
+            maps.set(n.id, map);
+            const ports = Object.fromEntries(Object.entries(n.data.ports ?? {}).flatMap(([k, v]) => (map.has(k) ? [[map.get(k)!, v]] : [])));
+            // Same centre, new shape at its own size (a set size or turn would not fit the new picture).
+            const old2 = nodeSize(n);
+            const bw = st.width * (st.style === 'icon' ? 1 : st.scale), bh = st.height * (st.style === 'icon' ? 1 : st.scale);
+            const position = old2.w ? { x: n.position.x + old2.w / 2 - bw / 2, y: n.position.y + old2.h / 2 - bh / 2 } : n.position;
+            const { width: _w, height: _h, measured: _m, ...rest } = n;
+            void _w; void _h; void _m;
+            return { ...rest, position, data: { ...n.data, stencilId, ports: Object.keys(ports).length ? ports : undefined, rotation: undefined } } as AppNode;
+          });
+          let dropped = 0;
+          const edges = pg.edges.flatMap((e) => {
+            let out = e;
+            for (const end of ['source', 'target'] as const) {
+              const map = maps.get(out[end]);
+              if (!map) continue;
+              const h = end === 'source' ? out.sourceHandle : out.targetHandle;
+              const to = h ? map.get(h) : undefined;
+              if (h && !to) { dropped++; return []; }
+              if (to) out = { ...out, [end === 'source' ? 'sourceHandle' : 'targetHandle']: to };
+            }
+            return [out];
+          });
+          commit({ nodes, edges });
+          return dropped;
+        },
+        changeShapeKind: (kind) => {
+          const pg = page();
+          if (!pg.nodes.some((n) => n.selected && n.type === 'shape')) return;
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => (n.selected && n.type === 'shape' && !n.data.locked ? { ...n, data: { ...n.data, kind } } : n)) });
         },
         nudgeSelection: (dx, dy) => {
           const pg = page();

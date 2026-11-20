@@ -222,6 +222,11 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   saved to `.vsdx`.
 - **View → Full Screen** (or **F5**): only the drawing, fitted to the screen; ← / → (or Page Up / Page Down, Space)
   move between pages, **Esc** ends. Background pages show behind their pages and are skipped.
+- **Change Shape** (right-click → Change Shape…, or Shape tab): swap a device's picture for another shape — e.g. a
+  24-port switch for a 48-port one, or a generic icon for an imported vendor stencil. The device keeps its name,
+  details, notes and rack spot; cables and port notes move to the matching ports (same port, same name, then same
+  type); any cable with nowhere to go is listed and removed (Ctrl+Z undoes it all). Drawing shapes can switch kind
+  too (rectangle, ellipse, diamond…).
 - **Rename a device on the canvas**: double-click its label, type, Enter (Esc cancels).
 - **Cable text**: drag a cable's label along the cable to move it; double-click it to put it back in the middle.
   The position is kept in exports and `.vsdx`.

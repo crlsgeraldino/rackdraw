@@ -15,6 +15,7 @@ import { reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
+import { openChangeShape } from '../ChangeShapeDialog';
 import { THEMES, themeById, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
 import { SHORTCUTS_EVENT } from '@/lib/events';
@@ -1084,6 +1085,24 @@ function ShapeTab() {
         <Group label="Device">
           <Big icon="edit" label="Edit Shape" onClick={() => stencil && editStencil(stencil.id, device.id)} disabled={!stencil} title="Edit the shape's picture and ports (double-click a device)" />
           <Big icon="info" label="Info Box" active={!!device.data.infoBox?.show} onClick={() => s.mapDevices([device.id], (x) => ({ infoBox: { ...x.infoBox, show: !x.infoBox?.show } }))} title="Show or hide the info box beside the device" />
+          <Big icon="changeShape" label="Change Shape" onClick={openChangeShape} title="Swap the picture for another shape, keeping the device's details and cables (like Visio's Change Shape)" />
+        </Group>
+      )}
+      {!device && node?.type === 'shape' && (
+        <Group label="Shape">
+          <div className="flex items-start pt-1">
+            <Drop width={180} trigger={(open) => <Big icon="changeShape" label="Change Shape" onClick={open} title="Turn the selected drawing shapes into another kind" />}>
+              {(close) => (
+                <div className="py-1">
+                  {(['rect', 'rounded', 'ellipse', 'diamond', 'text', 'arrow', 'callout'] as const).map((k) => (
+                    <button key={k} className="block w-full px-3 py-1 text-left text-xs capitalize hover:bg-blue-50" onClick={() => { s.changeShapeKind(k); close(); }}>
+                      {k === 'rect' ? 'Rectangle' : k === 'rounded' ? 'Rounded rectangle' : k}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Drop>
+          </div>
         </Group>
       )}
       <Group label="Style">

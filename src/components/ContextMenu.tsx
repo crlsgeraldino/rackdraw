@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import type { CableRoute } from '@/lib/types';
 import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
 import { OPEN_CHECK_EVENT } from './CheckPanel';
+import { openChangeShape } from './ChangeShapeDialog';
 
 /** Asks the palette to open the stencil editor for a custom stencil (it owns the editor). */
 export const EDIT_STENCIL_EVENT = 'netcraft:edit-stencil';
@@ -44,6 +45,7 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
   if (node) {
     if (node.type === 'device') {
       if (stencil) items.push({ label: 'Edit shape & ports…', keys: 'Double-click', run: () => editStencil(stencil.id, node.id) });
+      items.push({ label: 'Change Shape…', run: openChangeShape });
       items.push({ label: node.data.infoBox?.show ? 'Hide info box' : 'Show info box', run: () => s.mapDevices([node.id], (d) => ({ infoBox: { ...d.infoBox, show: !d.infoBox?.show } })) });
       items.push('sep');
     }

@@ -16,6 +16,7 @@ import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
+import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
@@ -471,6 +472,7 @@ export default function Editor() {
         {!presenting && <StatusBar />}
         <PromptHost />
         <ShortcutsDialog />
+        <ChangeShapeDialog />
       </div>
     </ReactFlowProvider>
   );
