@@ -19,6 +19,8 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Port notes** — for every port: what's plugged in (even devices you don't draw: printers, cameras, phones, the
   ISP handoff), its IP and VLAN, an **uplink** flag and notes. Shown on hover, marked on the device, and listed in
   the PDF, printout and CSV.
+- **Info boxes** — a printable box beside any device with the details you pick (model, IP, serial, your own fields
+  like WAN IP / LAN subnet / gateway) and what each port connects to (uplinks, printers, APs…).
 - **Quick info** — hover a device for a floating card with its IP (copy / open), serial, rack, ports in use and
   port notes. Turn it off under **View → Quick info on hover**.
 - **Zones and notes** — resizable rooms/racks and sticky notes.
@@ -118,6 +120,20 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Quick info**: rest the pointer on a device to see a card with its status, model, IP (Copy / Open its web page),
   MAC, serial, asset tag, location, rack position, layer, power, ports in use, link, notes and port notes. The card
   stays open while you point at it. **View → Quick info on hover** turns it off (remembered on this computer).
+
+## Info boxes (printed device details)
+
+- Select a device and tick **Info box on the diagram** (right panel). A box appears beside it with the device name
+  and the details you tick: model, IP, MAC, serial, asset tag, location, **My fields** and notes.
+- **My fields** (right panel, under the serial number) are your own name/value pairs for that device: WAN IP,
+  LAN subnet, gateway, DNS, DHCP range, ISP, circuit ID, firmware, Wi-Fi SSID… (suggestions offered as you type).
+- **Ports** in the box: *All in use* lists every port with a cable or notes (uplinks first) and what it connects to,
+  e.g. `X1 UP → Pilot Fiber ONT · 203.0.113.10`, `5 → Front desk printer · 10.0.0.50`; or *Uplinks only*, or *None*.
+  What you typed in *Connected to* is shown, with the cable's far end in brackets when it differs.
+- Drag a box to place it; *Reset position* puts it back. Select several devices to set them all at once, or use
+  **View → Info boxes on all devices: Show / Hide**.
+- Info boxes are part of the diagram: they print, and the PDF/PNG/SVG pictures are widened so boxes and labels
+  aren't cut off.
 
 ## Editing like Visio
 

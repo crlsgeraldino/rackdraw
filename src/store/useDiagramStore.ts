@@ -61,6 +61,10 @@ interface DiagramState {
   updateEdgeData: (id: string, patch: Partial<CableData>) => void;
   /** Applies one change to several devices on the active page (undoable). */
   updateDevicesData: (ids: string[], patch: Partial<DeviceData>) => void;
+  /** Changes several devices on the active page, each from its own data (one undo step). */
+  mapDevices: (ids: string[], fn: (d: DeviceData) => Partial<DeviceData>) => void;
+  /** Changes every device on every page of the client (one undo step). */
+  mapAllDevices: (fn: (d: DeviceData) => Partial<DeviceData>) => void;
   /** Applies one change to several cables on the active page (undoable). */
   updateEdgesData: (ids: string[], patch: Partial<CableData>) => void;
   deleteSelected: () => void;
@@ -376,6 +380,16 @@ export const useDiagram = create<DiagramState>()(
           if (!set.size) return;
           get().snapshot();
           commit({ nodes: page().nodes.map((n) => (set.has(n.id) && n.type === 'device' ? { ...n, data: { ...n.data, ...patch } } : n)) });
+        },
+        mapDevices: (ids, fn) => {
+          const set = new Set(ids);
+          if (!set.size) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => (set.has(n.id) && n.type === 'device' ? { ...n, data: { ...n.data, ...fn(n.data) } } : n)) });
+        },
+        mapAllDevices: (fn) => {
+          get().snapshot();
+          commit({ pages: cur().pages.map((pg) => ({ ...pg, nodes: pg.nodes.map((n) => (n.type === 'device' ? { ...n, data: { ...n.data, ...fn(n.data) } } : n)) })) });
         },
         updateEdgesData: (ids, patch) => {
           const set = new Set(ids);

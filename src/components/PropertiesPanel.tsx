@@ -4,7 +4,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
+import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
@@ -65,6 +65,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono />
       <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />
       <Field label="Serial number" value={d.serial} onChange={set('serial')} mono />
+      <ExtraFieldsEditor node={node} />
       {stencil && (() => {
         const base = baseSize(stencil);
         const pct = node.width ? Math.round((node.width / base.width) * 100) : 100;
@@ -96,6 +97,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         <p className="mb-2 text-xs text-gray-400">Not in a rack. Use the Racks view to mount it.</p>
       ) : null}
       <Field label="Notes" value={d.notes} onChange={set('notes')} area />
+      <InfoBoxEditor nodes={[node]} />
 
       {stencil && stencil.ports.length > 0 && <PortList node={node} ports={stencil.ports} peer={peer} />}
     </>
@@ -178,6 +180,83 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/** The user's own name/value details on a device: WAN IP, LAN subnet, gateway, circuit ID… */
+function ExtraFieldsEditor({ node }: { node: DeviceNode }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const list = node.data.extraFields ?? [];
+  const set = (next: ExtraField[]) => update(node.id, { extraFields: next.length ? next : undefined });
+  const input = 'min-w-0 rounded border border-gray-300 px-1.5 py-1 text-sm outline-none focus:border-blue-500';
+  return (
+    <div className="mb-2">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">My fields</span>
+      <datalist id="nc-extra-field-names">{EXTRA_FIELD_SUGGESTIONS.map((x) => <option key={x} value={x} />)}</datalist>
+      <div className="space-y-1">
+        {list.map((f, i) => (
+          <div key={i} className="flex gap-1">
+            <input className={`${input} w-24 shrink-0 text-xs`} list="nc-extra-field-names" placeholder="Name" value={f.label} onFocus={snapshot}
+              onChange={(e) => set(list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} aria-label="Field name" />
+            <input className={`${input} flex-1 font-mono text-xs`} placeholder="Value" value={f.value} onFocus={snapshot}
+              onChange={(e) => set(list.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} aria-label={`${f.label || 'Field'} value`} />
+            <button className="shrink-0 px-1 text-gray-400 hover:text-red-600" onClick={() => { snapshot(); set(list.filter((_, j) => j !== i)); }} aria-label={`Remove ${f.label || 'field'}`}>✕</button>
+          </div>
+        ))}
+      </div>
+      <button className="mt-1 text-xs text-blue-600 hover:underline" onClick={() => { snapshot(); set([...list, { label: list.length ? '' : 'WAN IP', value: '' }]); }}>
+        + Add field
+      </button>
+      <span className="ml-1 text-[10px] text-gray-400">e.g. WAN IP, LAN subnet, gateway, circuit ID</span>
+    </div>
+  );
+}
+
+/** The printable info box beside each device: on/off, which details, which ports. Works on several devices at once. */
+function InfoBoxEditor({ nodes }: { nodes: DeviceNode[] }) {
+  const mapDevices = useDiagram((s) => s.mapDevices);
+  const ids = nodes.map((n) => n.id);
+  const boxOf = (n: DeviceNode) => n.data.infoBox ?? { show: false };
+  const shown = nodes.filter((n) => boxOf(n).show).length;
+  const first = boxOf(nodes[0]);
+  const fields = first.fields ?? DEFAULT_INFO_FIELDS;
+  const change = (patch: Partial<InfoBoxSettings>) => mapDevices(ids, (d) => ({ infoBox: { show: false, ...d.infoBox, ...patch } }));
+  const moved = nodes.some((n) => n.data.infoBox?.offset && (n.data.infoBox.offset.x || n.data.infoBox.offset.y));
+  return (
+    <div className="mb-2 rounded border border-gray-200 p-2">
+      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+        <input type="checkbox" checked={shown === nodes.length} ref={(el) => { if (el) el.indeterminate = shown > 0 && shown < nodes.length; }}
+          onChange={(e) => change({ show: e.target.checked })} />
+        Info box on the diagram
+      </label>
+      <p className="mb-1 text-[10px] text-gray-400">Details beside the device; it prints and exports with the diagram.</p>
+      {shown > 0 && (
+        <>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {INFO_BOX_FIELDS.map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-1">
+                <input type="checkbox" checked={fields.includes(value)}
+                  onChange={(e) => change({ fields: INFO_BOX_FIELDS.map((x) => x.value).filter((x) => (x === value ? e.target.checked : fields.includes(x))) })} />
+                {label}
+              </label>
+            ))}
+          </div>
+          <label className="mt-1.5 flex items-center gap-1.5 text-xs">
+            Ports
+            <select className="rounded border border-gray-300 px-1 py-0.5 text-xs" value={first.ports ?? 'used'} onChange={(e) => change({ ports: e.target.value as InfoBoxPorts })}>
+              <option value="used">All in use (cabled or noted)</option>
+              <option value="uplinks">Uplinks only</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+          <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
+            <span>Drag the box on the canvas to move it.</span>
+            {moved && <button className="text-blue-600 hover:underline" onClick={() => change({ offset: undefined })}>Reset position</button>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -541,7 +620,10 @@ export function PropertiesPanel() {
         <p className="mb-3 text-sm text-gray-500">{selNodes.length + selEdges.length} items selected</p>
         {selNodes.length > 1 && <ArrangeButtons />}
         {selNodes.some((n) => n.type === 'device') && (
-          <div className="mt-4"><LabelEditor nodes={selNodes.filter((n): n is DeviceNode => n.type === 'device')} /></div>
+          <div className="mt-4">
+            <LabelEditor nodes={selNodes.filter((n): n is DeviceNode => n.type === 'device')} />
+            <InfoBoxEditor nodes={selNodes.filter((n): n is DeviceNode => n.type === 'device')} />
+          </div>
         )}
         {selEdges.length > 0 && <div className="mt-4"><CableColorEditor edges={selEdges} /></div>}
       </>

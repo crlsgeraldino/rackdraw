@@ -104,6 +104,45 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras {
   labelFields?: DeviceLabelField[];
   /** Where the label was dragged to, relative to its default spot. */
   labelOffset?: { x: number; y: number };
+  /** Your own details, e.g. WAN IP, LAN subnet, gateway, ISP circuit ID, firmware. */
+  extraFields?: ExtraField[];
+  /** The printable info box drawn beside the device. */
+  infoBox?: InfoBoxSettings;
+}
+
+export interface ExtraField {
+  label: string;
+  value: string;
+}
+
+/** Suggested names for extra fields. */
+export const EXTRA_FIELD_SUGGESTIONS = [
+  'WAN IP', 'LAN subnet', 'Gateway', 'DNS', 'DHCP range', 'Public IP block', 'ISP', 'Circuit ID', 'Firmware',
+  'Management VLAN', 'Wi-Fi SSID', 'License expiry', 'Warranty', 'Admin URL', 'VPN', 'Console',
+];
+
+export type InfoBoxField = 'model' | 'ip' | 'mac' | 'serial' | 'assetTag' | 'location' | 'extra' | 'notes';
+export const INFO_BOX_FIELDS: { value: InfoBoxField; label: string }[] = [
+  { value: 'model', label: 'Model' },
+  { value: 'ip', label: 'IP' },
+  { value: 'mac', label: 'MAC' },
+  { value: 'serial', label: 'Serial' },
+  { value: 'assetTag', label: 'Asset tag' },
+  { value: 'location', label: 'Location' },
+  { value: 'extra', label: 'My fields' },
+  { value: 'notes', label: 'Notes' },
+];
+export const DEFAULT_INFO_FIELDS: InfoBoxField[] = ['model', 'ip', 'serial', 'extra'];
+
+/** Which ports the info box lists: none, uplinks only, or every port that has a cable or notes. */
+export type InfoBoxPorts = 'none' | 'uplinks' | 'used';
+
+export interface InfoBoxSettings {
+  show: boolean;
+  fields?: InfoBoxField[];
+  ports?: InfoBoxPorts;
+  /** Where the box was dragged to, relative to its default spot (right of the device). */
+  offset?: { x: number; y: number };
 }
 
 export type DeviceLabelField = 'name' | 'ip' | 'model' | 'location' | 'serial';

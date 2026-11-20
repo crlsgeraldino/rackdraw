@@ -51,7 +51,7 @@ export function Legend() {
 export function ViewMenu() {
   const project = useCurrentProject();
   const page = useCurrentPage();
-  const { setDisplay, addLayer, renameLayer, deleteLayer, toggleLayer, assignSelectionToLayer } = useDiagram.getState();
+  const { mapAllDevices, setDisplay, addLayer, renameLayer, deleteLayer, toggleLayer, assignSelectionToLayer } = useDiagram.getState();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const quickInfo = usePref('quickInfo');
@@ -89,6 +89,11 @@ export function ViewMenu() {
           <label className="-mt-2 mb-3 flex items-center gap-1.5 text-xs text-gray-600" title="Hover a device to see its details (IP, serial, rack, ports…) in a floating card">
             <input type="checkbox" checked={quickInfo} onChange={(e) => setPref('quickInfo', e.target.checked)} /> Quick info on hover
           </label>
+          <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600">
+            Info boxes on all devices:
+            <button className="rounded border border-gray-300 px-1.5 py-0.5 hover:bg-gray-50" onClick={() => mapAllDevices((d) => ({ infoBox: { ...d.infoBox, show: true } }))}>Show</button>
+            <button className="rounded border border-gray-300 px-1.5 py-0.5 hover:bg-gray-50" onClick={() => mapAllDevices((d) => (d.infoBox ? { infoBox: { ...d.infoBox, show: false } } : {}))}>Hide</button>
+          </div>
 
           <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Layers</h4>
           {layers.length === 0 && <p className="mb-1 text-xs text-gray-400">Group devices and cables (e.g. Cameras, Wi-Fi, Power, Planned work) to show or hide them together.</p>}

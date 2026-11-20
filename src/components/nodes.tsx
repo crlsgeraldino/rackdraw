@@ -1,12 +1,14 @@
 'use client';
 
-import { Handle, NodeResizer, Position, useReactFlow, type NodeProps } from '@xyflow/react';
-import { memo, useMemo, useRef, useState } from 'react';
+import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
+import { memo, useMemo, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
+import { useDragOffset } from './useDragOffset';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
 
@@ -58,45 +60,21 @@ function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates:
  * its offset is saved with the device.
  */
 function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; variant: 'icon' | 'panel' }) {
-  const rf = useReactFlow();
   const update = useDiagram((s) => s.updateNodeData);
-  const snapshot = useDiagram((s) => s.snapshot);
-  const drag = useRef<{ x: number; y: number; ox: number; oy: number; zoom: number; moved: boolean } | null>(null);
+  const drag = useDragOffset(data.labelOffset, (labelOffset) => update(id, { labelOffset }), !!data.locked);
   const fields = data.labelFields ?? DEFAULT_LABEL_FIELDS;
   const lines = fields.map((f) => ({ f, v: f === 'name' ? data.name : (data[f] as string | undefined) })).filter((l) => l.v);
   if (!lines.length) return null;
   const off = data.labelOffset ?? { x: 0, y: 0 };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || data.locked) return;
-    e.stopPropagation();
-    drag.current = { x: e.clientX, y: e.clientY, ox: off.x, oy: off.y, zoom: rf.getZoom(), moved: false };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d) return;
-    const dx = (e.clientX - d.x) / d.zoom, dy = (e.clientY - d.y) / d.zoom;
-    if (!d.moved) {
-      if (Math.abs(dx) + Math.abs(dy) < 2) return;
-      d.moved = true;
-      snapshot(); // one undo step per drag
-    }
-    update(id, { labelOffset: { x: Math.round(d.ox + dx), y: Math.round(d.oy + dy) } });
-  };
-  const end = () => { drag.current = null; };
 
   const text = (f: string, v: string) => (
     <span key={f} className={f === 'name' ? 'font-semibold' : f === 'ip' ? 'font-mono text-gray-500' : 'text-gray-600'}>{v}</span>
   );
   return (
     <div
-      className={`nodrag nopan absolute top-full mt-1 cursor-move select-none text-[11px] leading-tight text-gray-800 ${variant === 'icon' ? 'flex w-40 flex-col items-center text-center' : 'left-0 flex gap-2 whitespace-nowrap'}`}
+      className={`nc-device-label nodrag nopan absolute top-full mt-1 cursor-move select-none text-[11px] leading-tight text-gray-800 ${variant === 'icon' ? 'flex w-40 flex-col items-center text-center' : 'left-0 flex gap-2 whitespace-nowrap'}`}
       style={{ translate: `${off.x}px ${off.y}px` }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={end}
-      onPointerCancel={end}
+      {...drag}
       title={data.locked ? undefined : 'Drag to move the label'}
     >
       {lines.map((l) => text(l.f, l.v!))}
@@ -199,6 +177,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
           {handles}
         </div>
         <DeviceLabel id={id} data={data} variant="icon" />
+        <DeviceInfoBox id={id} data={data} />
       </div>
     );
   }
@@ -216,6 +195,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
       {markers}
       {handles}
       <DeviceLabel id={id} data={data} variant="panel" />
+      <DeviceInfoBox id={id} data={data} />
     </div>
   );
 }

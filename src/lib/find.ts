@@ -31,7 +31,8 @@ function nodeFields(n: AppNode): { item: string; fields: { path: string[]; label
         ...f(['ports', pid, 'ip'], `Port ${pd.label || pid} IP`, pd.ip),
         ...f(['ports', pid, 'notes'], `Port ${pd.label || pid} notes`, pd.notes),
       ]);
-      return { item: d.name || 'Device', fields: [...DEVICE_FIELDS.flatMap(([k, l]) => f([k], l, d[k])), ...ports] };
+      const extra = (d.extraFields ?? []).flatMap((x, i) => f(['extraFields', String(i), 'value'], x.label || 'Field', x.value));
+      return { item: d.name || 'Device', fields: [...DEVICE_FIELDS.flatMap(([k, l]) => f([k], l, d[k])), ...ports, ...extra] };
     }
     case 'zone':
       return { item: n.data.title || 'Zone', fields: [...f(['title'], 'Zone title', n.data.title), ...f(['link'], 'Link', n.data.link)] };
@@ -86,9 +87,10 @@ export function findInProject(p: Project, term: string, matchCase: boolean): Fin
 /** Sets a value at `path` inside a data object, copying each level. */
 function setPath(data: Record<string, unknown>, path: string[], value: string): Record<string, unknown> {
   const [k, ...rest] = path;
-  if (!rest.length) return { ...data, [k]: value };
-  const child = (data[k] as Record<string, unknown> | undefined) ?? {};
-  return { ...data, [k]: setPath(child, rest, value) };
+  const copy = (Array.isArray(data) ? [...data] : { ...data }) as Record<string, unknown>;
+  if (!rest.length) copy[k] = value;
+  else copy[k] = setPath((data[k] as Record<string, unknown> | undefined) ?? {}, rest, value);
+  return copy;
 }
 
 /** Applies replacements to the given hits (all hits from `findInProject`, or just one). Returns new pages. */

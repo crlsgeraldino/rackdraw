@@ -117,15 +117,30 @@ function Toolbar() {
   const view = useDiagram((s) => s.view);
   const setView = useDiagram((s) => s.setView);
   const page = useCurrentPage();
-  // By id, so React Flow uses its live measurements rather than sizes saved in the diagram.
-  const bounds = () => rf.getNodesBounds(page.nodes.map((n) => n.id));
+  /**
+   * What to capture: the nodes (by id, so React Flow uses its live measurements rather than sizes saved in the
+   * diagram), widened to take in device labels and info boxes that sit outside their device.
+   */
+  const contentBounds = (ids: string[]) => {
+    const b = rf.getNodesBounds(ids);
+    let [x0, y0, x1, y1] = [b.x, b.y, b.x + b.width, b.y + b.height];
+    document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (!r.width) return;
+      const a = rf.screenToFlowPosition({ x: r.left, y: r.top }, { snapToGrid: false });
+      const z = rf.screenToFlowPosition({ x: r.right, y: r.bottom }, { snapToGrid: false });
+      [x0, y0, x1, y1] = [Math.min(x0, a.x), Math.min(y0, a.y), Math.max(x1, z.x), Math.max(y1, z.y)];
+    });
+    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  };
+  const bounds = () => contentBounds(page.nodes.map((n) => n.id));
 
   /** For the PDF: show each page in turn and capture it. */
   const renderPage: PageRenderer = async (pg) => {
     if (!pg.nodes.length) return null;
     useDiagram.getState().setActivePage(pg.id);
     await new Promise((r) => setTimeout(r, 700));
-    return renderCanvasPng(rf.getNodesBounds(pg.nodes.map((n) => n.id)));
+    return renderCanvasPng(contentBounds(pg.nodes.map((n) => n.id)));
   };
 
   const run = async (fn: () => Promise<void> | void, needsCanvas = true) => {
