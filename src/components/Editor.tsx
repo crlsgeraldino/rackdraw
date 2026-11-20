@@ -24,6 +24,7 @@ import { activePage } from '@/lib/project';
 import { edgeTypes } from './CableEdgeView';
 import { PageSheet, RULER, Rulers } from './CanvasPage';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
+import { NavigatorPanel } from './NavigatorPanel';
 import { CommentsPanel, OPEN_COMMENTS_EVENT } from './CommentsPanel';
 import { ContextMenu, editStencil, type MenuTarget } from './ContextMenu';
 import { FindBar } from './FindBar';
@@ -188,6 +189,7 @@ function Canvas() {
   }, []);
   const presenting = usePresenting((s) => s.on);
   const snap = usePref('snapToGrid');
+  const navPane = usePref('navPane');
   const reconnecting = useRef<string | null>(null); // cable whose end is being moved
   const follow = useFollowLink();
   const minimap = usePref('minimap') && !presenting;
@@ -346,6 +348,7 @@ function Canvas() {
       )}
       {find && <FindBar replaceMode={find.replace} onClose={() => setFind(null)} />}
       {checking && <CheckPanel onClose={() => setChecking(false)} />}
+      {navPane && !presenting && <NavigatorPanel />}
       {comments && <CommentsPanel key={String(comments.add)} startAdding={comments.add} onClose={() => setComments(null)} />}
       {menu && <ContextMenu target={menu} onClose={() => setMenu(null)} />}
       {calib && (

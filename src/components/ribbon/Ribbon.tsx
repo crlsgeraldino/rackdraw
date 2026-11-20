@@ -1013,6 +1013,7 @@ function ViewTab() {
   const rulers = usePref('rulers');
   const dynamicGrid = usePref('dynamicGrid');
   const snapGrid = usePref('snapToGrid');
+  const navPane = usePref('navPane');
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
   const d = project.display ?? DEFAULT_DISPLAY;
@@ -1045,6 +1046,7 @@ function ViewTab() {
         </Column>
         <Column>
           <Check label="Snap to grid" checked={snapGrid} onChange={(v) => setPref('snapToGrid', v)} title="Moved items land on the 10px grid" />
+          <Check label="Navigation" checked={navPane} onChange={(v) => setPref('navPane', v)} title="Pages and everything on them; click to go to an item (like Visio's Drawing Explorer)" />
           <Check label="Quick info" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
         </Column>
       </Group>
