@@ -242,6 +242,26 @@ function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
     case 'diamond': return <polygon points={`${w / 2},1 ${w - 1},${h / 2} ${w / 2},${h - 1} 1,${h / 2}`} {...common} />;
+    case 'door': {
+      // Floor-plan door: the leaf (hinged bottom-left, drawn open) and its swing arc; flip mirrors the swing.
+      const r = Math.min(w, h) - 2;
+      const g = d.flip ? `matrix(-1 0 0 1 ${w} 0)` : undefined;
+      return (
+        <g transform={g}>
+          <line x1={1} y1={h - 1} x2={r + 1} y2={h - 1} stroke={d.stroke} strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+          <line x1={1} y1={h - 1} x2={1} y2={h - 1 - r} stroke={d.stroke} strokeWidth={3} vectorEffect="non-scaling-stroke" />
+          <path d={`M1 ${h - 1 - r} A${r} ${r} 0 0 1 ${r + 1} ${h - 1}`} fill="none" stroke={d.stroke} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />
+        </g>
+      );
+    }
+    case 'window':
+      // Floor-plan window: the frame with a centre line for the glass.
+      return (
+        <g>
+          <rect x={1} y={1} width={w - 2} height={h - 2} fill={d.fill} stroke={d.stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <line x1={1} y1={h / 2} x2={w - 1} y2={h / 2} stroke={d.stroke} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        </g>
+      );
     case 'arrow': {
       const head = Math.min(w * 0.4, h);
       return <polygon points={`1,${h * 0.28} ${w - head},${h * 0.28} ${w - head},1 ${w - 1},${h / 2} ${w - head},${h - 1} ${w - head},${h * 0.72} 1,${h * 0.72}`} {...common} />;
@@ -261,7 +281,7 @@ function ShapeNodeView({ id, data, selected, width, height }: NodeProps<ShapeNod
     <div className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
       <NodeResizer isVisible={selected && !data.locked} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
-      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'arrow' && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: (data.kind === 'arrow' || data.kind === 'door') && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
       {data.kind === 'text' && selected && !editing && <div className="pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}

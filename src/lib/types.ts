@@ -82,6 +82,17 @@ export interface NodeExtras {
   locked?: boolean;
   /** Hyperlink: a web/mailto address, or `page:<pageId>` to jump to another page of the project. */
   link?: string;
+  /** Review comments on this item (Review → New Comment). */
+  comments?: ItemComment[];
+}
+
+export interface ItemComment {
+  id: string;
+  author?: string;
+  text: string;
+  /** Epoch ms. */
+  at: number;
+  resolved?: boolean;
 }
 
 export interface DeviceData extends Record<string, unknown>, NodeExtras {
@@ -174,7 +185,7 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
 export interface ShapeData extends Record<string, unknown>, NodeExtras {
@@ -185,8 +196,10 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   textColor: string;
   fontSize: number;
   dashed?: boolean;
-  /** Arrow direction in degrees (0 = pointing right). */
+  /** Arrow direction / door rotation in degrees (0 = arrow pointing right, door hinged bottom-left). */
   rotation?: number;
+  /** Door swings the other way. */
+  flip?: boolean;
   layer?: string;
 }
 
@@ -198,6 +211,10 @@ export interface MeasureData extends Record<string, unknown>, NodeExtras {
   dy: number;
   /** Optional text shown instead of / before the measured length. */
   label?: string;
+  /** 'wall' draws a floor-plan wall (thick line) instead of a dimension line. */
+  variant?: 'dimension' | 'wall';
+  /** Wall thickness in diagram units. */
+  thickness?: number;
 }
 export type MeasureNode = Node<MeasureData, 'measure'>;
 export type DeviceNode = Node<DeviceData, 'device'>;

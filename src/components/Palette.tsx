@@ -333,6 +333,20 @@ export function Palette() {
             </div>
           </div>
         </StencilBar>
+        <StencilBar title="Floor Plan" open={!isCollapsed('builtin:FloorPlan')} onToggle={(o) => setFolderOpen('builtin:FloorPlan', o)}>
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { id: '__wall', label: 'Wall', title: 'Drag onto the page, then drag its ends', icon: <path d="M3 11h28" stroke="#4b5563" strokeWidth="5" /> },
+              { id: '__shape:door', label: 'Door', title: 'Door with its swing; rotate or flip it in the panel', icon: <><path d="M10 19V5" stroke="#374151" strokeWidth="2.5" /><path d="M10 5A14 14 0 0 1 24 19" stroke="#374151" fill="none" /><path d="M10 19h14" stroke="#374151" strokeDasharray="2 2" /></> },
+              { id: '__shape:window', label: 'Window', title: 'Window frame; stretch it along a wall', icon: <><rect x="3" y="8" width="28" height="6" fill="#fff" stroke="#374151" /><path d="M3 11h28" stroke="#374151" /></> },
+            ].map((s) => (
+              <div key={s.id} draggable onDragStart={(e) => drag(e, s.id)} className="flex cursor-grab flex-col items-center gap-0.5 rounded border border-gray-200 p-1 text-[10px] text-gray-600 hover:bg-gray-50" title={s.title}>
+                <svg width="34" height="22" viewBox="0 0 34 22" aria-hidden>{s.icon}</svg>
+                {s.label}
+              </div>
+            ))}
+          </div>
+        </StencilBar>
       </div>
       <p className="border-t border-gray-200 p-2 text-[10px] leading-snug text-gray-500">
         Drag a shape onto the canvas. Drag from one port to another to draw a cable.

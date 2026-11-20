@@ -590,6 +590,17 @@ function ShapeProps({ node }: { node: ShapeNode }) {
       {d.kind !== 'text' && (
         <label className="mb-2 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.dashed} onChange={(e) => set({ dashed: e.target.checked })} /> Dashed border</label>
       )}
+      {d.kind === 'door' && (
+        <div className="mb-2 flex gap-2">
+          <label className="block flex-1">
+            <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Rotate</span>
+            <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.rotation ?? 0} onChange={(e) => set({ rotation: Number(e.target.value) })}>
+              <option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option>
+            </select>
+          </label>
+          <label className="mt-4 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.flip} onChange={(e) => set({ flip: e.target.checked || undefined })} /> Swing the other way</label>
+        </div>
+      )}
       {d.kind === 'arrow' && (
         <label className="mb-2 block">
           <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Points</span>
@@ -804,8 +815,14 @@ export function PropertiesPanel() {
     const len = Math.hypot(m.data.dx, m.data.dy);
     body = (
       <>
-        <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">Dimension line</div>
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">{m.data.variant === 'wall' ? 'Wall' : 'Dimension line'}</div>
         <p className="mb-2 text-sm">{p.scale ? realLength(len, p.scale) : `${Math.round(len)} units (no scale set)`}</p>
+        {m.data.variant === 'wall' && (
+          <label className="mb-2 block">
+            <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Thickness: {p.scale ? realLength(m.data.thickness ?? 8, p.scale) : `${m.data.thickness ?? 8} units`}</span>
+            <input type="range" min={2} max={40} className="w-full" value={m.data.thickness ?? 8} onPointerDown={() => useDiagram.getState().snapshot()} onChange={(e) => update(m.id, { thickness: Number(e.target.value) })} />
+          </label>
+        )}
         <Field label="Label (optional)" value={m.data.label} onChange={(v) => update(m.id, { label: v || undefined })} />
         <p className="text-[10px] text-gray-400">Drag the line to move it; drag its blue ends to stretch it (hold Shift to keep it straight).</p>
         <hr className="my-4 border-gray-200" />

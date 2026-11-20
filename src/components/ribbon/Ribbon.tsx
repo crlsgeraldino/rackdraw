@@ -17,6 +17,7 @@ import type { AppNode, CableColorBy, DeviceColorBy, ShapeKind } from '@/lib/type
 import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
+import { openComments } from '../CommentsPanel';
 import { editStencil } from '../ContextMenu';
 import { DataMenu } from '../DataMenu';
 import { PrintDialog } from '../PrintDialog';
@@ -472,6 +473,13 @@ function InsertTab() {
           <Small icon="dimension" label="Arrow" onClick={() => shape('arrow')} />
         </Column>
       </Group>
+      <Group label="Floor Plan">
+        <Column>
+          <Small icon="line" label="Wall" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 150, y: c.y }, 'wall'); }} title="A wall; drag its ends" />
+          <Small icon="page" label="Door" onClick={() => shape('door')} />
+          <Small icon="grid" label="Window" onClick={() => shape('window')} />
+        </Column>
+      </Group>
       <Group label="Diagram Parts">
         <Big icon="zone" label="Zone" onClick={() => s.addZone(center())} title="A room, rack or area outline" />
         <Big icon="note" label="Note" onClick={() => s.addNote(center())} />
@@ -568,10 +576,16 @@ function DataTab() {
 }
 
 function ReviewTab() {
+  const page = useCurrentPage();
+  const hasSel = page.nodes.some((n) => n.selected && n.type !== 'backdrop');
   return (
     <>
       <Group label="Proofing">
         <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} />
+      </Group>
+      <Group label="Comments">
+        <Big icon="note" label="New Comment" onClick={() => openComments(true)} title="Comment on the selected item" disabled={!hasSel} />
+        <Big icon="panes" label="Comments" onClick={() => openComments(false)} title="Show every comment in this client" />
       </Group>
       <Group label="Find">
         <Big icon="find" label="Find" onClick={() => openFind(false)} title="Find (Ctrl+F)" />

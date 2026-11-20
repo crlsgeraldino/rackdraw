@@ -23,8 +23,10 @@ export interface Prefs {
   grid: boolean;
   /** Dashed lines where one printed sheet ends and the next begins. */
   pageBreaks: boolean;
+  /** Your name on comments. */
+  author: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, author: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

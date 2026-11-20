@@ -19,6 +19,7 @@ import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, t
 import { edgeTypes } from './CableEdgeView';
 import { PageSheet, RULER, Rulers } from './CanvasPage';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
+import { CommentsPanel, OPEN_COMMENTS_EVENT } from './CommentsPanel';
 import { ContextMenu, editStencil, type MenuTarget } from './ContextMenu';
 import { FindBar } from './FindBar';
 import { nodeTypes } from './nodes';
@@ -130,6 +131,12 @@ function Canvas() {
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [comments, setComments] = useState<{ add: boolean } | null>(null);
+  useEffect(() => {
+    const open = (e: Event) => { setChecking(false); setComments({ add: !!(e as CustomEvent<{ add?: boolean }>).detail?.add }); };
+    window.addEventListener(OPEN_COMMENTS_EVENT, open);
+    return () => window.removeEventListener(OPEN_COMMENTS_EVENT, open);
+  }, []);
   useEffect(() => {
     const open = (e: Event) => setFind({ replace: !!(e as CustomEvent<{ replace?: boolean }>).detail?.replace });
     window.addEventListener(FIND_EVENT, open);
@@ -188,6 +195,7 @@ function Canvas() {
     if (id === '__zone') return addZone(pos);
     if (id === '__note') return addNote(pos);
     if (id === '__measure') return useDiagram.getState().addMeasure({ x: pos.x - 100, y: pos.y });
+    if (id === '__wall') return useDiagram.getState().addMeasure({ x: pos.x - 150, y: pos.y }, 'wall');
     if (id.startsWith('__shape:')) return addShape(id.slice(8) as ShapeKind, pos);
     const s = getStencil(id);
     if (!s) return;
@@ -264,6 +272,7 @@ function Canvas() {
       )}
       {find && <FindBar replaceMode={find.replace} onClose={() => setFind(null)} />}
       {checking && <CheckPanel onClose={() => setChecking(false)} />}
+      {comments && <CommentsPanel key={String(comments.add)} startAdding={comments.add} onClose={() => setComments(null)} />}
       {menu && <ContextMenu target={menu} onClose={() => setMenu(null)} />}
       {calib && (
         <div className="absolute inset-0 z-30 cursor-crosshair" onClick={calibClick}>

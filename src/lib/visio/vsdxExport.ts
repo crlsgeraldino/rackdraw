@@ -134,6 +134,20 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             const turn = (p: VPt): VPt => (rot === 90 ? { x: 1 - p.y, y: p.x } : rot === 180 ? { x: 1 - p.x, y: 1 - p.y } : rot === 270 ? { x: p.y, y: 1 - p.x } : p);
             pts = pts.map(turn);
             front.push({ kind: 'polygon', box: bb, points: pts, ...style, text });
+          } else if (d.kind === 'door') {
+            // Leaf and swing as one line (arc sampled), in the shape's own rotation and swing.
+            const r = Math.min(bb.w, bb.h);
+            const local: VPt[] = [{ x: 0, y: 1 }, { x: 0, y: 1 - r / bb.h }];
+            for (let k = 1; k <= 12; k++) { const t = (k / 12) * (Math.PI / 2); local.push({ x: (Math.sin(t) * r) / bb.w, y: 1 - (Math.cos(t) * r) / bb.h }); }
+            const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
+            const turn = (p: VPt): VPt => {
+              const q = d.flip ? { x: 1 - p.x, y: p.y } : p;
+              return rot === 90 ? { x: 1 - q.y, y: q.x } : rot === 180 ? { x: 1 - q.x, y: 1 - q.y } : rot === 270 ? { x: q.y, y: 1 - q.x } : q;
+            };
+            front.push({ kind: 'line', name: 'Door', points: local.map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h })), line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5 });
+          } else if (d.kind === 'window') {
+            front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1 });
+            front.push({ kind: 'line', points: [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75 });
           } else if (d.kind === 'text') front.push({ kind: 'rect', box: bb, fill: null, line: null, text });
           else front.push({ kind: 'rect', box: bb, ...style, rounding: d.kind === 'rounded' ? Math.min(inch(16), bb.h / 3) : undefined, text });
           break;
@@ -141,6 +155,10 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'measure': {
           const a = { x: b.x, y: b.y };
           const z = { x: b.x + n.data.dx, y: b.y + n.data.dy };
+          if (n.data.variant === 'wall') {
+            front.push({ kind: 'line', name: 'Wall', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: '#4B5563', lineWeightPt: pt(n.data.thickness ?? 8) });
+            break;
+          }
           const len = Math.hypot(n.data.dx, n.data.dy);
           front.push({ kind: 'line', name: 'Dimension', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: '#334155', lineWeightPt: 1, arrowStart: true, arrowEnd: true });
           const label = [n.data.label, pg.scale ? realLength(len, pg.scale) : `${Math.round(len)}`].filter(Boolean).join(' ');

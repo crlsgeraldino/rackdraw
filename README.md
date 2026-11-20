@@ -118,6 +118,9 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   (`30 ft`, `12' 6"`, `9.5 m`, `250 cm`). Or type it as *100 units = … feet/metres*.
 - **Dimension line** (palette → Layout): drag it onto the page, drag its ends (Shift keeps it straight); it shows the
   real length, with an optional label.
+- **Floor Plan** stencil (Shapes window, or Insert → Floor Plan): **walls** you stretch by their ends (thickness in
+  the panel; the length shows while selected), **doors** with their swing (rotate in 90° steps, swing the other way)
+  and **windows** you stretch along a wall. They go into Visio exports too.
 - **Cable lengths**: a cable's **Length** can be typed, or measured from the scaled drawing with one click (**Use
   42' 6"**); tick *Show length on the cable* to label it. Lengths appear in the connections table of the PDF,
   printout and CSV, handy for cable estimates.
@@ -198,6 +201,13 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Right-click** anything on the canvas for its shortcut menu: devices (edit shape, show/hide info box, cut, copy,
   duplicate, order, group, lock, copy/paste format, delete), cables (right angles / straight / curved, format,
   delete) and the empty canvas (paste, check diagram).
+
+## Comments (Review tab)
+
+- Select a device or shape and click **Review → New Comment**; type and **Post** (Ctrl+Enter). Your name is
+  remembered on this computer. Shapes with open comments show a 💬 badge; click it to open the comments.
+- **Review → Comments** lists every comment in the client, on every page; click an item's name to go to it, and
+  **Resolve**, **Reopen** or **Delete** comments. Find (Ctrl+F) searches comments too.
 
 ## Tidy-up tools
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { openUrl, resolveLink } from '@/lib/links';
+import { openComments } from './CommentsPanel';
 import type { NodeExtras } from '@/lib/types';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 
@@ -29,7 +30,8 @@ export function useLinkLabel(link?: string) {
 export function NodeBadges({ data, selected }: { data: NodeExtras; selected?: boolean }) {
   const follow = useFollowLink();
   const label = useLinkLabel(data.link);
-  if (!label && !(data.locked && selected)) return null;
+  const open = (data.comments ?? []).filter((c) => !c.resolved).length;
+  if (!label && !(data.locked && selected) && !open) return null;
   return (
     <div className="absolute -right-2 -top-2 z-10 flex gap-0.5">
       {label && (
@@ -41,6 +43,17 @@ export function NodeBadges({ data, selected }: { data: NodeExtras; selected?: bo
           aria-label={`Open link: ${label}`}
         >
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6.5 9.5l3-3M7 4.5l1.2-1.2a2.6 2.6 0 0 1 3.7 3.7L10.7 8.2M9 11.5l-1.2 1.2a2.6 2.6 0 0 1-3.7-3.7L5.3 7.8" strokeLinecap="round" /></svg>
+        </button>
+      )}
+      {open > 0 && (
+        <button
+          type="button"
+          className="nodrag nopan flex h-5 min-w-5 items-center justify-center rounded-full border border-amber-400 bg-amber-100 px-1 text-[10px] font-semibold text-amber-800 shadow hover:bg-amber-200"
+          onClick={(e) => { e.stopPropagation(); openComments(); }}
+          title={`${open} open comment${open === 1 ? '' : 's'}: ${data.comments!.filter((c) => !c.resolved).map((c) => c.text).join(' / ')}`}
+          aria-label={`${open} comments`}
+        >
+          💬{open > 1 ? open : ''}
         </button>
       )}
       {data.locked && selected && (

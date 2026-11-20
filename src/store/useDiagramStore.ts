@@ -56,8 +56,12 @@ interface DiagramState {
   addZone: (position: { x: number; y: number }) => void;
   addNote: (position: { x: number; y: number }) => void;
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
-  /** Adds a dimension line starting at `position` (horizontal, 200 units long). */
-  addMeasure: (position: { x: number; y: number }) => void;
+  /** Adds a dimension line (or a floor-plan wall) starting at `position`. */
+  addMeasure: (position: { x: number; y: number }, variant?: 'dimension' | 'wall') => void;
+  /** Adds a review comment to an item on the active page. */
+  addComment: (nodeId: string, text: string, author?: string) => void;
+  /** Changes or removes a comment (on any page of the client). */
+  updateComment: (nodeId: string, commentId: string, patch: { resolved?: boolean; text?: string } | null) => void;
   /** Moves one end of a dimension line to a diagram point (no undo step; the drag takes one at its start). */
   moveMeasureEnd: (id: string, end: 'a' | 'b', point: { x: number; y: number }) => void;
   /** Paper size / orientation of the active page (Design → Page Setup). */
@@ -361,10 +365,26 @@ export const useDiagram = create<DiagramState>()(
           };
           commit({ nodes: [node, ...page().nodes] });
         },
-        addMeasure: (position) => {
+        addMeasure: (position, variant = 'dimension') => {
           get().snapshot();
-          const node: AppNode = { id: `m-${uid()}`, type: 'measure', position, data: { dx: 200, dy: 0 } };
+          const data = variant === 'wall' ? { dx: 300, dy: 0, variant, thickness: 8 } : { dx: 200, dy: 0 };
+          const node: AppNode = { id: `m-${uid()}`, type: 'measure', position, data };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        addComment: (nodeId, text, author) => {
+          if (!text.trim()) return;
+          get().snapshot();
+          const c = { id: `c-${uid()}`, text: text.trim(), author: author || undefined, at: Date.now() };
+          commit({ nodes: page().nodes.map((n) => (n.id === nodeId && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, comments: [...(n.data.comments ?? []), c] } } as AppNode) : n)) });
+        },
+        updateComment: (nodeId, commentId, patch) => {
+          get().snapshot();
+          const fix = (n: AppNode): AppNode => {
+            if (n.id !== nodeId || n.type === 'backdrop' || !n.data.comments) return n;
+            const comments = patch === null ? n.data.comments.filter((c) => c.id !== commentId) : n.data.comments.map((c) => (c.id === commentId ? { ...c, ...patch } : c));
+            return { ...n, data: { ...n.data, comments: comments.length ? comments : undefined } } as AppNode;
+          };
+          commit({ pages: cur().pages.map((pg) => ({ ...pg, nodes: pg.nodes.map(fix) })) });
         },
         moveMeasureEnd: (id, end, point) =>
           commit({
@@ -393,7 +413,9 @@ export const useDiagram = create<DiagramState>()(
 
         addShape: (kind, position) => {
           get().snapshot();
-          const size = kind === 'text' ? { width: 180, height: 40 } : kind === 'arrow' ? { width: 140, height: 50 } : kind === 'diamond' ? { width: 140, height: 100 } : { width: 160, height: 80 };
+          const size = kind === 'text' ? { width: 180, height: 40 } : kind === 'arrow' ? { width: 140, height: 50 } : kind === 'diamond' ? { width: 140, height: 100 }
+            : kind === 'door' ? { width: 80, height: 80 } : kind === 'window' ? { width: 120, height: 14 } : { width: 160, height: 80 };
+          const plan = kind === 'door' || kind === 'window';
           const node: AppNode = {
             id: `s-${uid()}`,
             type: 'shape',
@@ -401,8 +423,8 @@ export const useDiagram = create<DiagramState>()(
             ...size,
             data: {
               kind,
-              text: kind === 'text' ? 'Text' : kind === 'arrow' ? '' : 'Label',
-              fill: kind === 'text' ? 'transparent' : kind === 'arrow' ? '#93c5fd' : '#ffffff',
+              text: kind === 'text' ? 'Text' : kind === 'arrow' || plan ? '' : 'Label',
+              fill: kind === 'text' || kind === 'door' ? 'transparent' : kind === 'arrow' ? '#93c5fd' : '#ffffff',
               stroke: kind === 'text' ? 'transparent' : '#374151',
               textColor: '#111827',
               fontSize: kind === 'text' ? 18 : 14,
