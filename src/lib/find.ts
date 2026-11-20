@@ -28,6 +28,8 @@ function nodeFields(n: AppNode): { item: string; fields: { path: string[]; label
       const ports = Object.entries(d.ports ?? {}).flatMap(([pid, pd]) => [
         ...f(['ports', pid, 'description'], `Port ${pd.label || pid} description`, pd.description),
         ...f(['ports', pid, 'vlan'], `Port ${pd.label || pid} VLAN`, pd.vlan),
+        ...f(['ports', pid, 'ip'], `Port ${pd.label || pid} IP`, pd.ip),
+        ...f(['ports', pid, 'notes'], `Port ${pd.label || pid} notes`, pd.notes),
       ]);
       return { item: d.name || 'Device', fields: [...DEVICE_FIELDS.flatMap(([k, l]) => f([k], l, d[k])), ...ports] };
     }

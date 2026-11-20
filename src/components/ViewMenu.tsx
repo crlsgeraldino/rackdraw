@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
+import { setPref, usePref } from '@/lib/prefs';
 import type { CableColorBy, DeviceColorBy } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { useDisplay } from './useDisplay';
@@ -53,6 +54,7 @@ export function ViewMenu() {
   const { setDisplay, addLayer, renameLayer, deleteLayer, toggleLayer, assignSelectionToLayer } = useDiagram.getState();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const quickInfo = usePref('quickInfo');
   const s = project.display ?? DEFAULT_DISPLAY;
   const layers = project.layers ?? [];
   const selected = page.nodes.filter((n) => n.selected && n.type === 'device').length + page.edges.filter((e) => e.selected).length;
@@ -83,6 +85,9 @@ export function ViewMenu() {
           </div>
           <label className="mb-3 flex items-center gap-1.5 text-xs text-gray-600">
             <input type="checkbox" checked={s.showLegend} onChange={(e) => setDisplay({ showLegend: e.target.checked })} /> Show legend
+          </label>
+          <label className="-mt-2 mb-3 flex items-center gap-1.5 text-xs text-gray-600" title="Hover a device to see its details (IP, serial, rack, ports…) in a floating card">
+            <input type="checkbox" checked={quickInfo} onChange={(e) => setPref('quickInfo', e.target.checked)} /> Quick info on hover
           </label>
 
           <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Layers</h4>

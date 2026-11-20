@@ -58,11 +58,21 @@ export interface StencilLibraryFile {
   stencils: StencilDef[];
 }
 
+/** What you know about one port: what is plugged into it, even when that device isn't drawn on the diagram. */
 export interface PortData {
   label?: string;
+  /** "Connected to": what is plugged in (e.g. "Front desk printer", "Core switch port 48"). */
   description?: string;
+  /** IP of what is plugged in. */
+  ip?: string;
   vlan?: string;
+  /** This port is an uplink (to the core, firewall, ISP…). */
+  uplink?: boolean;
+  notes?: string;
 }
+
+/** Does this port have anything written down about it? */
+export const isDocumented = (pd?: PortData) => !!(pd && (pd.description || pd.ip || pd.vlan || pd.uplink || pd.notes));
 
 /** Editing state shared by every kind of diagram item (Arrange menu, hyperlinks). */
 export interface NodeExtras {

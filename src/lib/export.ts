@@ -10,7 +10,7 @@ import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices, migrateProject } from './project';
 import { rackLabel } from './rack';
-import type { AppNode, CableData, Page, Project, Rack, StencilDef, StencilLibraryFile } from './types';
+import { isDocumented, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
 
@@ -96,6 +96,37 @@ export function deviceRows(p: Project) {
   }));
 }
 
+/** Every port someone documented (connected device, IP, VLAN, uplink, notes), for the PDF/print/CSV "Port notes" table. */
+export function portRows(p: Project) {
+  return p.pages.flatMap((pg) => {
+    const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+    // What a cable on this page plugs each port into, when the port has no "connected to" written.
+    const peer = new Map<string, string>();
+    for (const e of pg.edges) {
+      peer.set(`${e.source}|${e.sourceHandle}`, `${nodeName(byId.get(e.target))} ${portName(byId.get(e.target), e.targetHandle)}`.trim());
+      peer.set(`${e.target}|${e.targetHandle}`, `${nodeName(byId.get(e.source))} ${portName(byId.get(e.source), e.sourceHandle)}`.trim());
+    }
+    return pg.nodes.flatMap((n) => {
+      if (n.type !== 'device') return [];
+      const ports = getStencil(n.data.stencilId)?.ports ?? [];
+      const order = new Map(ports.map((pt, i) => [pt.id, i]));
+      return Object.entries(n.data.ports ?? {})
+        .filter(([, pd]) => isDocumented(pd))
+        .sort(([a], [b]) => (order.get(a) ?? 999) - (order.get(b) ?? 999))
+        .map(([pid, pd]) => ({
+          page: pg.name,
+          device: n.data.name,
+          port: portName(n, pid),
+          uplink: pd.uplink ? 'Uplink' : '',
+          connectedTo: pd.description || peer.get(`${n.id}|${pid}`) || '',
+          ip: pd.ip ?? '',
+          vlan: pd.vlan ?? '',
+          notes: pd.notes ?? '',
+        }));
+    });
+  });
+}
+
 export function rackRows(p: Project) {
   const devices = new Map(allDevices(p).map((n) => [n.id, n] as const));
   return (p.racks ?? []).flatMap((r) =>
@@ -176,7 +207,7 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect) {
     pixelRatio: 2,
     style: { width: `${width}px`, height: `${height}px`, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})` },
     // Leave out resize handles and connection dots (shown on selected items).
-    filter: (node: Element) => !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle'))),
+    filter: (node: Element) => !(node instanceof HTMLElement && (node.classList?.contains('react-flow__resize-control') || node.classList?.contains('react-flow__handle') || node.classList?.contains('react-flow__node-toolbar'))),
   };
   return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
 }
@@ -322,6 +353,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Label'], [0.11, 0.18, 0.09, 0.18, 0.09, 0.09, 0.09, 0.17].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label]));
+  table('Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.16, 0.08, 0.07, 0.22, 0.12, 0.07, 0.28].map((f) => f * avail),
+    portRows(p).map((r) => [r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes]));
 
   if (tbH) {
     const total = doc.getNumberOfPages();
@@ -378,6 +411,9 @@ export function exportCsv(p: Project) {
     [],
     ['RACKS'], ['Rack', 'Position', 'Height', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power (W)'],
     ...rackRows(p).map((r) => [r.rack, r.position, r.height, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW]),
+    [],
+    ['PORT NOTES'], ['Page', 'Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'],
+    ...portRows(p).map((r) => [r.page, r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes]),
   ];
   // BOM so Excel reads UTF-8 correctly.
   downloadBlob(`${safeName(p.name)}.csv`, new Blob(['\ufeff' + csv(lines)], { type: 'text/csv;charset=utf-8' }));

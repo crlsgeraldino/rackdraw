@@ -15,7 +15,12 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
   VLAN and line color. Right-angle cables route **around devices** instead of through them. Connected ports light up.
 - **Device labels** — choose what each device shows (name, IP, model, location, serial, or nothing) and drag the label
   wherever it reads best.
-- **Device data** — hostname, model, management IP, serial, location, notes, and per-port description/VLAN.
+- **Device data** — hostname, model, management IP, serial, location, notes.
+- **Port notes** — for every port: what's plugged in (even devices you don't draw: printers, cameras, phones, the
+  ISP handoff), its IP and VLAN, an **uplink** flag and notes. Shown on hover, marked on the device, and listed in
+  the PDF, printout and CSV.
+- **Quick info** — hover a device for a floating card with its IP (copy / open), serial, rack, ports in use and
+  port notes. Turn it off under **View → Quick info on hover**.
 - **Zones and notes** — resizable rooms/racks and sticky notes.
 - **One diagram per client**, switchable from the toolbar, auto-saved in the browser. Save/open `.netcraft.json` files
   to back up or share.
@@ -100,6 +105,19 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Device labels**: in the right panel, *Show on the diagram* picks the fields under a device (name, IP, model,
   location, serial; untick all to hide the label). Works on several selected devices at once. Drag a label on the
   canvas to move it; *Reset position* puts it back.
+
+## Port notes and quick info
+
+- Select a device; the **Ports** list in the right panel shows every port with what's connected, its IP, VLAN and an
+  **UPLINK** badge. Click a port to fill in *Connected to*, *IP*, *VLAN*, *Uplink port* and *Notes*. Ports with a
+  cable show where it goes; **In use** hides empty ports (handy on 48-port switches).
+- On the diagram, uplink ports get an orange frame and other documented ports a small blue dot; hovering a port
+  shows its notes.
+- The PDF, printout and CSV get a **Port notes** table (device, port, uplink, connected to, IP, VLAN, notes), and
+  **Find** searches port IPs and notes too.
+- **Quick info**: rest the pointer on a device to see a card with its status, model, IP (Copy / Open its web page),
+  MAC, serial, asset tag, location, rack position, layer, power, ports in use, link, notes and port notes. The card
+  stays open while you point at it. **View → Quick info on hover** turns it off (remembered on this computer).
 
 ## Editing like Visio
 

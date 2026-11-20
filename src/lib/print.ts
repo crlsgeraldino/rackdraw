@@ -1,4 +1,4 @@
-import { connectionRows, deviceRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
+import { connectionRows, deviceRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
 import type { Project } from './types';
 
 export type PaperSize = 'letter' | 'legal' | 'tabloid' | 'a4' | 'a3';
@@ -83,6 +83,8 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
         rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`])),
       tableHtml(p, 'Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Label'],
         connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.label])),
+      tableHtml(p, 'Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'],
+        portRows(p).map((r) => [r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes])),
     );
   }
   const body = sheets.filter(Boolean).join('');

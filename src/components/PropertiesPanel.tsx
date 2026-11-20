@@ -4,7 +4,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEFAULT_LABEL_FIELDS, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
+import { CABLE_STYLES, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
@@ -30,7 +30,6 @@ function DeviceProps({ node }: { node: DeviceNode }) {
   const project = useCurrentProject();
   const pg = useCurrentPage();
   const update = useDiagram((s) => s.updateNodeData);
-  const updatePort = useDiagram((s) => s.updatePort);
   const snapshot = useDiagram((s) => s.snapshot);
   const stencil = useStencil(node.data.stencilId);
   const { selectRack, selectRackItem, setView, setNodeSize } = useDiagram.getState();
@@ -98,42 +97,88 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       ) : null}
       <Field label="Notes" value={d.notes} onChange={set('notes')} area />
 
-      {stencil && stencil.ports.length > 0 && (
-        <div className="mt-4">
-          <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Ports</h4>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-[10px] text-gray-500">
-                <th className="py-1 pr-1">Port</th>
-                <th className="pr-1">Description</th>
-                <th className="w-12">VLAN</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stencil.ports.map((p) => {
-                const pd = d.ports?.[p.id] ?? {};
-                const link = peer(p.id);
-                return (
-                  <tr key={p.id} className="border-t border-gray-100 align-top">
-                    <td className="py-1 pr-1 font-mono">
-                      {p.label}
-                      {p.role && <div className="text-[9px] text-gray-400">{p.role}</div>}
-                    </td>
-                    <td className="pr-1">
-                      <input className="w-full rounded border border-gray-200 px-1 py-0.5" value={pd.description ?? ''} placeholder={link || '—'} onFocus={snapshot} onChange={(e) => updatePort(node.id, p.id, { description: e.target.value })} />
-                      {link && pd.description && <div className="text-[9px] text-green-700">→ {link}</div>}
-                    </td>
-                    <td>
-                      <input className="w-full rounded border border-gray-200 px-1 py-0.5 font-mono" value={pd.vlan ?? ''} onFocus={snapshot} onChange={(e) => updatePort(node.id, p.id, { vlan: e.target.value })} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {stencil && stencil.ports.length > 0 && <PortList node={node} ports={stencil.ports} peer={peer} />}
     </>
+  );
+}
+
+/**
+ * The device's ports: what is plugged into each (even devices not drawn on the diagram), its IP and VLAN,
+ * whether it's an uplink, and notes. Click a row to edit it.
+ */
+function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; peer: (portId: string) => string }) {
+  const updatePort = useDiagram((s) => s.updatePort);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const [open, setOpen] = useState<string | null>(null);
+  const [onlyNoted, setOnlyNoted] = useState(false);
+  const noted = ports.filter((p) => isDocumented(node.data.ports?.[p.id]) || peer(p.id)).length;
+  const shown = onlyNoted ? ports.filter((p) => isDocumented(node.data.ports?.[p.id]) || peer(p.id) || open === p.id) : ports;
+  const input = 'w-full rounded border border-gray-300 px-1.5 py-0.5 text-xs outline-none focus:border-blue-500';
+
+  return (
+    <div className="mt-4">
+      <div className="mb-1 flex items-center justify-between">
+        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Ports</h4>
+        <label className="flex items-center gap-1 text-[10px] text-gray-500" title="Only ports with notes or a cable">
+          <input type="checkbox" checked={onlyNoted} onChange={(e) => setOnlyNoted(e.target.checked)} />
+          In use ({noted})
+        </label>
+      </div>
+      <ul className="divide-y divide-gray-100 rounded border border-gray-200 text-xs">
+        {shown.map((p) => {
+          const pd = node.data.ports?.[p.id] ?? {};
+          const cable = peer(p.id);
+          const isOpen = open === p.id;
+          const set = (patch: Partial<PortData>) => updatePort(node.id, p.id, patch);
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                className={`flex w-full items-center gap-1.5 px-1.5 py-1 text-left ${isOpen ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                onClick={() => setOpen(isOpen ? null : p.id)}
+                aria-expanded={isOpen}
+              >
+                <span className="w-9 shrink-0 font-mono font-medium">{pd.label || p.label}</span>
+                {pd.uplink && <span className="shrink-0 rounded bg-orange-100 px-1 text-[9px] font-semibold text-orange-700">UPLINK</span>}
+                <span className={`min-w-0 flex-1 truncate ${pd.description ? 'text-gray-800' : cable ? 'text-green-700' : 'text-gray-300'}`}>
+                  {pd.description || (cable ? `→ ${cable}` : p.role || '—')}
+                </span>
+                {pd.ip && <span className="shrink-0 font-mono text-[10px] text-gray-500">{pd.ip}</span>}
+                {pd.vlan && <span className="shrink-0 rounded bg-gray-100 px-1 text-[9px] text-gray-600">V{pd.vlan}</span>}
+                {pd.notes && <span className="shrink-0 text-[10px] text-gray-400" title={pd.notes}>✎</span>}
+              </button>
+              {isOpen && (
+                <div className="space-y-1.5 bg-blue-50/40 px-2 pb-2 pt-1">
+                  <label className="block">
+                    <span className="text-[10px] text-gray-500">Connected to</span>
+                    <input autoFocus className={input} value={pd.description ?? ''} placeholder={cable || 'e.g. Front desk printer, Core switch port 48'} onFocus={snapshot} onChange={(e) => set({ description: e.target.value })} />
+                  </label>
+                  <div className="flex gap-1.5">
+                    <label className="block flex-[2]">
+                      <span className="text-[10px] text-gray-500">IP</span>
+                      <input className={`${input} font-mono`} value={pd.ip ?? ''} placeholder="10.0.0.50" onFocus={snapshot} onChange={(e) => set({ ip: e.target.value })} />
+                    </label>
+                    <label className="block flex-1">
+                      <span className="text-[10px] text-gray-500">VLAN</span>
+                      <input className={`${input} font-mono`} value={pd.vlan ?? ''} onFocus={snapshot} onChange={(e) => set({ vlan: e.target.value })} />
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-1.5">
+                    <input type="checkbox" checked={!!pd.uplink} onChange={(e) => { snapshot(); set({ uplink: e.target.checked || undefined }); }} />
+                    Uplink port
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] text-gray-500">Notes</span>
+                    <textarea className={input} rows={2} value={pd.notes ?? ''} placeholder="Patch panel B-12, PoE camera, LACP member…" onFocus={snapshot} onChange={(e) => set({ notes: e.target.value })} />
+                  </label>
+                  {cable && <p className="text-[10px] text-green-700">Cable on the diagram: {cable}</p>}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

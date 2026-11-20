@@ -4,8 +4,9 @@ import { Handle, NodeResizer, Position, useReactFlow, type NodeProps } from '@xy
 import { memo, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import { DEFAULT_LABEL_FIELDS, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { DEFAULT_LABEL_FIELDS, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
 
@@ -109,8 +110,10 @@ export function baseSize(stencil: StencilDef) {
   return { width: stencil.width * k, height: stencil.height * k };
 }
 
-function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
+function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>) {
   const stencil = useStencil(data.stencilId);
+  const hover = useQuickInfoHover(!!dragging);
+  const quickInfo = <DeviceQuickInfo id={id} data={data} stencil={stencil} visible={hover.visible} card={hover.card} />;
   // Only a size the user set (resize handles / properties panel) scales the device. React Flow's `width` prop falls
   // back to the measured size, which would feed back into the drawing: one bad measurement (e.g. taken while the
   // canvas remounts at another zoom) would then stick and grow the device.
@@ -155,7 +158,13 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
 
   const handles = stencil.ports.map((p) => {
     const custom = data.ports?.[p.id];
-    const title = [custom?.label || p.label, p.role, custom?.description, custom?.vlan && `VLAN ${custom.vlan}`].filter(Boolean).join(' · ');
+    // Hovering a port shows everything written about it.
+    const title = [
+      [custom?.label || p.label, custom?.uplink && 'UPLINK', p.role].filter(Boolean).join(' · '),
+      custom?.description && `→ ${custom.description}`,
+      [custom?.ip, custom?.vlan && `VLAN ${custom.vlan}`].filter(Boolean).join(' · '),
+      custom?.notes,
+    ].filter(Boolean).join('\n');
     return (
       <Handle
         key={p.id}
@@ -169,10 +178,21 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
     );
   });
 
+  // Ports with notes: an orange frame for uplinks, a small blue dot for any other documented port.
+  const markers = stencil.style === 'icon' ? null : stencil.ports.map((p) => {
+    const pd = data.ports?.[p.id];
+    if (!isDocumented(pd)) return null;
+    const box = { left: p.x * k, top: p.y * k, width: p.w * k, height: p.h * k };
+    return pd!.uplink
+      ? <div key={p.id} className="pointer-events-none absolute rounded-sm" style={{ ...box, outline: '2px solid #f97316', outlineOffset: 1 }} />
+      : <div key={p.id} className="pointer-events-none absolute" style={box}><span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-blue-600 ring-1 ring-white" /></div>;
+  });
+
   if (stencil.style === 'icon') {
     return (
-      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }}>
+      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: stencil.width * k }} {...hover.bind}>
         {resizer}
+        {quickInfo}
         <NodeBadges data={data} selected={selected} />
         <div className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
@@ -184,14 +204,16 @@ function DeviceNodeView({ id, data, selected }: NodeProps<DeviceNode>) {
   }
 
   return (
-    <div className={`relative ${selected ? 'nc-selected-panel' : ''}`}>
+    <div className={`relative ${selected ? 'nc-selected-panel' : ''}`} {...hover.bind}>
       {resizer}
+      {quickInfo}
       <NodeBadges data={data} selected={selected} />
       <div style={{ ...(selected ? {} : outline), ...fade }}>
         {stencil.style === 'image'
           ? <ImageArt stencil={stencil} portStates={states} k={k} />
           : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
       </div>
+      {markers}
       {handles}
       <DeviceLabel id={id} data={data} variant="panel" />
     </div>
