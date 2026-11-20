@@ -187,6 +187,10 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   Shift, catches 0/90/180/270), type the **Angle** under Size & Position, or use **Home → Arrange → Rotate Right /
   Rotate Left** (90°) or right-click → Rotate. The ports turn with the picture, so cables leave from the right
   place; the label stays upright below. Saved to `.vsdx` with Visio's angle.
+- **Arrow keys** nudge the selection one grid step (Shift: one pixel). **View → Snap to grid** turns grid snapping off.
+- **Drag a page tab** left or right to reorder pages.
+- **Data Graphics** (Data tab): show any field on every device — as a small text tag (e.g. Model, Firmware, ISP) or an
+  icon (✔ / ✘ for Yes / No fields, a coloured dot for Status). They print and export with the diagram.
 - **Select by type** (Home → Editing → Select ▾): Select All, same type as the selection (e.g. every Pro Max 48),
   all devices, all cables, all drawing shapes, all text, all zones, or everything on a layer.
 - **ScreenTips** (Insert → ScreenTip, or right-click): hover text for any item; a device's tip shows at the top of its

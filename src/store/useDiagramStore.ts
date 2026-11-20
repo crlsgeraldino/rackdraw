@@ -115,6 +115,10 @@ interface DiagramState {
   setSelectionLocked: (locked: boolean) => void;
   /** Selects every visible item on the active page (Ctrl+A). */
   selectAll: () => void;
+  /** Arrow keys: move the selection by dx, dy (locked items stay). */
+  nudgeSelection: (dx: number, dy: number) => void;
+  /** Drag a page tab: put the page at this position. */
+  movePageTo: (id: string, index: number) => void;
   /** Select by Type (Home → Editing → Select): what to select on the active page. */
   selectWhere: (what: 'devices' | 'cables' | 'shapes' | 'text' | 'zones' | 'same' | `layer:${string}`) => number;
   /** Sets (or clears) the ScreenTip of the selected items. */
@@ -883,6 +887,23 @@ export const useDiagram = create<DiagramState>()(
           if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;
           get().snapshot();
           commit({ nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, tip: tip.trim() || undefined } } as AppNode) : n)) });
+        },
+        nudgeSelection: (dx, dy) => {
+          const pg = page();
+          const moving = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && !extras(n).locked);
+          if (!moving.length) return;
+          get().snapshot();
+          const ids = new Set(moving.map((n) => n.id));
+          commit({ nodes: pg.nodes.map((n) => (ids.has(n.id) ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n)) });
+        },
+        movePageTo: (id, index) => {
+          const pages = [...cur().pages];
+          const i = pages.findIndex((p) => p.id === id);
+          if (i < 0) return;
+          const [pg] = pages.splice(i, 1);
+          pages.splice(Math.max(0, Math.min(pages.length, index)), 0, pg);
+          get().snapshot();
+          commit({ pages });
         },
         selectAll: () =>
           commit({

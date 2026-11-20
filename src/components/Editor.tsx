@@ -187,6 +187,7 @@ function Canvas() {
     return () => window.removeEventListener(FIND_EVENT, open);
   }, []);
   const presenting = usePresenting((s) => s.on);
+  const snap = usePref('snapToGrid');
   const reconnecting = useRef<string | null>(null); // cable whose end is being moved
   const follow = useFollowLink();
   const minimap = usePref('minimap') && !presenting;
@@ -313,8 +314,9 @@ function Canvas() {
         onNodeDoubleClick={(_, n) => { if (n.type === 'device') editStencil(n.data.stencilId, n.id); }}
         connectionMode={ConnectionMode.Loose}
         defaultEdgeOptions={{ type: 'cable' }}
-        snapToGrid
+        snapToGrid={snap}
         snapGrid={[10, 10]}
+        disableKeyboardA11y
         deleteKeyCode={['Delete', 'Backspace']}
         multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
         fitView
@@ -395,6 +397,14 @@ export default function Editor() {
         else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key) && i > 0) p.setActivePage(pages[i - 1].id);
         else return;
         e.preventDefault();
+        return;
+      }
+      // Arrow keys nudge the selection: one grid step, or one pixel with Shift (like Visio).
+      if (!mod && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && useDiagram.getState().view === 'diagram') {
+        const step = e.shiftKey ? 1 : 10;
+        const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key as 'ArrowLeft']!;
+        e.preventDefault();
+        useDiagram.getState().nudgeSelection(d[0], d[1]);
         return;
       }
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }

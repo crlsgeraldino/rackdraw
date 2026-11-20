@@ -55,6 +55,17 @@ export function reportFields(p: Project): ReportField[] {
   return [...BUILT_IN.map(({ key, label }) => ({ key, label })), ...[...extra].sort((a, b) => a.localeCompare(b)).map((l) => ({ key: `x:${l}`, label: l }))];
 }
 
+/** A device's value for a field key (device fields only: no page, rack or connection counts). */
+export function deviceFieldValue(d: import('./types').DeviceData, key: string): string {
+  if (key.startsWith('x:')) {
+    const label = key.slice(2).trim().toLowerCase();
+    return d.extraFields?.find((f) => f.label.trim().toLowerCase() === label)?.value ?? '';
+  }
+  if (key === 'status') return DEVICE_STATUSES.find((s) => s.value === (d.status ?? 'active'))?.label ?? '';
+  const v = (d as Record<string, unknown>)[key];
+  return v === undefined || v === null ? '' : String(v);
+}
+
 export const DEFAULT_REPORT: Omit<ReportDef, 'id'> = {
   name: 'Inventory',
   fields: ['name', 'type', 'model', 'ip', 'serial', 'location', 'rack'],

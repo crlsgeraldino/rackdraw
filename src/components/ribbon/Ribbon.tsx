@@ -10,6 +10,7 @@ import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
+import { reportFields } from '@/lib/report';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { THEMES, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
@@ -639,6 +640,51 @@ function InsertTab() {
   );
 }
 
+/** Data → Data Graphics: which fields show as tags or icons on every device of the client. */
+function DataGraphicsMenu() {
+  const project = useCurrentProject();
+  const s = useDiagram.getState();
+  const list = project.display?.dataGraphics ?? [];
+  const fields = reportFields(project).filter((f) => !['page', 'rack', 'connections', 'documentedPorts', 'notes', 'link'].includes(f.key));
+  const [field, setField] = useState('model');
+  const [style, setStyle] = useState<'tag' | 'icon'>('tag');
+  const save = (next: typeof list) => s.setDisplay({ dataGraphics: next.length ? next : undefined });
+  const label = (k: string) => fields.find((f) => f.key === k)?.label ?? k.replace(/^x:/, '');
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={280} trigger={(open, isOpen) => <Big icon="dataGraphics" label="Data Graphics" onClick={open} active={isOpen || list.length > 0} title="Show fields as tags or icons on every device (like Visio's Data Graphics)" />}>
+        {() => (
+          <div className="p-2 text-xs">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">On every device</div>
+            {list.length === 0 && <p className="mb-2 text-gray-400">Nothing yet. Pick a field below, e.g. Firmware as a tag, or Under contract as an icon.</p>}
+            <ul className="mb-2 space-y-1">
+              {list.map((g, i) => (
+                <li key={`${g.field}${i}`} className="flex items-center gap-1">
+                  <span className="flex-1 truncate">{label(g.field)}</span>
+                  <select className="rounded border border-gray-300 px-1 py-0.5" value={g.style} onChange={(e) => save(list.map((x, j) => (j === i ? { ...x, style: e.target.value as 'tag' | 'icon' } : x)))}>
+                    <option value="tag">Text tag</option><option value="icon">Icon</option>
+                  </select>
+                  <button className="px-1 text-gray-400 hover:text-red-600" onClick={() => save(list.filter((_, j) => j !== i))} aria-label={`Remove ${label(g.field)}`}>×</button>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center gap-1 border-t border-gray-100 pt-2">
+              <select className="min-w-0 flex-1 rounded border border-gray-300 px-1 py-0.5" value={field} onChange={(e) => setField(e.target.value)}>
+                {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </select>
+              <select className="rounded border border-gray-300 px-1 py-0.5" value={style} onChange={(e) => setStyle(e.target.value as 'tag' | 'icon')}>
+                <option value="tag">Text tag</option><option value="icon">Icon</option>
+              </select>
+              <button className="rounded bg-blue-600 px-2 py-0.5 text-white hover:bg-blue-700" onClick={() => save([...list.filter((g) => g.field !== field), { field, style }])}>Add</button>
+            </div>
+            <p className="mt-2 text-[10px] text-gray-400">Icons: ✔ / ✘ for Yes / No values, a coloured dot for Status; other values show as text. They print and export with the diagram.</p>
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
 /** Insert → ScreenTip: asks for the hover text of the selected items. */
 export async function editScreenTip() {
   const st = useDiagram.getState();
@@ -783,6 +829,9 @@ function DataTab() {
       <Group label="Layers & Colours">
         <div className="flex items-start pt-1"><ViewMenu label="Layers" /></div>
       </Group>
+      <Group label="Data Graphics">
+        <DataGraphicsMenu />
+      </Group>
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />
       </Group>
@@ -824,6 +873,7 @@ function ViewTab() {
   const quick = usePref('quickInfo');
   const rulers = usePref('rulers');
   const dynamicGrid = usePref('dynamicGrid');
+  const snapGrid = usePref('snapToGrid');
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
   const d = project.display ?? DEFAULT_DISPLAY;
@@ -853,6 +903,9 @@ function ViewTab() {
           <Check label="Pan & Zoom" checked={minimap} onChange={(v) => setPref('minimap', v)} />
           <Check label="Legend" checked={d.showLegend} onChange={(v) => useDiagram.getState().setDisplay({ showLegend: v })} />
           <Check label="Dynamic grid" checked={dynamicGrid} onChange={(v) => setPref('dynamicGrid', v)} title="While dragging, snap into line with other shapes and show guides" />
+        </Column>
+        <Column>
+          <Check label="Snap to grid" checked={snapGrid} onChange={(v) => setPref('snapToGrid', v)} title="Moved items land on the 10px grid" />
           <Check label="Quick info" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
         </Column>
       </Group>

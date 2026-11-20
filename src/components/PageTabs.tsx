@@ -44,6 +44,20 @@ export function PageTabs() {
             aria-selected={active}
             className={`group -mt-px flex items-center gap-1.5 border-x border-b px-3 ${active ? 'border-gray-200 bg-white font-medium text-gray-900' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}
             onClick={() => setActivePage(p.id)}
+            draggable={renaming !== p.id}
+            onDragStart={(e) => { e.dataTransfer.setData('application/x-netcraft-page', p.id); e.dataTransfer.effectAllowed = 'move'; }}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes('application/x-netcraft-page')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+            onDrop={(e) => {
+              const id = e.dataTransfer.getData('application/x-netcraft-page');
+              if (!id || id === p.id) return;
+              e.preventDefault();
+              // Dropped on the right half of a tab: after it; left half: before it.
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const from = project.pages.findIndex((x) => x.id === id);
+              let to = i + (e.clientX > r.left + r.width / 2 ? 1 : 0);
+              if (from < to) to--;
+              useDiagram.getState().movePageTo(id, to);
+            }}
             onDoubleClick={() => startRename(p.id, p.name)}
             onContextMenu={(e) => { e.preventDefault(); setMenu({ id: p.id, x: (e.currentTarget as HTMLElement).offsetLeft }); }}
             title={p.background

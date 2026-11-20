@@ -336,6 +336,15 @@ export interface DisplaySettings {
   showLegend: boolean;
   /** Hop where cables cross (Visio line jumps); missing = on. */
   lineJumps?: boolean;
+  /** Data Graphics (Visio): fields shown as small tags or icons on every device. */
+  dataGraphics?: DataGraphic[];
+}
+
+export interface DataGraphic {
+  /** Field key, as in Reports: 'ip', 'model', 'status', … or 'x:<field name>'. */
+  field: string;
+  /** 'tag' shows the value as text; 'icon' shows ✔ / ✘ for yes-no values, a coloured dot for status, else the text. */
+  style: 'tag' | 'icon';
 }
 
 export type CableEdge = Edge<CableData, 'cable'>;

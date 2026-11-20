@@ -4,8 +4,9 @@ import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type Node
 import { memo, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import { DEFAULT_LABEL_FIELDS, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
-import { useCurrentPage, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { deviceFieldValue } from '@/lib/report';
 import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
@@ -113,6 +114,31 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
   );
 }
 
+/**
+ * Data Graphics (Visio): the chosen fields as small tags above the device — ✔ / ✘ for yes-no values and a coloured
+ * dot for status when shown as icons.
+ */
+function DataGraphics({ data }: { data: DeviceData }) {
+  const graphics = useCurrentProject().display?.dataGraphics;
+  if (!graphics?.length) return null;
+  const items = graphics.flatMap((g) => {
+    const v = deviceFieldValue(data, g.field).trim();
+    if (!v) return [];
+    const label = g.field.startsWith('x:') ? g.field.slice(2) : g.field;
+    if (g.style === 'icon') {
+      if (/^(yes|true|y|1)$/i.test(v)) return [<span key={g.field} title={`${label}: ${v}`} className="rounded bg-green-600 px-1 text-[10px] font-bold text-white">✔</span>];
+      if (/^(no|false|n|0)$/i.test(v)) return [<span key={g.field} title={`${label}: ${v}`} className="rounded bg-red-600 px-1 text-[10px] font-bold text-white">✘</span>];
+      if (g.field === 'status') {
+        const c = DEVICE_STATUSES.find((s) => s.label === v)?.color ?? '#6b7280';
+        return [<span key={g.field} title={`Status: ${v}`} className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-white" style={{ background: c }} />];
+      }
+    }
+    return [<span key={g.field} title={label} className="max-w-40 truncate rounded border border-slate-300 bg-white/95 px-1 text-[10px] leading-4 text-slate-700 shadow-sm">{v}</span>];
+  });
+  if (!items.length) return null;
+  return <div className="nc-data-graphics pointer-events-none absolute bottom-full left-0 mb-1 flex items-center gap-1 whitespace-nowrap">{items}</div>;
+}
+
 /** Diagram size of a stencil before any resizing. */
 export function baseSize(stencil: StencilDef) {
   const k = stencil.style === 'icon' ? 1 : stencil.scale;
@@ -214,6 +240,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         {resizer}
         {quickInfo}
         <NodeBadges data={data} selected={selected} />
+        <DataGraphics data={data} />
         <div ref={iconPorts.ref} className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade, transform: rot ? `rotate(${rot}deg)` : undefined }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
           {handles}
@@ -247,6 +274,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         {handles}
       </div>
       {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
+      <DataGraphics data={data} />
       <DeviceLabel id={id} data={data} variant="panel" />
       <DeviceInfoBox id={id} data={data} />
     </div>
