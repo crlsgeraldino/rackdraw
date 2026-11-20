@@ -185,7 +185,7 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
 export interface ShapeData extends Record<string, unknown>, NodeExtras {
@@ -201,6 +201,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   /** Door swings the other way. */
   flip?: boolean;
   layer?: string;
+  /** Freeform (Pencil tool): the drawn path as fractions (0–1) of the shape's box. */
+  points?: [number, number][];
   // Font and paragraph (Home tab)
   bold?: boolean;
   italic?: boolean;
@@ -229,10 +231,16 @@ export interface MeasureData extends Record<string, unknown>, NodeExtras {
   dy: number;
   /** Optional text shown instead of / before the measured length. */
   label?: string;
-  /** 'wall' draws a floor-plan wall (thick line) instead of a dimension line. */
-  variant?: 'dimension' | 'wall';
-  /** Wall thickness in diagram units. */
+  /** 'wall' draws a floor-plan wall (thick line), 'line' a plain line (Line tool), instead of a dimension line. */
+  variant?: 'dimension' | 'wall' | 'line';
+  /** Wall thickness / line width in diagram units. */
   thickness?: number;
+  /** Line tool: colour, dashes and arrowheads. */
+  color?: string;
+  dashed?: boolean;
+  arrowStart?: boolean;
+  arrowEnd?: boolean;
+  layer?: string;
 }
 export type MeasureNode = Node<MeasureData, 'measure'>;
 export type DeviceNode = Node<DeviceData, 'device'>;

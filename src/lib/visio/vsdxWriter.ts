@@ -43,6 +43,8 @@ export type VShape = {
   layers?: number[];
   /** A Visio container (NetCraft zone). */
   container?: boolean;
+  /** Rotation about the centre in radians, counter-clockwise (Visio's Angle); boxes only. */
+  angle?: number;
 } & (
   /** `ports`: connection points (cables glue here in Visio), inches from the picture's top-left. */
   | { kind: 'image'; box: VBox; media: string; ports?: { x: number; y: number; name: string }[] }
@@ -194,7 +196,7 @@ function pageXml(page: VPage): PageOut {
       }
     }
     const pin = cell('PinX', box.x + box.w / 2) + cell('PinY', H - (box.y + box.h / 2)) + cell('Width', box.w) + cell('Height', box.h) +
-      cell('LocPinX', box.w / 2, ' F="Width*0.5"') + cell('LocPinY', box.h / 2, ' F="Height*0.5"') + cell('Angle', 0);
+      cell('LocPinX', box.w / 2, ' F="Width*0.5"') + cell('LocPinY', box.h / 2, ' F="Height*0.5"') + cell('Angle', s.kind === 'line' ? 0 : s.angle ?? 0);
     const text = s.text?.text ? `<Text>${esc(s.text.text)}</Text>` : '';
     if (s.layers?.length) body += `<Section N="LayerMem"><Row IX="0">${cell('LayerMember', s.layers.join(';'))}</Row></Section>`;
     if (s.container) body += `<Section N="User"><Row N="msvStructureType">${cell('Value', 'Container', ' U="STR"')}</Row><Row N="msvSDContainerMargin">${cell('Value', 0.125, ' U="IN"')}</Row></Section>`;

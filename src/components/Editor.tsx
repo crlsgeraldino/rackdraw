@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
+import { DrawOverlay, GuidesLayer } from './CanvasTools';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { edgeTypes } from './CableEdgeView';
@@ -131,7 +132,7 @@ function Canvas() {
   }, [bgPage]);
   const nodes = useMemo(
     () => [...bg.nodes, ...page.nodes].map((n) => {
-      const layer = (n.type === 'device' || n.type === 'shape') ? n.data.layer : undefined;
+      const layer = (n.type === 'device' || n.type === 'shape' || n.type === 'measure') ? n.data.layer : undefined;
       if (!layer) return n;
       if (display.hidden.has(layer)) return { ...n, hidden: true };
       const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);
@@ -294,9 +295,11 @@ function Canvas() {
         style={{ background: '#d9dde3' }}
       >
         <PageSheet />
+        <GuidesLayer />
         <Panel position="top-left"><Legend /></Panel>
         {minimap && <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'zone' || n.type === 'backdrop' || n.type === 'measure' ? 'transparent' : n.type === 'note' ? '#fde68a' : '#374151')} />}
       </ReactFlow>
+      <DrawOverlay />
       </div>
       {page.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

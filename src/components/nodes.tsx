@@ -1,7 +1,7 @@
 'use client';
 
 import { Handle, NodeResizer, Position, useInternalNode, type NodeProps } from '@xyflow/react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
@@ -250,6 +250,7 @@ function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
     case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
+    case 'freeform': return <polyline points={(d.points ?? []).map(([px, py]) => `${px * w},${py * h}`).join(' ')} {...common} fill={d.fill === 'transparent' ? 'none' : d.fill} strokeLinecap="round" strokeLinejoin="round" />;
     case 'diamond': return <polygon points={`${w / 2},1 ${w - 1},${h / 2} ${w / 2},${h - 1} 1,${h / 2}`} {...common} />;
     case 'door': {
       // Floor-plan door: the leaf (hinged bottom-left, drawn open) and its swing arc; flip mirrors the swing.
@@ -310,12 +311,16 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   };
   const justify = data.align === 'left' ? 'justify-start' : data.align === 'right' ? 'justify-end' : 'justify-center';
   const items = data.valign === 'top' ? 'items-start' : data.valign === 'bottom' ? 'items-end' : 'items-center';
+  // Free rotation (Visio's rotation handle) for drawing shapes; doors turn in 90° steps, windows and callouts don't.
+  const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout';
+  const outer = useRef<HTMLDivElement>(null);
   return (
-    <div className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
+    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
       <NodeResizer isVisible={selected && !data.locked} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
-      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: (data.kind === 'arrow' || data.kind === 'door') && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+      <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
+      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
       {data.kind === 'text' && selected && !editing && <div className="pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
@@ -333,10 +338,45 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
           {data.text}
         </div>
       )}
+      {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}
+      </div>
       {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
         <Handle key={side} id={side} type="source" position={SIDE[side]} className="nc-handle-side" />
       ))}
     </div>
+  );
+}
+
+/** Drag to turn the shape about its centre; snaps to whole degrees, to 15° steps with Shift, and to 0/90/180/270. */
+function RotateHandle({ id, center }: { id: string; center: React.RefObject<HTMLDivElement | null> }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const active = useRef(false);
+  const angleAt = (e: React.PointerEvent) => {
+    const r = center.current!.getBoundingClientRect();
+    let a = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI + 90;
+    a = ((a % 360) + 360) % 360;
+    if (e.shiftKey) a = Math.round(a / 15) * 15;
+    else {
+      a = Math.round(a);
+      const right = Math.round(a / 90) * 90;
+      if (Math.abs(a - right) <= 4) a = right;
+    }
+    return a % 360;
+  };
+  return (
+    <>
+      <span className="pointer-events-none absolute left-1/2 h-5 w-px -translate-x-1/2 bg-blue-500" style={{ top: -22 }} />
+      <span
+        className="nodrag nopan absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-blue-600 bg-white"
+        style={{ top: -28 }}
+        title="Drag to rotate (Shift: 15° steps)"
+        onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); snapshot(); active.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => { if (active.current) update(id, { rotation: angleAt(e) }); }}
+        onPointerUp={() => { active.current = false; }}
+        onPointerCancel={() => { active.current = false; }}
+      />
+    </>
   );
 }
 

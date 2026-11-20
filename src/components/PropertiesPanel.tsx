@@ -614,13 +614,22 @@ function ShapeProps({ node }: { node: ShapeNode }) {
           <label className="mt-4 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.flip} onChange={(e) => set({ flip: e.target.checked || undefined })} /> Swing the other way</label>
         </div>
       )}
-      {d.kind === 'arrow' && (
-        <label className="mb-2 block">
-          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Points</span>
-          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.rotation ?? 0} onChange={(e) => set({ rotation: Number(e.target.value) })}>
-            <option value={0}>Right</option><option value={90}>Down</option><option value={180}>Left</option><option value={270}>Up</option>
-          </select>
-        </label>
+      {d.kind !== 'door' && d.kind !== 'window' && d.kind !== 'callout' && (
+        <div className="mb-2">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Angle{d.kind === 'arrow' ? ' (0° points right)' : ''}</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number" min={0} max={359} className="w-20 rounded border border-gray-300 px-1.5 py-1 text-sm" value={Math.round(d.rotation ?? 0)}
+              onFocus={() => useDiagram.getState().snapshot()}
+              onChange={(e) => set({ rotation: ((Number(e.target.value) % 360) + 360) % 360 })}
+            />
+            <span className="text-sm text-gray-500">°</span>
+            {[0, 90, 180, 270].map((a) => (
+              <button key={a} className={`rounded border px-1.5 py-0.5 text-xs ${Math.round(d.rotation ?? 0) === a ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`} onClick={() => set({ rotation: a })}>{a}°</button>
+            ))}
+          </div>
+          <span className="text-[10px] text-gray-400">Or drag the round handle above the selected shape (Shift: 15° steps).</span>
+        </div>
       )}
       <LayerSelect value={d.layer} onChange={(layer) => set({ layer })} />
       <LinkField nodeId={node.id} value={d.link} />
@@ -832,8 +841,27 @@ export function PropertiesPanel() {
     const len = Math.hypot(m.data.dx, m.data.dy);
     body = (
       <>
-        <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">{m.data.variant === 'wall' ? 'Wall' : 'Dimension line'}</div>
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">{m.data.variant === 'wall' ? 'Wall' : m.data.variant === 'line' ? 'Line' : 'Dimension line'}</div>
         <p className="mb-2 text-sm">{p.scale ? realLength(len, p.scale) : `${Math.round(len)} units (no scale set)`}</p>
+        {m.data.variant === 'line' && (
+          <div className="mb-2 space-y-2">
+            <div className="flex flex-wrap gap-1">
+              {['#374151', '#000000', '#2563eb', '#16a34a', '#dc2626', '#ea580c', '#7c3aed', '#9ca3af'].map((c) => (
+                <button key={c} onClick={() => { useDiagram.getState().snapshot(); update(m.id, { color: c }); }} className={`h-6 w-6 rounded ${(m.data.color ?? '#374151') === c ? 'ring-2 ring-offset-1' : ''}`} style={{ background: c }} aria-label={c} />
+              ))}
+            </div>
+            <label className="block">
+              <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Width: {m.data.thickness ?? 2}</span>
+              <input type="range" min={1} max={12} className="w-full" value={m.data.thickness ?? 2} onPointerDown={() => useDiagram.getState().snapshot()} onChange={(e) => update(m.id, { thickness: Number(e.target.value) })} />
+            </label>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!m.data.dashed} onChange={(e) => { useDiagram.getState().snapshot(); update(m.id, { dashed: e.target.checked || undefined }); }} /> Dashed</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!m.data.arrowStart} onChange={(e) => { useDiagram.getState().snapshot(); update(m.id, { arrowStart: e.target.checked || undefined }); }} /> Arrow at start</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!m.data.arrowEnd} onChange={(e) => { useDiagram.getState().snapshot(); update(m.id, { arrowEnd: e.target.checked || undefined }); }} /> Arrow at end</label>
+            </div>
+            <LayerSelect value={m.data.layer} onChange={(layer) => update(m.id, { layer })} />
+          </div>
+        )}
         {m.data.variant === 'wall' && (
           <label className="mb-2 block">
             <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Thickness: {p.scale ? realLength(m.data.thickness ?? 8, p.scale) : `${m.data.thickness ?? 8} units`}</span>

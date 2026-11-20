@@ -23,10 +23,12 @@ export interface Prefs {
   grid: boolean;
   /** Dashed lines where one printed sheet ends and the next begins. */
   pageBreaks: boolean;
+  /** Dynamic grid: snap to and show alignment with other items while dragging. */
+  dynamicGrid: boolean;
   /** Your name on comments. */
   author: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, author: '' };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, author: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;
@@ -51,6 +53,12 @@ export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]) {
     // Not remembered next time; still applies now.
   }
   listeners.forEach((l) => l());
+}
+
+/** Current value outside React (e.g. in store actions). */
+export function getPref<K extends keyof Prefs>(key: K): Prefs[K] {
+  load();
+  return current[key];
 }
 
 export function usePref<K extends keyof Prefs>(key: K): Prefs[K] {

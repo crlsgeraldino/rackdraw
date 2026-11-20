@@ -13,6 +13,8 @@ import { findFreeU, fits } from '@/lib/rack';
 import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
 import { replaceHits, type FindHit } from '@/lib/find';
 import { themeById } from '@/lib/themes';
+import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
+import { getPref } from '@/lib/prefs';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
 
 /**
@@ -59,6 +61,10 @@ interface DiagramState {
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
   /** Adds a dimension line (or a floor-plan wall) starting at `position`. */
   addMeasure: (position: { x: number; y: number }, variant?: 'dimension' | 'wall') => void;
+  /** Line tool: a straight line from a to b. */
+  addLine: (a: { x: number; y: number }, b: { x: number; y: number }) => void;
+  /** Pencil tool: a freeform shape through these diagram points. */
+  addFreeform: (points: { x: number; y: number }[]) => void;
   /** Adds a review comment to an item on the active page. */
   addComment: (nodeId: string, text: string, author?: string) => void;
   /** Changes or removes a comment (on any page of the client). */
@@ -333,10 +339,38 @@ export const useDiagram = create<DiagramState>()(
         },
 
         onNodesChange: (changes) => {
-          const arr = changes.toArray();
+          let arr = changes.toArray();
           if (arr.some((c) => c.type === 'remove')) get().snapshot();
           const before = page().nodes;
           let nodes = changes.applyTo(before);
+          // Dynamic grid: snap what is being dragged into line with other items, and show guides.
+          const dragging = arr.flatMap((c) => (c.type === 'position' && c.position && c.dragging ? [{ id: c.id, position: c.position }] : []));
+          if (dragging.length && getPref('dynamicGrid')) {
+            const ids = new Set(dragging.map((c) => c.id));
+            const byId = new Map(before.map((n) => [n.id, n]));
+            const groups = new Set([...ids].map((i) => byId.get(i)).filter((n): n is AppNode => !!n && n.type !== 'backdrop').map((n) => extras(n).group).filter(Boolean));
+            const carried = new Set(before.filter((z) => z.type === 'zone' && ids.has(z.id)).flatMap((z) => zoneMembers(z, before).map((m) => m.id)));
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            for (const c of dragging) {
+              const n = byId.get(c.id);
+              if (!n) continue;
+              const s = nodeSize(n);
+              x0 = Math.min(x0, c.position.x); y0 = Math.min(y0, c.position.y); x1 = Math.max(x1, c.position.x + s.w); y1 = Math.max(y1, c.position.y + s.h);
+            }
+            const others = before
+              .filter((n) => !ids.has(n.id) && !carried.has(n.id) && n.type !== 'backdrop' && n.type !== 'measure' && !(extras(n).group && groups.has(extras(n).group)))
+              .map((n) => ({ x: n.position.x, y: n.position.y, ...(({ w, h }) => ({ w, h }))(nodeSize(n)) }))
+              .filter((b) => b.w > 0 && b.h > 0);
+            const snap = x0 < Infinity ? snapToGuides({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, others, SNAP_PX / guideZoom.value) : null;
+            if (snap && (snap.dx || snap.dy)) {
+              arr = arr.map((c) => (c.type === 'position' && c.position && c.dragging ? { ...c, position: { x: c.position.x + snap.dx, y: c.position.y + snap.dy } } : c));
+              const moved = new Map(arr.flatMap((c) => (c.type === 'position' && c.position && c.dragging ? [[c.id, c.position] as const] : [])));
+              nodes = nodes.map((n) => (moved.has(n.id) ? { ...n, position: moved.get(n.id)! } : n));
+            }
+            useGuides.setState({ x: snap?.gx ?? [], y: snap?.gy ?? [] });
+          } else if (arr.some((c) => c.type === 'position' && !c.dragging)) {
+            useGuides.setState({ x: [], y: [] });
+          }
           // Groups: moving or selecting one member moves/selects the whole group.
           const groupOf = new Map(before.filter((n) => n.type !== 'backdrop' && extras(n).group).map((n) => [n.id, extras(n).group!]));
           if (groupOf.size) {
@@ -441,6 +475,29 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           const data = variant === 'wall' ? { dx: 300, dy: 0, variant, thickness: 8 } : { dx: 200, dy: 0 };
           const node: AppNode = { id: `m-${uid()}`, type: 'measure', position, data };
+          commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        addLine: (a, b) => {
+          get().snapshot();
+          const node: AppNode = {
+            id: `m-${uid()}`, type: 'measure', position: a,
+            data: { dx: b.x - a.x, dy: b.y - a.y, variant: 'line', thickness: 2, color: theme()?.line ?? '#374151', layer: activeLayer(cur()) },
+          };
+          commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        addFreeform: (points) => {
+          if (points.length < 2) return;
+          get().snapshot();
+          const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
+          const x = Math.min(...xs), y = Math.min(...ys);
+          const width = Math.max(10, Math.max(...xs) - x), height = Math.max(10, Math.max(...ys) - y);
+          const node: AppNode = {
+            id: `s-${uid()}`, type: 'shape', position: { x, y }, width, height,
+            data: {
+              kind: 'freeform', text: '', fill: 'transparent', stroke: theme()?.line ?? '#374151', textColor: theme()?.text ?? '#111827', fontSize: 14, rotation: 0,
+              points: points.map((p) => [(p.x - x) / width, (p.y - y) / height] as [number, number]), layer: activeLayer(cur()),
+            },
+          };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
         addComment: (nodeId, text, author) => {

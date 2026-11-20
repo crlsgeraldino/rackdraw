@@ -28,6 +28,10 @@ function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
   const marker = `nc-dim-${id}`;
   // Walls show their length only while selected (like Visio), dimension lines always.
   const wall = data.variant === 'wall';
+  const plain = data.variant === 'line';
+  const lineColor = selected ? '#2563eb' : data.color ?? '#374151';
+  // A plain line shows only its own label (no measured length).
+  const label = plain ? data.label ?? '' : text;
 
   const endHandle = (end: 'a' | 'b') => ({
     onPointerDown: (e: React.PointerEvent) => {
@@ -62,7 +66,13 @@ function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
       <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1}>
         {/* Wide invisible stroke so the thin line is easy to click and drag. */}
         <line x1={0} y1={0} x2={dx} y2={dy} stroke="transparent" strokeWidth={Math.max(12, (data.thickness ?? 0) + 6)} style={{ pointerEvents: 'stroke' }} />
-        {wall ? (
+        {plain ? (
+          <line
+            x1={0} y1={0} x2={dx} y2={dy} stroke={lineColor} strokeWidth={data.thickness ?? 2} strokeLinecap="round"
+            strokeDasharray={data.dashed ? `${(data.thickness ?? 2) * 3} ${(data.thickness ?? 2) * 2}` : undefined}
+            markerStart={data.arrowStart ? `url(#${marker}-l)` : undefined} markerEnd={data.arrowEnd ? `url(#${marker}-l)` : undefined}
+          />
+        ) : wall ? (
           <line x1={0} y1={0} x2={dx} y2={dy} stroke={selected ? '#2563eb' : '#4b5563'} strokeWidth={data.thickness ?? 8} strokeLinecap="square" />
         ) : (
           <>
@@ -75,14 +85,17 @@ function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
           <marker id={marker} viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
             <path d="M0,1 L10,5 L0,9 z" fill={color} />
           </marker>
+          <marker id={`${marker}-l`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" fill={lineColor} />
+          </marker>
         </defs>
       </svg>
-      {(!wall || selected || data.label) && <div
+      {(plain ? !!data.label : !wall || selected || data.label) && <div
         className="absolute whitespace-nowrap rounded bg-white/90 px-1 text-[11px] font-medium"
         style={{ left: dx / 2, top: dy / 2, transform: 'translate(-50%, -50%)', color }}
         title={scale ? undefined : 'Set the page scale (right panel, nothing selected) to see real lengths'}
       >
-        {text}
+        {label}
       </div>}
       {selected && !data.locked && (
         <>

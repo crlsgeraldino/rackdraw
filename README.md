@@ -178,6 +178,13 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 ## Editing like Visio
 
+- **Dynamic grid**: while you drag, items snap into line with others — left, centre, right, top, middle or bottom —
+  and blue guides show the alignment. Turn it off under **View → Dynamic grid**.
+- **Rotate** drawing shapes, text and freehand drawings by dragging the round handle above the selected shape
+  (whole degrees, 15° steps with Shift, snaps to 0/90/180/270), or type the **Angle** in the right panel.
+- **Home → Tools**: **Line** (drag to draw; Shift keeps it straight) and **Pencil** (freehand) stay on until you pick
+  **Pointer** or press Esc. Lines get a colour, width, dashes and arrowheads in the right panel; both can go on
+  layers and are saved to `.vsdx`.
 - **Copy / cut / paste** (Ctrl+C / Ctrl+X / Ctrl+V, or the **Arrange** menu) copies devices, shapes, notes and zones
   together with the cables between them. Paste on another page, another client, or another NetCraft window; each
   paste lands a little further down-right. Pasting into Notepad or a ticket gives one line per device
@@ -335,7 +342,8 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   drawing saved by NetCraft comes back with its devices, fields, ports, cables, labels and info boxes.
 - **Layers** (with visible / print / lock), **containers** (zones) and **background pages** go both ways: saved into
   the `.vsdx` and read back from Visio drawings.
-- Not carried over yet: Visio themes; connectors that aren't glued to two shapes are left out (the count is shown).
+- Lines in a Visio drawing that aren't glued between two shapes come in as drawn lines (or freehand shapes).
+- Not carried over yet: Visio themes.
 
 ## Your own stencils (no code needed)
 

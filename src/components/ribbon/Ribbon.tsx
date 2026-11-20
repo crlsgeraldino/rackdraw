@@ -10,6 +10,7 @@ import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
 import { THEMES, type Theme } from '@/lib/themes';
+import { setTool, useTool } from '@/lib/tools';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { setPref, usePref } from '@/lib/prefs';
@@ -374,6 +375,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
 /* ------------------------------------------------------------------ */
 
 function HomeTab() {
+  const tool = useTool((x) => x.tool);
   const st = useSelectionState();
   const s = useDiagram.getState();
   const autoArrange = useAutoArrange();
@@ -398,6 +400,11 @@ function HomeTab() {
         </Column>
       </Group>
       <Group label="Tools">
+        <Column>
+          <Small icon="pointer" label="Pointer" active={!tool} onClick={() => setTool(null)} title="Pointer tool: select and move (Esc)" />
+          <Small icon="lineTool" label="Line" active={tool === 'line'} onClick={() => setTool(tool === 'line' ? null : 'line')} title="Line tool: drag to draw lines (Shift = straight)" />
+          <Small icon="pencil" label="Pencil" active={tool === 'pencil'} onClick={() => setTool(tool === 'pencil' ? null : 'pencil')} title="Pencil tool: drag to draw freehand" />
+        </Column>
         <Column>
           <Small icon="text" label="Text" onClick={() => s.addShape('text', center())} title="Add a text box in the middle of the view" />
           <Small icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Add a dimension line" />
@@ -727,6 +734,7 @@ function ViewTab() {
   const props = usePref('propsPane');
   const quick = usePref('quickInfo');
   const rulers = usePref('rulers');
+  const dynamicGrid = usePref('dynamicGrid');
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
   const d = project.display ?? DEFAULT_DISPLAY;
@@ -754,6 +762,7 @@ function ViewTab() {
         <Column>
           <Check label="Pan & Zoom" checked={minimap} onChange={(v) => setPref('minimap', v)} />
           <Check label="Legend" checked={d.showLegend} onChange={(v) => useDiagram.getState().setDisplay({ showLegend: v })} />
+          <Check label="Dynamic grid" checked={dynamicGrid} onChange={(v) => setPref('dynamicGrid', v)} title="While dragging, snap into line with other shapes and show guides" />
           <Check label="Quick info" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
         </Column>
       </Group>

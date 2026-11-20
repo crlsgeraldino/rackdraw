@@ -163,7 +163,23 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
       const a = (g?.begin && nodeFor.get(g.begin)) || byName.get(it.data.From ?? '');
       const b = (g?.end && nodeFor.get(g.end)) || byName.get(it.data.To ?? '');
       if (!a || !b || a.node === b.node) {
-        summary.skippedLines++;
+        // Not a connector between two shapes: keep it as a drawn line (two points) or a freeform drawing.
+        const ptsL = it.points;
+        const color = it.lineColor ?? '#374151';
+        const width = Math.max(1, Math.round(it.lineWidthPx ?? 2));
+        if (ptsL.length === 2) {
+          const [[x1, y1], [x2, y2]] = ptsL;
+          nodes.push({ id: `m-${uid()}`, type: 'measure', position: { x: x1, y: y1 }, data: { dx: x2 - x1, dy: y2 - y1, variant: 'line', color, thickness: width, dashed: it.dashed || undefined, arrowStart: it.arrows?.start || undefined, arrowEnd: it.arrows?.end || undefined, label: it.text || undefined, layer: layerId(vp, it.layers) } });
+        } else {
+          const xs = ptsL.map((p) => p[0]), ys = ptsL.map((p) => p[1]);
+          const x0 = Math.min(...xs), y0 = Math.min(...ys);
+          const w = Math.max(10, Math.max(...xs) - x0), h = Math.max(10, Math.max(...ys) - y0);
+          nodes.push({
+            id: `s-${uid()}`, type: 'shape', position: { x: x0, y: y0 }, width: w, height: h,
+            data: { kind: 'freeform', text: '', fill: 'transparent', stroke: color, textColor: '#111827', fontSize: 14, rotation: 0, dashed: it.dashed || undefined, points: ptsL.map(([px, py]) => [(px - x0) / w, (py - y0) / h] as [number, number]), layer: layerId(vp, it.layers) },
+          });
+        }
+        summary.shapes++;
         continue;
       }
       const first = it.points[0], last = it.points[it.points.length - 1];

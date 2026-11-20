@@ -125,7 +125,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
     for (const n of ordered) {
       const b = box(n.id);
       if (!b || !b.w || !b.h) continue;
-      const layer = n.type === 'device' || n.type === 'shape' ? n.data.layer : undefined;
+      const layer = n.type === 'device' || n.type === 'shape' || n.type === 'measure' ? n.data.layer : undefined;
       if (layer && hidden.has(layer)) continue;
       const f0 = front.length, t0 = texts.length;
       switch (n.type) {
@@ -146,7 +146,20 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const style = { fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, lineWeightPt: 1.5 };
           const text = d.text ? { text: d.text, color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign } : undefined;
           const bb = ibox(b);
-          if (d.kind === 'ellipse') front.push({ kind: 'ellipse', box: bb, ...style, text });
+          // Free rotation: Visio turns counter-clockwise, the screen clockwise.
+          const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
+          const angle = rot && d.kind !== 'door' && (d.kind !== 'arrow' || rot % 90 !== 0) ? (-rot * Math.PI) / 180 : undefined;
+          const f0s = front.length;
+          if (d.kind === 'freeform') {
+            const pts = (d.points ?? []).map(([px, py]) => ({ px: px * bb.w, py: py * bb.h }));
+            // Turn the drawn points about the centre, so the line needs no Angle.
+            const c = Math.cos((rot * Math.PI) / 180), sn = Math.sin((rot * Math.PI) / 180);
+            const turned = pts.map(({ px, py }) => {
+              const x = px - bb.w / 2, y = py - bb.h / 2;
+              return { x: bb.x + bb.w / 2 + x * c - y * sn, y: bb.y + bb.h / 2 + x * sn + y * c };
+            });
+            if (turned.length > 1) front.push({ kind: 'line', name: 'Freeform', points: turned, line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5, dashed: d.dashed });
+          } else if (d.kind === 'ellipse') front.push({ kind: 'ellipse', box: bb, ...style, text });
           else if (d.kind === 'diamond') front.push({ kind: 'polygon', box: bb, points: [{ x: 0.5, y: 0 }, { x: 1, y: 0.5 }, { x: 0.5, y: 1 }, { x: 0, y: 0.5 }], ...style, text });
           else if (d.kind === 'arrow') {
             const head = Math.min(b.w * 0.4, b.h) / b.w;
@@ -182,11 +195,20 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             }
           } else if (d.kind === 'text') front.push({ kind: 'rect', box: bb, fill: null, line: null, text });
           else front.push({ kind: 'rect', box: bb, ...style, rounding: d.kind === 'rounded' ? Math.min(inch(16), bb.h / 3) : undefined, text });
+          if (angle) front.slice(f0s).forEach((v) => { if (v.kind !== 'line') v.angle = angle; });
           break;
         }
         case 'measure': {
           const a = { x: b.x, y: b.y };
           const z = { x: b.x + n.data.dx, y: b.y + n.data.dy };
+          if (n.data.variant === 'line') {
+            front.push({
+              kind: 'line', name: n.data.label || 'Line', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: n.data.color ?? '#374151',
+              lineWeightPt: pt(n.data.thickness ?? 2), dashed: n.data.dashed, arrowStart: n.data.arrowStart, arrowEnd: n.data.arrowEnd,
+              text: n.data.label ? { text: n.data.label, sizePt: 8 } : undefined,
+            });
+            break;
+          }
           if (n.data.variant === 'wall') {
             front.push({ kind: 'line', name: 'Wall', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: '#4B5563', lineWeightPt: pt(n.data.thickness ?? 8) });
             break;
