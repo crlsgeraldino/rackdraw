@@ -16,6 +16,7 @@ import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { openChangeShape } from '../ChangeShapeDialog';
+import { openVersions } from '../VersionsDialog';
 import { THEMES, themeById, type Theme } from '@/lib/themes';
 import { setPresenting, setTool, useTool } from '@/lib/tools';
 import { SAVE_SELECTION_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
@@ -413,6 +414,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         {item('open', 'Open… (NetCraft or Visio .vsdx)', onOpen)}
         {item('save', 'Save', onSave)}
         {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
+        {item('open', 'Version History…', () => { onClose(); openVersions(); })}
         {item('titleBlock', 'Save as template…', () => void saveTemplate())}
         {item('print', 'Print…', onPrint)}
         <div className="my-2 border-t border-white/20" />

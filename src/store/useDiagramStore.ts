@@ -46,6 +46,22 @@ interface DiagramState {
   projects: Record<string, Project>;
   currentId: string;
   customStencils: Record<string, StencilDef>;
+  /**
+   * Version History (File → Version History): saved copies of each client, newest first. Named ones are kept;
+   * automatic ones (one a day, and one before every restore) are trimmed to the latest 20.
+   */
+  versions: Record<string, ProjectVersion[]>;
+  /** Saves the current client as a version. */
+  saveVersion: (name?: string, auto?: boolean) => void;
+  /** Saves an automatic version of a client if it has changed and the last one is more than a day old. */
+  autoVersion: (projectId: string) => void;
+  /** Puts a version back as the current client (saving the current state as a version first). */
+  restoreVersion: (versionId: string) => void;
+  /** Opens a version as a new, separate client. */
+  versionAsCopy: (versionId: string) => void;
+  deleteVersion: (versionId: string) => void;
+  /** Reads the saved versions (kept apart from the diagrams, so everyday saves stay small). */
+  loadVersions: () => Promise<void>;
   /** My templates (File → Save as template), shown in File → New. */
   templates: Record<string, Template>;
   /** New client from a template (built-in or saved). */
@@ -338,6 +354,20 @@ export function portTaken(pg: Page, nodeId: string, handle?: string | null) {
   return pg.edges.some((e) => (e.source === nodeId && e.sourceHandle === handle) || (e.target === nodeId && e.targetHandle === handle));
 }
 
+/** A saved copy of a client (File → Version History). */
+export interface ProjectVersion {
+  id: string;
+  name: string;
+  at: number;
+  /** Saved automatically (daily, or before a restore). */
+  auto?: boolean;
+  project: Project;
+}
+
+/** Version History lives under its own key, written only when the versions change (not on every edit). */
+const VERSIONS_KEY = 'netcraft-versions';
+let versionsLoaded = false;
+
 /** Contents of the zones being dragged, captured when each drag starts. */
 const zoneDrag = new Map<string, string[]>();
 
@@ -380,6 +410,59 @@ export const useDiagram = create<DiagramState>()(
         currentId: first.id,
         customStencils: {},
         templates: {},
+        versions: {},
+        saveVersion: (name, auto) => {
+          const p = cur();
+          const list = get().versions[p.id] ?? [];
+          const v: ProjectVersion = { id: `v-${uid()}`, name: name?.trim() || 'Version', at: Date.now(), auto: auto || undefined, project: JSON.parse(JSON.stringify(p)) };
+          // Keep every named version; trim automatic ones to the latest 20.
+          let next = [v, ...list];
+          const autos = next.filter((x) => x.auto);
+          if (autos.length > 20) {
+            const drop = new Set(autos.slice(20).map((x) => x.id));
+            next = next.filter((x) => !drop.has(x.id));
+          }
+          set({ versions: { ...get().versions, [p.id]: next } });
+        },
+        autoVersion: (projectId) => {
+          const p = get().projects[projectId];
+          if (!p) return;
+          const last = (get().versions[projectId] ?? [])[0];
+          if (last && (Date.now() - last.at < 24 * 3600 * 1000 || last.project.updatedAt === p.updatedAt)) return;
+          if (!p.pages.some((pg) => pg.nodes.length)) return; // nothing worth keeping yet
+          const id = get().currentId;
+          set({ currentId: projectId });
+          get().saveVersion(`Automatic · ${new Date().toLocaleDateString()}`, true);
+          set({ currentId: id });
+        },
+        restoreVersion: (versionId) => {
+          const p = cur();
+          const v = (get().versions[p.id] ?? []).find((x) => x.id === versionId);
+          if (!v) return;
+          get().saveVersion(`Before restoring "${v.name}"`, true);
+          const restored: Project = { ...JSON.parse(JSON.stringify(v.project)), id: p.id, updatedAt: Date.now() };
+          set({ projects: { ...get().projects, [p.id]: restored }, past: [], future: [], activeRackId: restored.racks?.[0]?.id ?? null, selectedRackItemId: null });
+        },
+        versionAsCopy: (versionId) => {
+          const v = (get().versions[cur().id] ?? []).find((x) => x.id === versionId);
+          if (!v) return;
+          const copy: Project = { ...JSON.parse(JSON.stringify(v.project)), id: uid(), name: `${v.project.name} (${v.name})`, createdAt: Date.now(), updatedAt: Date.now() };
+          set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
+        },
+        loadVersions: async () => {
+          if (versionsLoaded) return;
+          const saved = await idbGet<Record<string, ProjectVersion[]>>(VERSIONS_KEY).catch(() => undefined);
+          versionsLoaded = true;
+          // Versions saved before loading finished (none normally) are kept on top.
+          const now = get().versions;
+          const merged: Record<string, ProjectVersion[]> = { ...(saved ?? {}) };
+          for (const [k, list] of Object.entries(now)) merged[k] = [...list, ...(merged[k] ?? [])];
+          set({ versions: merged });
+        },
+        deleteVersion: (versionId) => {
+          const id = cur().id;
+          set({ versions: { ...get().versions, [id]: (get().versions[id] ?? []).filter((x) => x.id !== versionId) } });
+        },
         newFromTemplate: (name, template) => {
           const p = projectFromTemplate(template.project, name);
           set({ projects: { ...get().projects, [p.id]: p }, currentId: p.id, past: [], future: [], activeRackId: p.racks?.[0]?.id ?? null, selectedRackItemId: null });
@@ -1328,6 +1411,7 @@ export const useDiagram = create<DiagramState>()(
         openProject: (id) => {
           const p = get().projects[id];
           if (p) set({ currentId: id, past: [], future: [], activeRackId: p.racks?.[0]?.id ?? null, selectedRackItemId: null });
+          if (p) get().autoVersion(id);
         },
         updateProject: (patch) => {
           const p = cur();
@@ -1336,6 +1420,9 @@ export const useDiagram = create<DiagramState>()(
         deleteProject: (id) => {
           const rest = { ...get().projects };
           delete rest[id];
+          const versions = { ...get().versions };
+          delete versions[id];
+          set({ versions });
           if (!Object.keys(rest).length) {
             const p = blankProject('New client');
             rest[p.id] = p;
@@ -1542,3 +1629,10 @@ export const useStencil = (id: string) => useDiagram((s) => findStencil(id, s.cu
 
 /** Non-reactive lookup for event handlers and exports. */
 export const getStencil = (id: string) => findStencil(id, useDiagram.getState().customStencils);
+
+// Save the version list whenever it changes (after it has been loaded, so an empty start never overwrites it).
+if (typeof window !== 'undefined') {
+  useDiagram.subscribe((s, prev) => {
+    if (versionsLoaded && s.versions !== prev.versions) void idbSet(VERSIONS_KEY, s.versions).catch(() => undefined);
+  });
+}

@@ -17,6 +17,7 @@ import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
+import { VersionsDialog } from './VersionsDialog';
 import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
@@ -409,6 +410,11 @@ export default function Editor() {
     return unsub;
   }, [hydrated]);
   const view = useDiagram((s) => s.view);
+  // Version History: keep a start-of-day copy of the client that opens.
+  useEffect(() => {
+    if (!hydrated) return;
+    void useDiagram.getState().loadVersions().then(() => useDiagram.getState().autoVersion(useDiagram.getState().currentId));
+  }, [hydrated]);
   const presenting = usePresenting((s) => s.on);
   const shapesPane = usePref('shapesPane');
   const propsPane = usePref('propsPane');
@@ -473,6 +479,7 @@ export default function Editor() {
         <PromptHost />
         <ShortcutsDialog />
         <ChangeShapeDialog />
+        <VersionsDialog />
       </div>
     </ReactFlowProvider>
   );

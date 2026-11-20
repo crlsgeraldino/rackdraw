@@ -101,6 +101,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Version History (File → Version History)
+
+- Like Visio's: **Save a version now** before a big change (e.g. "Before firewall swap"), then **Restore** it or
+  **Open as copy** to compare side by side. Restoring first saves the current drawing as a version, so it can be undone.
+- NetCraft also keeps one automatically each day you work on a client (the latest 20 automatic ones are kept; named
+  versions stay until you delete them). Versions are stored on this computer, separately from the everyday saves.
+
 ## Templates (File → New client)
 
 - Like Visio's template gallery: start from a **Blank drawing**, a **Small office network** (ISP → firewall → PoE switch
