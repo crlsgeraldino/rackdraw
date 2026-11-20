@@ -3,7 +3,7 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, useNodesStore, type EdgeProps, type NodesStore } from '@xyflow/react';
 import { memo, useMemo } from 'react';
 import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/router';
-import { overlaySize, useOverlayVersion } from '@/lib/overlays';
+import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import type { CableEdge, DeviceData } from '@/lib/types';
 import { getStencil } from '@/store/useDiagramStore';
 import { useDisplay } from './useDisplay';
@@ -35,7 +35,7 @@ function obstacleKey(s: NodesStore) {
     const info = d.infoBox?.show ? overlaySize(`${n.id}|info`) : undefined;
     if (info) {
       const o = d.infoBox?.offset ?? { x: 0, y: 0 };
-      add(`${n.id}#info`, x + w + 12 + o.x, y + o.y, info.w, info.h);
+      add(`${n.id}#info`, x + w + INFO_GAP + o.x, y + o.y, info.w, info.h);
     }
   }
   return key;
@@ -47,7 +47,8 @@ function parseObstacles(key: string): Obstacle[] {
   if (cache.key === key) return cache.list;
   const list = key.split(';').filter(Boolean).map((s) => {
     const [id, x, y, w, h] = s.split(',');
-    return { id, left: +x, top: +y, right: +x + +w, bottom: +y + +h };
+    // Labels and info boxes ("<device>#…") get a smaller gap so cables can still pass between them and the device.
+    return { id, left: +x, top: +y, right: +x + +w, bottom: +y + +h, clearance: id.includes('#') ? 6 : undefined };
   });
   cache = { key, list };
   return list;

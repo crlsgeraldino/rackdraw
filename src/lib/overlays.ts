@@ -7,6 +7,9 @@ import { useCallback, useRef, useSyncExternalStore } from 'react';
  * Sizes are in diagram units (CSS pixels before zoom), keyed `${nodeId}|label` or `${nodeId}|info`.
  */
 const sizes = new Map<string, { w: number; h: number }>();
+
+/** Space between a device and its info box (room for a cable to run between them). */
+export const INFO_GAP = 32;
 let version = 0;
 const listeners = new Set<() => void>();
 

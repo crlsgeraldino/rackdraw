@@ -9,7 +9,17 @@
 export type Side = 'top' | 'right' | 'bottom' | 'left';
 export interface Pt { x: number; y: number }
 export interface Box { left: number; top: number; right: number; bottom: number }
-export interface Obstacle extends Box { id: string }
+export interface Obstacle extends Box {
+  id: string;
+  /** Gap to keep from this item; defaults to CLEARANCE. Labels and info boxes use less, so cables can pass beside them. */
+  clearance?: number;
+}
+
+/**
+ * Items drawn for a device (its label, its info box) have ids `${deviceId}#…`. They are obstacles like any other,
+ * but a cable leaving that device first steps past them.
+ */
+const ownedBy = (o: Obstacle, device?: string) => !!device && o.id.startsWith(`${device}#`);
 
 /** Gap kept between a cable and the devices it goes around. */
 export const CLEARANCE = 14;
@@ -26,12 +36,22 @@ const overlaps = (a: Box, b: Box) => a.left < b.right && a.right > b.left && a.t
 const inside = (b: Box, x: number, y: number) => x > b.left && x < b.right && y > b.top && y < b.bottom;
 
 /** Where a cable leaving `p` on `side` clears its own device (or just steps out if it has none). */
-function stub(p: Pt, side: Side, own: Box | undefined): Pt {
-  const b = own ? pad(own, CLEARANCE) : pad({ left: p.x, top: p.y, right: p.x, bottom: p.y }, CLEARANCE);
+function exitPoint(p: Pt, side: Side, b: Box): Pt {
   if (side === 'top') return { x: p.x, y: Math.min(p.y - CLEARANCE, b.top) };
   if (side === 'bottom') return { x: p.x, y: Math.max(p.y + CLEARANCE, b.bottom) };
   if (side === 'left') return { x: Math.min(p.x - CLEARANCE, b.left), y: p.y };
   return { x: Math.max(p.x + CLEARANCE, b.right), y: p.y };
+}
+
+/** Exit point past the device, then past any of its own label/info box that sits in the way. */
+function stub(p: Pt, side: Side, own: Box | undefined, extras: Box[]): Pt {
+  let s = exitPoint(p, side, own ? pad(own, CLEARANCE) : pad({ left: p.x, top: p.y, right: p.x, bottom: p.y }, CLEARANCE));
+  for (let k = 0; k < 4; k++) {
+    const hit = extras.find((b) => inside(b, s.x, s.y));
+    if (!hit) break;
+    s = exitPoint(s, side, hit);
+  }
+  return s;
 }
 
 /** Removes repeated and collinear points. */
@@ -102,12 +122,13 @@ export function routeOrthogonal(
 ): Pt[] | null {
   const boxA = obstacles.find((o) => o.id === ownA);
   const boxB = obstacles.find((o) => o.id === ownB);
-  const sa = stub(a, a.side, boxA);
-  const sb = stub(b, b.side, boxB);
+  const padOf = (o: Obstacle) => pad(o, o.clearance ?? CLEARANCE);
+  const sa = stub(a, a.side, boxA, obstacles.filter((o) => ownedBy(o, ownA)).map(padOf));
+  const sb = stub(b, b.side, boxB, obstacles.filter((o) => ownedBy(o, ownB)).map(padOf));
 
   // Work in a window around the two ends, grown to take in any device it touches, so far-away devices cost nothing.
   let win: Box = pad({ left: Math.min(sa.x, sb.x), top: Math.min(sa.y, sb.y), right: Math.max(sa.x, sb.x), bottom: Math.max(sa.y, sb.y) }, 60);
-  const padded = obstacles.map((o) => pad(o, CLEARANCE));
+  const padded = obstacles.map(padOf);
   let used: Box[] = [];
   for (let k = 0; k < 6; k++) {
     used = padded.filter((o) => overlaps(o, win));

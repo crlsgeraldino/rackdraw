@@ -3,7 +3,7 @@
 import { portLines } from '@/lib/portSummary';
 import { DEFAULT_INFO_FIELDS, type DeviceData, type DeviceNode } from '@/lib/types';
 import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
-import { useOverlaySize } from '@/lib/overlays';
+import { INFO_GAP, useOverlaySize } from '@/lib/overlays';
 import { useDragOffset } from './useDragOffset';
 
 const FIELD_LABELS: Record<string, string> = { model: 'Model', ip: 'IP', mac: 'MAC', serial: 'S/N', assetTag: 'Asset', location: 'Location' };
@@ -40,8 +40,8 @@ export function DeviceInfoBox({ id, data }: { id: string; data: DeviceData }) {
   return (
     <div
       ref={sizeRef}
-      className="nc-infobox nodrag nopan absolute left-full top-0 ml-3 w-max min-w-36 max-w-72 cursor-move select-none rounded border border-gray-400 bg-white/95 px-2 py-1.5 text-[10px] leading-snug text-gray-800 shadow-sm"
-      style={{ translate: `${off.x}px ${off.y}px` }}
+      className="nc-infobox nodrag nopan absolute left-full top-0 w-max min-w-36 max-w-72 cursor-move select-none rounded border border-gray-400 bg-white/95 px-2 py-1.5 text-[10px] leading-snug text-gray-800 shadow-sm"
+      style={{ marginLeft: INFO_GAP, translate: `${off.x}px ${off.y}px` }}
       title={data.locked ? undefined : 'Drag to move the info box'}
       {...drag}
     >
