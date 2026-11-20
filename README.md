@@ -29,7 +29,11 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Export** — PDF report (diagram + device and connection tables), PNG (Word/email), SVG (Visio, Office, draw.io),
   CSV (Excel).
 - Undo/redo (Ctrl+Z / Ctrl+Y), cut/copy/paste (Ctrl+X/C/V), duplicate (Ctrl+D), delete (Del), snap-to-grid, minimap.
-- **Arrange** — align, distribute, group, bring to front / send to back, lock.
+- **Arrange** — align, distribute, group, bring to front / send to back, lock, **auto-arrange** (top down by
+  cabling), **format painter** (copy/paste format).
+- **Line jumps** — where cables cross, one hops over the other, like Visio.
+- **Check diagram** — finds duplicate IPs and names, ports with two cables, unconnected uplinks, VLAN mismatches,
+  overlapping devices, missing stencils, broken links and missing details; click a problem to go to it.
 - **Find & replace** (Ctrl+F / Ctrl+H) across every page: names, IPs, serials, port notes, VLANs, labels.
 - **Hyperlinks** on devices, shapes and zones: a device's web UI, a ticket, or another page.
 - **Print** (Ctrl+P) and PDF with a **title block** on every sheet: client, site, drawing, prepared by, revision,
@@ -155,6 +159,21 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Links**: set a device's, shape's or zone's **Link** in the right panel to a web address (a bare IP or host name
   opens as `https://…`, handy for a device's web UI), `mailto:`, or **another page** of the client. A link button
   appears on the item; click it to follow the link (the desktop app opens web links in your default browser).
+
+## Tidy-up tools
+
+- **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).
+  Turn off under **View → Line jumps where cables cross**.
+- **Arrange → Auto-arrange (top down)** lays out the selected devices (or the whole page) in rows by cabling:
+  ISP, firewall, core switch, access switches, then APs/servers/endpoints, each under what it connects to;
+  unconnected devices go on the last row. Leaves room for info boxes and labels. Ctrl+Z undoes it.
+- **Arrange → Copy format / Paste format** (format painter): copy a cable's type, color, routing and arrows, a
+  shape's colors/border/text size, or a device's label fields, info-box settings and status, then paste onto other
+  selected items of the same kind.
+- **Arrange → Check diagram…** lists problems across every page: duplicate device IPs (also inside `https://…`
+  addresses) and names, duplicate port IPs, ports with two cables, uplinks with nothing connected, cable VLANs that
+  disagree with the port VLAN, overlapping devices, missing stencils and links to deleted pages; tick *Show missing
+  details* for devices without IP, serial or connections. It updates as you edit; click a line to go there.
 
 ## Title block and printing
 

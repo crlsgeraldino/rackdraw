@@ -86,6 +86,9 @@ export function ViewMenu() {
           <label className="mb-3 flex items-center gap-1.5 text-xs text-gray-600">
             <input type="checkbox" checked={s.showLegend} onChange={(e) => setDisplay({ showLegend: e.target.checked })} /> Show legend
           </label>
+          <label className="-mt-2 mb-3 flex items-center gap-1.5 text-xs text-gray-600" title="Where two cables cross, the horizontal one hops over the other (also in prints and exports)">
+            <input type="checkbox" checked={s.lineJumps !== false} onChange={(e) => setDisplay({ lineJumps: e.target.checked })} /> Line jumps where cables cross
+          </label>
           <label className="-mt-2 mb-3 flex items-center gap-1.5 text-xs text-gray-600" title="Hover a device to see its details (IP, serial, rack, ports…) in a floating card">
             <input type="checkbox" checked={quickInfo} onChange={(e) => setPref('quickInfo', e.target.checked)} /> Quick info on hover
           </label>

@@ -218,11 +218,17 @@ export function routeOrthogonal(
 const sgn = (v: number) => (Math.abs(v) < 0.5 ? 0 : Math.sign(v));
 
 /** SVG path through the points with rounded corners, and the point halfway along it (for the label). */
-export function roundedPath(points: Pt[], radius = 8): { d: string; mid: Pt } {
+export function roundedPath(points: Pt[], radius = 8, jumps?: Map<number, number[]>, jumpR = 5): { d: string; mid: Pt } {
   let d = `M ${points[0].x} ${points[0].y}`;
   for (let k = 1; k < points.length; k++) {
     const p = points[k];
     const next = points[k + 1];
+    // Line jumps on this (horizontal) segment: a small arc over each crossing, always bulging upward.
+    const hops = jumps?.get(k);
+    if (hops?.length) {
+      const dir = sgn(p.x - points[k - 1].x) || 1;
+      for (const x of hops) d += ` L ${x - dir * jumpR} ${p.y} A ${jumpR} ${jumpR} 0 0 ${dir > 0 ? 1 : 0} ${x + dir * jumpR} ${p.y}`;
+    }
     if (!next) {
       d += ` L ${p.x} ${p.y}`;
       break;

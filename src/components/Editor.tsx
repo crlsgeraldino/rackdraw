@@ -20,6 +20,7 @@ import { allNodes } from '@/lib/project';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { CLIP_MIME, getStencil, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { ArrangeMenu } from './ArrangeMenu';
+import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
 import { FindBar } from './FindBar';
 import { PrintDialog } from './PrintDialog';
 import { edgeTypes } from './CableEdgeView';
@@ -342,6 +343,12 @@ function Canvas() {
   );
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const open = () => setChecking(true);
+    window.addEventListener(OPEN_CHECK_EVENT, open);
+    return () => window.removeEventListener(OPEN_CHECK_EVENT, open);
+  }, []);
   useClipboardEvents();
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -418,6 +425,7 @@ function Canvas() {
         </div>
       )}
       {find && <FindBar replaceMode={find.replace} onClose={() => setFind(null)} />}
+      {checking && <CheckPanel onClose={() => setChecking(false)} />}
       <button onClick={deleteSelected} className="sr-only">Delete selected</button>
     </div>
   );

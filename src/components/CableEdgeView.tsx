@@ -1,11 +1,12 @@
 'use client';
 
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, useNodesStore, type EdgeProps, type NodesStore } from '@xyflow/react';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/router';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import type { CableEdge, DeviceData } from '@/lib/types';
-import { getStencil } from '@/store/useDiagramStore';
+import { getStencil, useCurrentProject } from '@/store/useDiagramStore';
+import { findJumps, JUMP_R, otherRoutes, publishRoute, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
 /** Items cables steer around: devices, notes and drawing shapes (not zones or the backdrop). */
@@ -61,24 +62,40 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   useOverlayVersion(); // re-route when a label or info box changes size
   const key = useNodesStore((s) => (route === 'step' ? obstacleKey(s) : ''));
 
-  const [path, labelX, labelY] = useMemo((): [string, number, number] => {
-    const pos = { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition };
-    if (route === 'straight') return getStraightPath(pos).slice(0, 3) as [string, number, number];
-    if (route === 'curved') return getBezierPath(pos).slice(0, 3) as [string, number, number];
-    const pts = source === target ? null : routeOrthogonal(
+  // Corner points of a right-angle route around obstacles (null: not routed, or no clear path).
+  const pts = useMemo(() => {
+    if (route !== 'step' || source === target) return null;
+    const r = routeOrthogonal(
       { x: sourceX, y: sourceY, side: sourcePosition as Side },
       { x: targetX, y: targetY, side: targetPosition as Side },
       parseObstacles(key),
       source,
       target,
     );
-    if (pts && pts.length > 1) {
-      const { d, mid } = roundedPath(pts);
+    return r && r.length > 1 ? r : null;
+  }, [route, key, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+
+  // Line jumps: share this route with the other cables and hop over the ones crossing it.
+  const jumpsOn = useCurrentProject().display?.lineJumps !== false;
+  useEffect(() => {
+    publishRoute(id, jumpsOn ? pts : null);
+  }, [id, pts, jumpsOn]);
+  useEffect(() => () => publishRoute(id, null), [id]);
+  const routesVersion = useRoutesVersion();
+
+  const [path, labelX, labelY] = useMemo((): [string, number, number] => {
+    const pos = { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition };
+    if (route === 'straight') return getStraightPath(pos).slice(0, 3) as [string, number, number];
+    if (route === 'curved') return getBezierPath(pos).slice(0, 3) as [string, number, number];
+    if (pts) {
+      const { d, mid } = roundedPath(pts, 8, jumpsOn ? findJumps(pts, otherRoutes(id)) : undefined, JUMP_R);
       return [d, mid.x, mid.y];
     }
     // No clear path (e.g. devices overlapping): fall back to a plain right-angle line.
     return getSmoothStepPath({ ...pos, borderRadius: 8, offset: 16 }).slice(0, 3) as [string, number, number];
-  }, [route, key, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+    // routesVersion: recompute hops when another cable moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, pts, jumpsOn, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   const style = useDisplay().cable(data);
   const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`].filter(Boolean).join(' · ');

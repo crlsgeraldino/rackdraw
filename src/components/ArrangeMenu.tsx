@@ -1,8 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import { isLocked, type AlignMode, type DistributeAxis } from '@/lib/arrange';
-import { useCurrentPage, useDiagram } from '@/store/useDiagramStore';
+import { deviceSize, layoutTopDown, type LayoutItem } from '@/lib/autolayout';
+import { INFO_GAP, overlaySize } from '@/lib/overlays';
+import type { AppNode } from '@/lib/types';
+import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
+import { OPEN_CHECK_EVENT } from './CheckPanel';
 
 const MOD = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -83,8 +88,37 @@ export function ArrangeButtons() {
 export function ArrangeMenu({ onCopy, onCut, onPaste }: { onCopy: () => void; onCut: () => void; onPaste: () => void }) {
   const [open, setOpen] = useState(false);
   const st = useSelectionState();
-  const { duplicateSelected, alignSelected, distributeSelected, groupSelected, ungroupSelected, orderSelected, setSelectionLocked } = useDiagram.getState();
+  const { duplicateSelected, alignSelected, distributeSelected, groupSelected, ungroupSelected, orderSelected, setSelectionLocked, copyFormat, pasteFormat, formatKind, setPositions } = useDiagram.getState();
+  const rf = useReactFlow<AppNode>();
+  const page = useCurrentPage();
   const run = (fn: () => void) => () => { fn(); setOpen(false); };
+  const hasEdgeSel = page.edges.some((e) => e.selected);
+  const kind = formatKind();
+
+  /** Auto-arrange the selected devices (2 or more), else every device on the page. */
+  const autoArrange = () => {
+    const sel = page.nodes.filter((n) => n.selected && n.type === 'device');
+    const nodes = (sel.length >= 2 ? sel : page.nodes.filter((n) => n.type === 'device')).filter((n) => !isLocked(n));
+    if (nodes.length < 2) return alert('Add or select at least two devices to arrange.');
+    const items: LayoutItem[] = nodes.map((n) => {
+      const size = deviceSize(n, getStencil);
+      const d = n.type === 'device' ? n.data : undefined;
+      // Leave room for the info box beside the device and the label under it.
+      const info = d?.infoBox?.show ? overlaySize(`${n.id}|info`) : undefined;
+      const label = overlaySize(`${n.id}|label`);
+      const s = d ? getStencil(d.stencilId) : undefined;
+      return {
+        id: n.id,
+        w: size.w + (info ? INFO_GAP + info.w : 0),
+        h: Math.max(size.h + (label ? label.h + 8 : 0), info?.h ?? 0),
+        category: s?.category ?? 'Custom',
+        name: d?.name ?? '',
+      };
+    });
+    const origin = { x: Math.min(...nodes.map((n) => n.position.x)), y: Math.min(...nodes.map((n) => n.position.y)) };
+    setPositions(layoutTopDown(items, page.edges, origin));
+    setTimeout(() => rf.fitView({ padding: 0.2, duration: 300 }), 80);
+  };
   const item = (label: string, fn: () => void, disabled: boolean, keys?: string, icon?: React.ReactNode) => (
     <button key={label} className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent" onClick={run(fn)} disabled={disabled}>
       <span className="flex w-4 justify-center">{icon}</span>
@@ -98,15 +132,23 @@ export function ArrangeMenu({ onCopy, onCut, onPaste }: { onCopy: () => void; on
     <div className="relative">
       <button onClick={() => setOpen((o) => !o)} className="whitespace-nowrap rounded px-2 py-1 text-sm text-gray-700 hover:bg-gray-100" aria-expanded={open}>Arrange ▾</button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setOpen(false)}>
+        <div className="absolute right-0 top-full z-50 mt-1 max-h-[calc(100vh-4rem)] w-64 overflow-y-auto rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setOpen(false)}>
           {item('Cut', onCut, !st.count, `${MOD}X`)}
           {item('Copy', onCopy, !st.count, `${MOD}C`)}
           {item('Paste', onPaste, false, `${MOD}V`)}
           {item('Duplicate', duplicateSelected, !st.count, `${MOD}D`)}
           {sep('a')}
-          {ALIGN.map((a) => item(a.label, () => alignSelected(a.mode), st.movable < 2, undefined, <AlignIcon mode={a.mode} />))}
-          {item('Distribute horizontally', () => distributeSelected('h'), st.movable < 3, undefined, <AlignIcon mode="dist-h" />)}
-          {item('Distribute vertically', () => distributeSelected('v'), st.movable < 3, undefined, <AlignIcon mode="dist-v" />)}
+          <div className="px-3 py-1">
+            <span className="mb-1 block text-[11px] text-gray-500">Align and space evenly</span>
+            <div className="flex gap-1">
+              {ALIGN.map((a) => (
+                <button key={a.mode} className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40" disabled={st.movable < 2} onClick={run(() => alignSelected(a.mode))} title={a.label} aria-label={a.label}><AlignIcon mode={a.mode} /></button>
+              ))}
+              <button className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40" disabled={st.movable < 3} onClick={run(() => distributeSelected('h'))} title="Distribute horizontally" aria-label="Distribute horizontally"><AlignIcon mode="dist-h" /></button>
+              <button className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40" disabled={st.movable < 3} onClick={run(() => distributeSelected('v'))} title="Distribute vertically" aria-label="Distribute vertically"><AlignIcon mode="dist-v" /></button>
+            </div>
+          </div>
+          {item('Auto-arrange (top down)', autoArrange, false)}
           {sep('b')}
           {item('Group', groupSelected, st.count < 2, `${MOD}G`)}
           {item('Ungroup', ungroupSelected, !st.grouped, `${MOD}Shift+G`)}
@@ -116,6 +158,11 @@ export function ArrangeMenu({ onCopy, onCut, onPaste }: { onCopy: () => void; on
           {sep('d')}
           {item('Lock position', () => setSelectionLocked(true), !st.unlocked)}
           {item('Unlock', () => setSelectionLocked(false), !st.locked)}
+          {sep('e')}
+          {item('Copy format', () => { if (!copyFormat()) alert('Select one cable, shape or device to copy its format.'); }, !st.count && !hasEdgeSel)}
+          {item(`Paste format${kind ? ` (${kind})` : ''}`, () => { if (!pasteFormat()) alert(`Select ${kind === 'cable' ? 'cables' : kind === 'shape' ? 'shapes' : 'devices'} to paste the format onto.`); }, !kind)}
+          {sep('f')}
+          {item('Check diagram…', () => window.dispatchEvent(new Event(OPEN_CHECK_EVENT)), false)}
           <p className="px-3 pb-1 pt-1.5 text-[10px] leading-snug text-gray-400">Select several items with Shift+click or by dragging a box with Shift held.</p>
         </div>
       )}

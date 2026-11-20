@@ -83,6 +83,14 @@ interface DiagramState {
   ungroupSelected: () => void;
   orderSelected: (to: 'front' | 'back') => void;
   setSelectionLocked: (locked: boolean) => void;
+  /** Moves nodes on the active page to new positions (one undo step). */
+  setPositions: (positions: Map<string, { x: number; y: number }>) => void;
+  /** Remembers the formatting of the selected cable, shape or device; returns what kind was copied. */
+  copyFormat: () => 'cable' | 'shape' | 'device' | null;
+  /** Applies the copied formatting to selected items of the same kind; returns how many changed. */
+  pasteFormat: () => number;
+  /** What `copyFormat` holds, for menus. */
+  formatKind: () => 'cable' | 'shape' | 'device' | null;
   /** Shows a page and selects one node or cable on it (used by Find). */
   selectItem: (pageId: string, kind: 'node' | 'edge', id: string) => void;
   /** Replaces `term` in the given Find hits (undoable). Returns how many fields changed. */
@@ -190,6 +198,9 @@ export interface Clipboard {
   edges: CableEdge[];
 }
 export const CLIP_MIME = 'application/x-netcraft-clip';
+
+/** Formatting copied with Copy format (format painter). */
+let formatClip: { kind: 'cable' | 'shape' | 'device'; patch: Record<string, unknown> } | null = null;
 
 /** Last copy, and how many times it has been pasted (each paste lands a little further down-right). */
 let clipboard: { clip: Clipboard; pasted: number } | null = null;
@@ -494,6 +505,55 @@ export const useDiagram = create<DiagramState>()(
           const rest = pg.nodes.filter((n) => !isSel(n));
           commit({ nodes: to === 'front' ? [...rest, ...sel] : [...sel, ...rest] });
         },
+        setPositions: (positions) => {
+          if (!positions.size) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => (positions.has(n.id) && !isLocked(n) ? { ...n, position: positions.get(n.id)! } : n)) });
+        },
+        copyFormat: () => {
+          const pg = page();
+          const e = pg.edges.find((x) => x.selected);
+          const n = pg.nodes.find((x) => x.selected && x.type !== 'backdrop');
+          if (e && !n) {
+            const d = (e.data ?? { cable: 'Cat6' }) as CableData;
+            formatClip = { kind: 'cable', patch: { cable: d.cable, color: d.color, route: d.route, arrows: d.arrows } };
+          } else if (n?.type === 'shape') {
+            const d = n.data;
+            formatClip = { kind: 'shape', patch: { fill: d.fill, stroke: d.stroke, textColor: d.textColor, fontSize: d.fontSize, dashed: d.dashed } };
+          } else if (n?.type === 'device') {
+            const d = n.data;
+            const infoBox = d.infoBox ? { ...d.infoBox, offset: undefined } : undefined;
+            formatClip = { kind: 'device', patch: { labelFields: d.labelFields, infoBox, status: d.status } };
+          } else return null;
+          return formatClip.kind;
+        },
+        pasteFormat: () => {
+          const clip = formatClip;
+          if (!clip) return 0;
+          const pg = page();
+          if (clip.kind === 'cable') {
+            const ids = pg.edges.filter((e) => e.selected).map((e) => e.id);
+            if (!ids.length) return 0;
+            get().snapshot();
+            commit({ edges: pg.edges.map((e) => (e.selected ? { ...e, data: { ...(e.data as CableData), ...clip.patch } } : e)) });
+            return ids.length;
+          }
+          const targets = pg.nodes.filter((n) => n.selected && n.type === clip.kind);
+          if (!targets.length) return 0;
+          get().snapshot();
+          commit({
+            nodes: pg.nodes.map((n) => {
+              if (!n.selected || n.type !== clip.kind) return n;
+              // Keep each device's own info-box position.
+              const patch = clip.kind === 'device' && n.type === 'device' && clip.patch.infoBox
+                ? { ...clip.patch, infoBox: { ...(clip.patch.infoBox as object), offset: n.data.infoBox?.offset } }
+                : clip.patch;
+              return { ...n, data: { ...n.data, ...patch } } as AppNode;
+            }),
+          });
+          return targets.length;
+        },
+        formatKind: () => formatClip?.kind ?? null,
         setSelectionLocked: (locked) => {
           const pg = page();
           if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;

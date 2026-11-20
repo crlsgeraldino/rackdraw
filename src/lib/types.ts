@@ -235,6 +235,8 @@ export interface DisplaySettings {
   deviceColor: DeviceColorBy;
   cableColor: CableColorBy;
   showLegend: boolean;
+  /** Hop where cables cross (Visio line jumps); missing = on. */
+  lineJumps?: boolean;
 }
 
 export type CableEdge = Edge<CableData, 'cable'>;
