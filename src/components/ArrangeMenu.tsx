@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { isLocked, type AlignMode, type DistributeAxis } from '@/lib/arrange';
-import { deviceSize, layoutTopDown, type LayoutItem } from '@/lib/autolayout';
+import { deviceSize, layoutPage, type LayoutKind, type LayoutItem } from '@/lib/autolayout';
 import { INFO_GAP, overlaySize } from '@/lib/overlays';
 import type { AppNode } from '@/lib/types';
 import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
@@ -89,7 +89,7 @@ export function useAutoArrange() {
   const rf = useReactFlow<AppNode>();
   const page = useCurrentPage();
   const { setPositions } = useDiagram.getState();
-  return () => {
+  return (kind: LayoutKind = 'top-down', spacing = 1) => {
     const sel = page.nodes.filter((n) => n.selected && n.type === 'device');
     const nodes = (sel.length >= 2 ? sel : page.nodes.filter((n) => n.type === 'device')).filter((n) => !isLocked(n));
     if (nodes.length < 2) return alert('Add or select at least two devices to arrange.');
@@ -109,7 +109,16 @@ export function useAutoArrange() {
       };
     });
     const origin = { x: Math.min(...nodes.map((n) => n.position.x)), y: Math.min(...nodes.map((n) => n.position.y)) };
-    setPositions(layoutTopDown(items, page.edges, origin));
+    // Where each cable plugs into a device, left to right, so devices are laid out in port order.
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const portX = (id: string, handle?: string | null) => {
+      const n = byId.get(id);
+      if (!n || n.type !== 'device' || !handle) return undefined;
+      const st = getStencil(n.data.stencilId);
+      const p = st?.ports.find((x) => x.id === handle);
+      return p ? p.x + p.w / 2 : undefined;
+    };
+    setPositions(layoutPage(kind, items, page.edges, origin, { spacing, portX }));
     setTimeout(() => rf.fitView({ padding: 0.2, duration: 300 }), 80);
   };
 }

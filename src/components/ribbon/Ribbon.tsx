@@ -11,6 +11,7 @@ import { exportWordReport } from '@/lib/wordReport';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { reportFields } from '@/lib/report';
+import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { THEMES, type Theme } from '@/lib/themes';
@@ -532,7 +533,7 @@ function HomeTab() {
         <Column>
           <Small icon="front" label="Bring to Front" onClick={() => s.orderSelected('front')} disabled={!st.count} title="Bring to front (Ctrl+Shift+F)" />
           <Small icon="back" label="Send to Back" onClick={() => s.orderSelected('back')} disabled={!st.count} title="Send to back (Ctrl+Shift+B)" />
-          <Small icon="arrange" label="Auto-arrange" onClick={autoArrange} title="Lay out devices top-down by cabling (selection, or whole page)" />
+          <Small icon="arrange" label="Auto-arrange" onClick={() => autoArrange()} title="Lay out devices top-down by cabling (selection, or whole page)" />
         </Column>
         <Column>
           <Small icon="group" label="Group" onClick={s.groupSelected} disabled={st.count < 2} title="Group (Ctrl+G)" />
@@ -747,6 +748,43 @@ const DEVICE_COLOR: { value: DeviceColorBy; label: string }[] = [
 
 const FONTS = ['Segoe UI', 'Arial', 'Calibri', 'Cambria', 'Consolas', 'Courier New', 'Georgia', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
 
+const LAYOUTS: { kind: LayoutKind; label: string; sub: string; glyph: string }[] = [
+  { kind: 'top-down', label: 'Top to bottom', sub: 'ISP at the top, endpoints at the bottom', glyph: 'M10 2v4M10 6 4 11M10 6l6 5M4 11v3M16 11v3' },
+  { kind: 'left-right', label: 'Left to right', sub: 'Layers in columns', glyph: 'M2 10h4M6 10l5-6M6 10l5 6M11 4h3M11 16h3' },
+  { kind: 'compact', label: 'Compact tree', sub: 'What hangs off each device, listed below it', glyph: 'M3 3h5M5 3v14M5 8h4M5 12h4M5 16h4' },
+  { kind: 'radial', label: 'Radial', sub: 'Core in the middle, rings outward', glyph: 'M10 10m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 2v4M10 14v4M2 10h4M14 10h4' },
+  { kind: 'circular', label: 'Circular', sub: 'Every device on one ring', glyph: 'M10 2a8 8 0 1 0 0.01 0' },
+];
+
+/** Design → Re-Layout Page (Visio): lay the selection (or the whole page) out in one of several styles. */
+function ReLayoutPage() {
+  const arrange = useAutoArrange();
+  const [spacing, setSpacing] = useState(1);
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={250} trigger={(open, isOpen) => <Big icon="arrange" label="Re-Layout Page" onClick={open} active={isOpen} title="Lay out devices by how they are cabled (the selection, or the whole page)" />}>
+        {(close) => (
+          <div className="p-1 text-xs">
+            {LAYOUTS.map((l) => (
+              <button key={l.kind} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-blue-50" onClick={() => { arrange(l.kind, spacing); close(); }}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-gray-700"><path d={l.glyph} /></svg>
+                <span><span className="block font-medium text-gray-900">{l.label}</span><span className="text-[10px] text-gray-500">{l.sub}</span></span>
+              </button>
+            ))}
+            <label className="mt-1 flex items-center gap-2 border-t border-gray-100 px-2 pt-2 text-gray-600">
+              Spacing
+              <select className="rounded border border-gray-300 px-1 py-0.5" value={spacing} onChange={(e) => setSpacing(Number(e.target.value))}>
+                <option value={0.6}>Tight</option><option value={1}>Normal</option><option value={1.6}>Wide</option>
+              </select>
+            </label>
+            <p className="px-2 pt-1 text-[10px] text-gray-400">Devices under one switch are put in the order of the ports they use, so their cables don&apos;t cross. Undo with Ctrl+Z.</p>
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
 /** Design → Themes: a row of theme swatches; click applies to this page, the menu applies to every page. */
 function ThemeGallery() {
   const project = useCurrentProject();
@@ -817,6 +855,9 @@ function DesignTab() {
         </Column>
         <Big icon="scale" label="Set Scale" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))} title={page.scale ? 'Set the drawing scale again' : 'Set the drawing scale from two points on a floor plan'} active={!!page.scale} />
         <Big icon="titleBlock" label="Title Block" active={!!tb?.show} onClick={() => s.updateTitleBlock({ show: !tb?.show })} title="Title block on every printed / PDF sheet (edit it in the panel with nothing selected)" />
+      </Group>
+      <Group label="Layout">
+        <ReLayoutPage />
       </Group>
       <Group label="Themes">
         <ThemeGallery />
