@@ -338,7 +338,7 @@ function Canvas() {
   }, [duplicateSelected, rf]);
 
   return (
-    <div className="relative flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
+    <div className="relative flex-1" style={{ fontFamily: project.display?.font }} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
       {rulers && <Rulers />}
       <div className="absolute inset-0" style={rulers ? { left: RULER, top: RULER } : undefined}>
       <ReactFlow<AppNode, CableEdge>

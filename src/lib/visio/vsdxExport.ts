@@ -68,8 +68,11 @@ function loadPicture(src: string): Promise<{ w: number; h: number }> {
 
 /** Visio text settings for an item's own font (Home → Font), falling back to the usual size / weight. */
 function vLook(l: TextLook, defPt: number, defBold = false) {
-  return { sizePt: l.fontSize ? pt(l.fontSize) : defPt, bold: l.bold ?? defBold, italic: l.italic, underline: l.underline, strike: l.strike, font: l.fontFamily };
+  return { sizePt: l.fontSize ? pt(l.fontSize) : defPt, bold: l.bold ?? defBold, italic: l.italic, underline: l.underline, strike: l.strike, font: l.fontFamily ?? clientFont, ...(l.textColor ? { color: l.textColor } : {}) };
 }
+
+/** Design → Fonts of the client being exported (set at the start of each export). */
+let clientFont: string | undefined;
 
 /** The kept part of a cropped picture, as a PNG data URL. */
 function cropPicture(src: string, size: { w: number; h: number }, c: Crop): Promise<string> {
@@ -88,6 +91,7 @@ function cropPicture(src: string, size: { w: number; h: number }, c: Crop): Prom
 }
 
 export async function exportVsdx(project: Project, ctx: ExportContext): Promise<Uint8Array> {
+  clientFont = project.display?.font;
   const media: Record<string, Uint8Array> = {};
   const mediaFor = new Map<string, string>(); // picture key → file name
   const addMedia = async (key: string, src: string, w: number, h: number) => {
@@ -180,7 +184,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const style = { fill: d.fill === 'transparent' ? null : d.fill, fillTransparency: d.fillTransparency ? d.fillTransparency / 100 : undefined, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, pattern: patternOf(d), lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
           const listed = listLines(d.text ?? '', d.list);
           const shown = listed ? listed.map((l) => (l.mark ? `${l.mark} ${l.text}` : l.text)).join('\n') : d.text;
-          const text = d.text ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, strike: d.strike, align: d.align, valign: d.valign, font: d.fontFamily } : undefined;
+          const text = d.text ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, strike: d.strike, align: d.align, valign: d.valign, font: d.fontFamily ?? clientFont } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
@@ -205,7 +209,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
                 const head = d.headerRow && r === 0;
                 const v = row[c] ?? '';
                 front.push({ kind: 'rect', name: 'Table cell', box: { x: bb.x + c * cw, y: bb.y + r * rh, w: cw, h: rh }, fill: head ? '#E5E7EB' : d.fill === 'transparent' ? null : d.fill, line, lineWeightPt: 0.75,
-                  text: v ? { text: expandFields(v, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: head || d.bold, align: d.align ?? 'left', valign: 'middle', font: d.fontFamily } : undefined });
+                  text: v ? { text: expandFields(v, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: head || d.bold, align: d.align ?? 'left', valign: 'middle', font: d.fontFamily ?? clientFont } : undefined });
               }
             });
           } else if (d.kind === 'freeform') {
@@ -348,7 +352,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       if (text) {
         const mid = path.getPointAtLength(total * (d.labelAt ?? 0.5));
         const w = Math.max(0.4, text.length * 0.055);
-        texts.push({ kind: 'rect', box: { x: X(mid.x) - w / 2, y: Y(mid.y) - 0.08, w, h: 0.16 }, fill: '#FFFFFF', line: st.color, lineWeightPt: 0.5, text: { text, ...vLook(d, 6.5), color: st.color } });
+        texts.push({ kind: 'rect', box: { x: X(mid.x) - w / 2, y: Y(mid.y) - 0.08, w, h: 0.16 }, fill: '#FFFFFF', line: st.color, lineWeightPt: 0.5, text: { text, color: st.color, ...vLook(d, 6.5) } });
       }
     }
 

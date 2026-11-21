@@ -173,7 +173,7 @@ interface DiagramState {
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
    */
-  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean; textColor?: string; format?: ShapeFormat }) => void;
+  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean; textColor?: string | null; format?: ShapeFormat }) => void;
   /** Adds a callout; with `target` its leader line points at that item and it moves with it. */
   addCallout: (position: { x: number; y: number }, target?: string) => void;
   /** Moves nodes on the active page to new positions (one undo step). */
@@ -1204,26 +1204,27 @@ export const useDiagram = create<DiagramState>()(
                   data: {
                     ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}), ...fmt,
                     ...(weight !== undefined ? { lineWidth: weight ?? undefined } : {}), ...(shadow !== undefined ? { shadow: shadow || undefined } : {}),
-                    ...(textColor ? { textColor } : {}),
+                    ...(textColor !== undefined ? { textColor: textColor ?? theme()?.text ?? '#111827' } : {}),
                     ...(format ? { ...format, ...(format.linePattern ? { dashed: undefined } : {}) } : {}),
                     ...(list !== undefined ? { list: list ?? undefined } : {}),
                     ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
                   },
                 };
               }
-              if ((n.type === 'device' || n.type === 'zone' || n.type === 'note') && text) {
-                const look = lookPatch(text, n.data.fontSize ?? TEXT_DEFAULT_SIZE[n.type]);
-                n = { ...n, data: { ...n.data, ...look } } as AppNode;
+              if ((n.type === 'device' || n.type === 'zone' || n.type === 'note') && (text || textColor !== undefined)) {
+                const look = text ? lookPatch(text, n.data.fontSize ?? TEXT_DEFAULT_SIZE[n.type]) : {};
+                n = { ...n, data: { ...n.data, ...look, ...(textColor !== undefined ? { textColor: textColor ?? undefined } : {}) } } as AppNode;
               }
               if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
               if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line || format?.linePattern)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}), ...(format?.linePattern ? { linePattern: format.linePattern, dashed: format.linePattern !== 'solid' || undefined } : {}) } };
               return n;
             }),
-            edges: line === undefined && weight === undefined && !text ? pg.edges : pg.edges.map((e) => (e.selected ? {
+            edges: line === undefined && weight === undefined && !text && textColor === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? {
               ...e,
               data: {
                 ...(e.data as CableData), ...(line !== undefined ? { color: line ?? undefined } : {}), ...(weight !== undefined ? { weight: weight ?? undefined } : {}),
                 ...(text ? lookPatch(text, (e.data as CableData | undefined)?.fontSize ?? TEXT_DEFAULT_SIZE.cable) : {}),
+                ...(textColor !== undefined ? { textColor: textColor ?? undefined } : {}),
               },
             } : e)),
           });

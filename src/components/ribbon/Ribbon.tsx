@@ -538,6 +538,13 @@ function HomeTab() {
           <FmtBtn label="Strikethrough" active={fmtOn('strike')} disabled={!anyText} onClick={() => s.styleSelection({ text: { strike: !fmtOn('strike') } })}><s>ab</s></FmtBtn>
           <FmtBtn label="Larger text (Ctrl+Shift+>)" disabled={!anyText} onClick={() => s.styleSelection({ text: { sizeDelta: 2 } })}>A<sup>+</sup></FmtBtn>
           <FmtBtn label="Smaller text (Ctrl+Shift+<)" disabled={!anyText} onClick={() => s.styleSelection({ text: { sizeDelta: -2 } })}>A<sup>−</sup></FmtBtn>
+          <Drop trigger={(open) => (
+            <FmtBtn label="Font Color" disabled={!anyText} onClick={open}>
+              <span className="flex flex-col items-center leading-none"><span className="text-[11px] font-semibold">A</span><span className="mt-px h-[3px] w-3.5 rounded-sm" style={{ background: looks[0]?.textColor ?? '#dc2626' }} /></span>
+            </FmtBtn>
+          )}>
+            {(close) => <Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ textColor: c ?? null }); close(); }} />}
+          </Drop>
         </div>
         </div>
       </Group>
@@ -1060,9 +1067,34 @@ function QuickStyles({ disabled }: { disabled: boolean }) {
   );
 }
 
+/** Design → Fonts (Visio's theme fonts): one font for all the client's text that has no font of its own. */
+function FontsMenu() {
+  const project = useCurrentProject();
+  const cur = project.display?.font;
+  const pick = (f?: string) => { useDiagram.getState().snapshot(); useDiagram.getState().setDisplay({ font: f }); };
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={240} trigger={(open, isOpen) => <Big icon="text" label="Fonts" onClick={open} active={isOpen || !!cur} title="One font for the whole client's diagram: labels, shapes, zones, notes and cables (like Visio's theme fonts)" />}>
+        {(close) => (
+          <div className="max-h-80 overflow-y-auto py-1">
+            {[undefined, ...FONTS].map((f) => (
+              <button key={f ?? 'default'} className={`flex w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-blue-50 ${cur === f ? 'bg-blue-50' : ''}`} onClick={() => { pick(f); close(); }}>
+                <span className="w-8 text-xl leading-none" style={{ fontFamily: f }}>Aa</span>
+                <span className="text-xs" style={{ fontFamily: f }}>{f ?? 'App default (Segoe UI)'}</span>
+                {cur === f && <span className="ml-auto text-blue-600">✓</span>}
+              </button>
+            ))}
+            <p className="px-3 pt-1 text-[10px] text-gray-400">Items with their own font (Home → Font) keep it. Prints, PDFs, pictures and Visio exports use it too.</p>
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
 /** The font settings of everything selected that has text (for showing the current font, size and B/I/U). */
 function textLooks(page: Page) {
-  const out: { fontFamily?: string; size: number; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean }[] = [];
+  const out: { fontFamily?: string; textColor?: string; size: number; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean }[] = [];
   for (const n of page.nodes) {
     if (!n.selected) continue;
     if (n.type === 'shape') out.push({ ...n.data, size: n.data.fontSize });
@@ -1267,6 +1299,7 @@ function DesignTab() {
       </Group>
       <Group label="Themes">
         <ThemeGallery />
+        <FontsMenu />
       </Group>
       <Group label="Connectors">
         <Column>

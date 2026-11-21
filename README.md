@@ -109,6 +109,10 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   type a font name and press Enter. **Size**: pick, or type any size from 6 to 144 and press Enter.
 - Shortcuts like Office: **Ctrl+B / Ctrl+I / Ctrl+U**, and **Ctrl+Shift+>** / **Ctrl+Shift+<** for larger / smaller.
 - Visio exports keep each item's font, size and style.
+- **Font Color** (the red A, Home → Font) colours the text of shapes, device labels, cable labels, zone titles and notes;
+  **Automatic** puts the usual colour back.
+- **Design → Fonts** (like Visio's theme fonts) sets one font for the whole client; anything given its own font on the
+  Home tab keeps it. Prints, PDFs, pictures and Visio exports use it too.
 
 ## Symbols, strikethrough and Center Drawing
 

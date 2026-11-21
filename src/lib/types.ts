@@ -196,6 +196,8 @@ export const DEFAULT_LABEL_FIELDS: DeviceLabelField[] = ['name', 'ip'];
 /** Font of an item's own text (device label, zone title, note, cable label); missing = the usual look. */
 export interface TextLook {
   fontFamily?: string;
+  /** Font colour; missing = the item's usual colour. */
+  textColor?: string;
   fontSize?: number;
   bold?: boolean;
   italic?: boolean;
@@ -204,10 +206,11 @@ export interface TextLook {
 }
 
 /** CSS for a TextLook (only what is set). */
-export function lookStyle(l: TextLook): { fontFamily?: string; fontSize?: number; fontWeight?: number; fontStyle?: string; textDecoration?: string } {
+export function lookStyle(l: TextLook): { color?: string; fontFamily?: string; fontSize?: number; fontWeight?: number; fontStyle?: string; textDecoration?: string } {
   const deco = [l.underline && 'underline', l.strike && 'line-through'].filter(Boolean).join(' ');
   return {
     ...(l.fontFamily ? { fontFamily: l.fontFamily } : {}),
+    ...(l.textColor ? { color: l.textColor } : {}),
     ...(l.fontSize ? { fontSize: l.fontSize } : {}),
     ...(l.bold !== undefined ? { fontWeight: l.bold ? 700 : 400 } : {}),
     ...(l.italic ? { fontStyle: 'italic' } : {}),
@@ -425,6 +428,8 @@ export interface DisplaySettings {
   lineJumps?: boolean;
   /** Data Graphics (Visio): fields shown as small tags or icons on every device. */
   dataGraphics?: DataGraphic[];
+  /** Design → Fonts: the client's font for all text that has no font of its own; missing = the app font. */
+  font?: string;
 }
 
 export interface DataGraphic {
