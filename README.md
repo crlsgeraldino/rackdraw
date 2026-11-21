@@ -129,6 +129,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Splitting a cable, reversing ends
+
+- **Drop a device onto a cable** (dragged from the Shapes window, or an unconnected device moved onto it) and the cable
+  is split through it, like Visio: A→B becomes A→device→B, using the device's free ports nearest each end. Cable
+  type, colour and VLAN carry over to both halves; the label stays on the first. One Ctrl+Z undoes it.
+- **Reverse ends** (right-click a cable) swaps its two ends; one-way arrows turn round with it.
+
 ## CAD floor plans (Insert → CAD Drawing)
 
 - Like Visio's Insert CAD Drawing: pick an AutoCAD **.dxf** file and it goes behind the page as a crisp vector

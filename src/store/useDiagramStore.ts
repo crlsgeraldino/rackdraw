@@ -86,6 +86,13 @@ interface DiagramState {
   // elements
   addStencil: (stencilId: string, position: { x: number; y: number }) => void;
   addZone: (position: { x: number; y: number }) => void;
+  /**
+   * Splits a cable at an item dropped on it (Visio): A→B becomes A→item→B, keeping the cable's type, colour and VLAN.
+   * No undo step of its own (the drag that dropped the item took one).
+   */
+  splitCable: (edgeId: string, nodeId: string, inHandle: string, outHandle: string) => void;
+  /** Reverse Ends (Visio): swaps the ends of the given cables (and their arrows). */
+  reverseCables: (ids: string[]) => void;
   /** Insert a zone round the selection (Visio's container from selection), with room for its title. Returns its id. */
   wrapInZone: (title?: string) => string | null;
   /** Space Shapes (Visio): puts exactly `gap` px between neighbouring selected items, left to right or top to bottom. */
@@ -700,6 +707,29 @@ export const useDiagram = create<DiagramState>()(
             data: { title: 'Server room', color: theme()?.zones[0] ?? '#3b82f6' },
           };
           commit({ nodes: [node, ...page().nodes] });
+        },
+        splitCable: (edgeId, nodeId, inHandle, outHandle) => {
+          const pg = page();
+          const e = pg.edges.find((x) => x.id === edgeId);
+          if (!e) return;
+          const d = (e.data ?? { cable: 'Cat6' }) as CableData;
+          // The label, length and label position stay with the first half.
+          const rest: CableData = { ...d, label: undefined, length: undefined, labelAt: undefined, showLength: undefined };
+          const a: CableEdge = { ...e, id: `e-${uid()}`, target: nodeId, targetHandle: inHandle, selected: false, data: d };
+          const b: CableEdge = { ...e, id: `e-${uid()}`, source: nodeId, sourceHandle: outHandle, selected: false, data: rest };
+          commit({ edges: [...pg.edges.filter((x) => x.id !== edgeId), a, b] });
+        },
+        reverseCables: (ids) => {
+          const set = new Set(ids);
+          if (!set.size) return;
+          get().snapshot();
+          const flip = { start: 'end', end: 'start' } as const;
+          commit({ edges: page().edges.map((e) => {
+            if (!set.has(e.id)) return e;
+            const d = (e.data ?? { cable: 'Cat6' }) as CableData;
+            const arrows = d.arrows === 'start' || d.arrows === 'end' ? flip[d.arrows] : d.arrows;
+            return { ...e, source: e.target, target: e.source, sourceHandle: e.targetHandle, targetHandle: e.sourceHandle, data: { ...d, arrows, labelAt: d.labelAt !== undefined ? 1 - d.labelAt : undefined } };
+          }) });
         },
         wrapInZone: (title) => {
           const pg = page();

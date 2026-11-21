@@ -84,6 +84,8 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
       { label: `${route === 'straight' ? '✓ ' : ''}Straight`, run: () => setRoute('straight') },
       { label: `${route === 'curved' ? '✓ ' : ''}Curved`, run: () => setRoute('curved') },
       'sep',
+      { label: 'Reverse ends', run: () => s.reverseCables(page.edges.filter((e) => e.selected || e.id === edge.id).map((e) => e.id)) },
+      'sep',
       { label: 'Copy format', run: () => s.copyFormat() },
       { label: `Paste format${fmt ? ` (${fmt})` : ''}`, run: () => s.pasteFormat(), disabled: fmt !== 'cable' },
       'sep',

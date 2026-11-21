@@ -20,7 +20,7 @@ import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
 import { NumberShapesDialog } from './NumberShapesDialog';
 import { useFollowLink } from './NodeBadges';
-import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
+import { AutoConnectArrows, captureCableRoutes, DrawOverlay, GuidesLayer, PresentBar, splitCableAtDrop } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
 import { setPainter, usePainter } from '@/lib/tools';
 import { EDIT_TEXT_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
@@ -286,6 +286,8 @@ function Canvas() {
   }, []);
   useClipboardEvents();
 
+  // Cable routes when a drag starts (for dropping an item onto a cable to split it).
+  const routesAtDrag = useRef<Map<string, { x: number; y: number }[]> | null>(null);
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const id = e.dataTransfer.getData(DND_TYPE);
@@ -301,7 +303,11 @@ function Canvas() {
     if (id.startsWith('__shape:')) return addShape(id.slice(8) as ShapeKind, pos);
     const s = getStencil(id);
     if (!s) return;
+    const routes = captureCableRoutes();
     addStencil(id, { x: pos.x - (s.width * s.scale) / 2, y: pos.y - (s.height * s.scale) / 2 });
+    // Dropped across a cable: split it through the new device once it's drawn.
+    const made = activePage(useDiagram.getState().projects[useDiagram.getState().currentId]).nodes.at(-1);
+    if (made) setTimeout(() => { if (splitCableAtDrop(rf, made.id, routes)) useDiagram.getState().selectIds([made.id]); }, 250);
   }, [rf, addStencil, addZone, addNote, addShape]);
 
   // Keyboard shortcuts (outside of text fields).
@@ -390,7 +396,8 @@ function Canvas() {
         nodesDraggable={!presenting}
         nodesConnectable={!presenting}
         elementsSelectable={!presenting}
-        onNodeDragStart={snapshot}
+        onNodeDragStart={(_, n, dragged) => { snapshot(); routesAtDrag.current = dragged.length === 1 && n.type !== 'backdrop' ? captureCableRoutes() : null; }}
+        onNodeDragStop={(_, n, dragged) => { if (dragged.length === 1 && routesAtDrag.current && !n.id.startsWith('bg:')) splitCableAtDrop(rf, n.id, routesAtDrag.current); routesAtDrag.current = null; }}
         onNodeClick={(_, n) => {
           if (presenting && n.type !== 'backdrop' && n.data.link) follow(n.data.link);
           else if (usePainter.getState().on && n.type !== 'backdrop') paintOnto('node', n.id);

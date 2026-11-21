@@ -195,6 +195,78 @@ export function DrawOverlay() {
   );
 }
 
+type PortXY = { id: string; x: number; y: number };
+
+/** An item's ports on the canvas (diagram coordinates), and which are free on the page (ignoring one cable). */
+function portsOf(rf: ReturnType<typeof useReactFlow<AppNode>>, edges: { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; id: string }[], id: string, ignore?: string) {
+  const n = rf.getInternalNode(id);
+  if (!n) return { all: [] as PortXY[], free: [] as PortXY[] };
+  const pos = n.internals.positionAbsolute;
+  const used = new Set(edges.filter((e) => e.id !== ignore).flatMap((e) => [e.source === id ? e.sourceHandle : null, e.target === id ? e.targetHandle : null]).filter(Boolean));
+  const seen = new Set<string>();
+  const all = [...(n.internals.handleBounds?.source ?? []), ...(n.internals.handleBounds?.target ?? [])]
+    .filter((h) => h.id && !seen.has(h.id) && seen.add(h.id))
+    .map((h) => ({ id: h.id!, x: pos.x + h.x + h.width / 2, y: pos.y + h.y + h.height / 2 }));
+  // Drawing shapes' sides take any number of lines.
+  const shared = n.type === 'shape';
+  return { all, free: shared ? all : all.filter((h) => !used.has(h.id)) };
+}
+
+/**
+ * Drop on a cable (Visio): when one device or shape with no cables of its own is dropped across a cable, the cable
+ * is split through it, using the item's free ports nearest each end. Returns true when it split one.
+ */
+/**
+ * Where every cable on the canvas runs, sampled every 8px (ends left out). Taken before an item is dragged or dropped:
+ * cables route round items, so once the item is in place they no longer run under it.
+ */
+export function captureCableRoutes(): Map<string, { x: number; y: number }[]> {
+  const out = new Map<string, { x: number; y: number }[]>();
+  document.querySelectorAll<SVGPathElement>('.react-flow__edge path.react-flow__edge-path').forEach((path) => {
+    const id = path.closest<SVGElement>('.react-flow__edge')?.getAttribute('data-id');
+    if (!id || id.startsWith('bg:')) return;
+    const len = path.getTotalLength();
+    const pts: { x: number; y: number }[] = [];
+    // Not near either end: dropping a device beside a cable's end isn't a split.
+    for (let t = 24; t < len - 24; t += 8) { const q = path.getPointAtLength(t); pts.push({ x: q.x, y: q.y }); }
+    out.set(id, pts);
+  });
+  return out;
+}
+
+export function splitCableAtDrop(rf: ReturnType<typeof useReactFlow<AppNode>>, nodeId: string, routes?: Map<string, { x: number; y: number }[]>): boolean {
+  const s = useDiagram.getState();
+  const pg = s.projects[s.currentId].pages.find((p) => p.id === s.projects[s.currentId].activePageId);
+  const n = rf.getInternalNode(nodeId);
+  if (!pg || !n || (n.type !== 'device' && n.type !== 'shape')) return false;
+  if (n.type === 'shape' && ['text', 'callout', 'table', 'image', 'door', 'window', 'freeform', 'offpage'].includes((n.data as { kind?: string }).kind ?? '')) return false;
+  if (pg.edges.some((e) => e.source === nodeId || e.target === nodeId)) return false;
+  const w = n.measured.width ?? 0, h = n.measured.height ?? 0;
+  const c = { x: n.internals.positionAbsolute.x + w / 2, y: n.internals.positionAbsolute.y + h / 2 };
+  const reach = Math.max(14, Math.min(w, h) / 2);
+  let best: { id: string; d: number } | null = null;
+  const runs = routes ?? captureCableRoutes();
+  // The cable must pass under the item: through its box, near the middle.
+  const inBox = (p: { x: number; y: number }) => Math.abs(p.x - c.x) <= Math.max(w / 2, reach) && Math.abs(p.y - c.y) <= Math.max(h / 2, reach);
+  for (const e of pg.edges) {
+    for (const p of runs.get(e.id) ?? []) {
+      if (!inBox(p)) continue;
+      const d = Math.hypot(p.x - c.x, p.y - c.y);
+      if (!best || d < best.d) best = { id: e.id, d };
+    }
+  }
+  if (!best) return false;
+  const e = pg.edges.find((x) => x.id === best!.id)!;
+  const mine = portsOf(rf, pg.edges, nodeId).free;
+  if (mine.length < 2) return false;
+  const at = (id: string, handle?: string | null) => portsOf(rf, pg.edges, id).all.find((p) => p.id === handle) ?? (() => { const o = rf.getInternalNode(id); return o ? { id: '', x: o.internals.positionAbsolute.x + (o.measured.width ?? 0) / 2, y: o.internals.positionAbsolute.y + (o.measured.height ?? 0) / 2 } : c; })();
+  const near = (list: PortXY[], q: { x: number; y: number }) => list.reduce((b, p) => (Math.hypot(p.x - q.x, p.y - q.y) < Math.hypot(b.x - q.x, b.y - q.y) ? p : b));
+  const pin = near(mine, at(e.source, e.sourceHandle));
+  const pout = near(mine.filter((p) => p.id !== pin.id), at(e.target, e.targetHandle));
+  s.splitCable(e.id, nodeId, pin.id, pout.id);
+  return true;
+}
+
 /** Full Screen: page name, page n of m, and how to move on / leave. Fades to the corner. */
 export function PresentBar() {
   const s = useDiagram();
