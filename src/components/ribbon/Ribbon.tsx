@@ -628,8 +628,22 @@ function HomeTab() {
           <AlignBtn label="Distribute vertically" mode="dist-v" disabled={st.movable < 3} onClick={() => s.distributeSelected('v')} />
         </div>
         <Column>
-          <Small icon="front" label="Bring to Front" onClick={() => s.orderSelected('front')} disabled={!st.count} title="Bring to front (Ctrl+Shift+F)" />
-          <Small icon="back" label="Send to Back" onClick={() => s.orderSelected('back')} disabled={!st.count} title="Send to back (Ctrl+Shift+B)" />
+          <Drop width={190} trigger={(open) => <Small icon="front" label="Bring ▾" onClick={open} disabled={!st.count} title="Bring to Front (Ctrl+Shift+F) or Bring Forward one step" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                <button className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.orderSelected('front'); close(); }}>Bring to Front <span className="text-gray-400">Ctrl+Shift+F</span></button>
+                <button className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.orderStep('forward'); close(); }}>Bring Forward</button>
+              </div>
+            )}
+          </Drop>
+          <Drop width={190} trigger={(open) => <Small icon="back" label="Send ▾" onClick={open} disabled={!st.count} title="Send to Back (Ctrl+Shift+B) or Send Backward one step" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                <button className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.orderSelected('back'); close(); }}>Send to Back <span className="text-gray-400">Ctrl+Shift+B</span></button>
+                <button className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.orderStep('backward'); close(); }}>Send Backward</button>
+              </div>
+            )}
+          </Drop>
           <Small icon="arrange" label="Auto-arrange" onClick={() => autoArrange()} title="Lay out devices top-down by cabling (selection, or whole page)" />
         </Column>
         <Column>
@@ -669,6 +683,7 @@ function HomeTab() {
               </div>
             )}
           </Drop>
+          <ProtectionMenu count={st.count} />
         </Column>
       </Group>
       <Group label="Editing">
@@ -1281,6 +1296,33 @@ function PageLookMenus() {
         </Drop>
       </div>
     </>
+  );
+}
+
+/** Arrange → Protection (Visio's shape protection): lock text, make items unselectable, and undo that for the page. */
+function ProtectionMenu({ count }: { count: number }) {
+  const s = useDiagram.getState();
+  const page = useCurrentPage();
+  const sel = page.nodes.filter((n) => n.selected && n.type !== 'backdrop');
+  const textOn = sel.length > 0 && sel.every((n) => n.type !== 'backdrop' && !!n.data.lockText);
+  const protectedCount = page.nodes.filter((n) => n.type !== 'backdrop' && n.data.noSelect).length;
+  return (
+    <Drop width={250} trigger={(open) => <Small icon="lock" label="Protection ▾" onClick={open} title="Protect the selection: lock its text, or stop it being selected (like Visio's shape protection)" />}>
+      {(close) => (
+        <div className="py-1 text-xs">
+          <button className="block w-full px-3 py-1 text-left hover:bg-blue-50 disabled:opacity-40" disabled={!count} onClick={() => { s.setProtection({ lockText: !textOn }); close(); }}>
+            {textOn ? '✓ ' : ''}Lock text <span className="text-gray-400">(no editing on the drawing)</span>
+          </button>
+          <button className="block w-full px-3 py-1 text-left hover:bg-blue-50 disabled:opacity-40" disabled={!count} onClick={() => { s.setProtection({ noSelect: true }); close(); }}>
+            Make unselectable <span className="text-gray-400">(clicks go through)</span>
+          </button>
+          <button className="mt-1 block w-full border-t border-gray-100 px-3 py-1.5 text-left hover:bg-blue-50 disabled:opacity-40" disabled={!protectedCount} onClick={() => { s.allowSelectAll(); close(); }}>
+            Allow selecting all{protectedCount ? ` (${protectedCount} on this page)` : ''}
+          </button>
+          <p className="px-3 pt-1 text-[10px] text-gray-400">Lock (beside Group) stops moving, resizing and deleting.</p>
+        </div>
+      )}
+    </Drop>
   );
 }
 

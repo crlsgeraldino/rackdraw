@@ -129,6 +129,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Stacking order and protection (Home → Arrange)
+
+- **Bring ▾** / **Send ▾**: Bring to Front / Send to Back (Ctrl+Shift+F / Ctrl+Shift+B), or **Bring Forward** /
+  **Send Backward** one step, past the next item it overlaps (like Visio).
+- **Protection ▾** (like Visio's shape protection): **Lock text** stops the text being edited on the drawing;
+  **Make unselectable** lets clicks go through an item (a background frame, a logo, a floor-plan outline) so you
+  can work on what's on top. **Allow selecting all** makes everything on the page selectable again.
+
 ## Flip and Same Size (Home → Arrange)
 
 - **Flip ▾ → Flip Horizontal / Flip Vertical** mirrors the selection as a group: items swap sides around its centre.

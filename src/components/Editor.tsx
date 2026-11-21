@@ -180,6 +180,8 @@ function Canvas() {
       const layer = (n.type === 'device' || n.type === 'shape' || n.type === 'measure') ? n.data.layer : undefined;
       // ScreenTip (Insert → ScreenTip): hover text. Devices show theirs in the quick info card instead.
       if (n.type !== 'device' && n.type !== 'backdrop' && n.data.tip) n = { ...n, domAttributes: { title: n.data.tip } } as AppNode;
+      // Protection → can't be selected: clicks go through to what's behind.
+      if (n.type !== 'backdrop' && n.data.noSelect) n = { ...n, selectable: false, draggable: false, deletable: false, selected: false, className: [n.className, 'nc-noselect'].filter(Boolean).join(' ') } as AppNode;
       if (!layer) return n;
       if (display.hidden.has(layer)) return { ...n, hidden: true };
       const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);

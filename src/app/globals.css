@@ -98,3 +98,7 @@ body {
 
 /* Format Painter: a paintbrush-style cursor over everything that can take the format. */
 .nc-painting .react-flow__pane, .nc-painting .react-flow__node, .nc-painting .react-flow__edge { cursor: copy !important; }
+
+/* Protection: items that can't be selected let clicks through. */
+.react-flow__node.nc-noselect { pointer-events: none !important; }
+.react-flow__node.nc-noselect * { pointer-events: none !important; }

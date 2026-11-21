@@ -102,7 +102,7 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
           : variant === 'icon' ? 'top-full mt-1 flex w-40 flex-col items-center text-center' : 'left-0 top-full mt-1 flex gap-2 whitespace-nowrap'}`}
       style={{ translate: `${off.x}px ${off.y}px`, ...lookStyle(data) }}
       {...(editing ? {} : drag)}
-      onDoubleClick={(e) => { if (data.locked || id.startsWith('bg:')) return; e.stopPropagation(); setEditing(true); }}
+      onDoubleClick={(e) => { if (data.locked || data.lockText || id.startsWith('bg:')) return; e.stopPropagation(); setEditing(true); }}
       title={data.locked ? undefined : 'Drag to move the label · double-click to rename'}
     >
       {editing ? (
@@ -329,6 +329,7 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
         style={lookStyle(data)}
         rows={Math.max(2, data.text.split('\n').length)}
         value={data.text}
+        readOnly={!!data.lockText}
         onChange={(e) => update(id, { text: e.target.value })}
       />
     </div>
@@ -490,14 +491,14 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   };
   const listed = listLines(shownText ?? '', data.list);
   useEffect(() => {
-    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked && !isTable) { snapshot(); setEditing(true); } };
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked && !data.lockText && !isTable) { snapshot(); setEditing(true); } };
     window.addEventListener(EDIT_TEXT_EVENT, on);
     return () => window.removeEventListener(EDIT_TEXT_EVENT, on);
-  }, [id, data.locked, snapshot, isTable]);
+  }, [id, data.locked, data.lockText, snapshot, isTable]);
   // A turned shape gets its own resize handles, turned with it (React Flow's only work square to the page).
   const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (
-    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { if (data.kind === 'offpage') goToPair(); else if (!isTable) { snapshot(); setEditing(true); } }}>
+    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { if (data.kind === 'offpage') goToPair(); else if (!isTable && !data.lockText) { snapshot(); setEditing(true); } }}>
       <NodeResizer isVisible={selected && !data.locked && !turned} keepAspectRatio={data.kind === 'image'} minWidth={20} minHeight={14} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
@@ -593,7 +594,7 @@ function TableBody({ id, data }: { id: string; data: ShapeData }) {
                     className="overflow-hidden px-1.5 align-middle"
                     style={{ border, background: head ? `color-mix(in srgb, ${line} 16%, white)` : undefined, fontWeight: head || data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textAlign: data.align ?? 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                     onPointerDown={() => setActiveCell(id, r, c)}
-                    onDoubleClick={(e) => { e.stopPropagation(); if (data.locked) return; snapshot(); setActiveCell(id, r, c); setEdit({ r, c }); }}
+                    onDoubleClick={(e) => { e.stopPropagation(); if (data.locked || data.lockText) return; snapshot(); setActiveCell(id, r, c); setEdit({ r, c }); }}
                   >
                     {edit && edit.r === r && edit.c === c ? (
                       <textarea

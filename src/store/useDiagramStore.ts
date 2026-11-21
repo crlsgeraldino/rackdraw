@@ -140,6 +140,12 @@ interface DiagramState {
   groupSelected: () => void;
   ungroupSelected: () => void;
   orderSelected: (to: 'front' | 'back') => void;
+  /** Bring Forward / Send Backward: one step past the next overlapping item. */
+  orderStep: (dir: 'forward' | 'backward') => void;
+  /** Protection for the selection (text lock, can't be selected). */
+  setProtection: (patch: { lockText?: boolean; noSelect?: boolean }) => void;
+  /** Makes every item on the page selectable again. Returns how many were protected. */
+  allowSelectAll: () => number;
   setSelectionLocked: (locked: boolean) => void;
   /** Selects every visible item on the active page (Ctrl+A). */
   selectAll: () => void;
@@ -973,6 +979,55 @@ export const useDiagram = create<DiagramState>()(
             }),
           });
         },
+        orderStep: (dir) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
+          if (!sel.length) return;
+          // Stacking order: zIndex, then position in the list.
+          const stack = pg.nodes.map((n, i) => ({ n, i })).filter(({ n }) => n.type !== 'backdrop').sort((a, b) => (a.n.zIndex ?? 0) - (b.n.zIndex ?? 0) || a.i - b.i).map(({ n }) => n);
+          const box = (n: AppNode) => { const m = nodeSize(n); return { x0: n.position.x, y0: n.position.y, x1: n.position.x + m.w, y1: n.position.y + m.h }; };
+          const overlap = (a: AppNode, b: AppNode) => { const p = box(a), q = box(b); return p.x0 < q.x1 && q.x0 < p.x1 && p.y0 < q.y1 && q.y0 < p.y1; };
+          const order = [...stack];
+          const items = dir === 'forward' ? [...sel].sort((a, b) => order.indexOf(b) - order.indexOf(a)) : [...sel].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+          const z = new Map<string, number>();
+          let moved = false;
+          for (const it of items) {
+            const at = order.indexOf(it);
+            const range = dir === 'forward' ? order.slice(at + 1) : order.slice(0, at).reverse();
+            // Past the next item it overlaps (or simply the next one up / down when nothing overlaps).
+            const past = range.find((o) => !o.selected && overlap(o, it)) ?? range.find((o) => !o.selected);
+            if (!past) continue;
+            order.splice(at, 1);
+            const j = order.indexOf(past);
+            order.splice(dir === 'forward' ? j + 1 : j, 0, it);
+            z.set(it.id, past.zIndex ?? 0);
+            moved = true;
+          }
+          if (!moved) return;
+          get().snapshot();
+          const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+          const backdrops = pg.nodes.filter((n) => n.type === 'backdrop');
+          commit({ nodes: [...backdrops, ...order.map((n) => { const v = byId.get(n.id)!; return z.has(n.id) ? { ...v, zIndex: z.get(n.id) } : v; })] });
+        },
+        setProtection: (patch) => {
+          const pg = page();
+          if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => {
+            if (!n.selected || n.type === 'backdrop') return n;
+            const data = { ...n.data } as Record<string, unknown>;
+            for (const [k, v] of Object.entries(patch)) data[k] = v || undefined;
+            return { ...n, data, ...(patch.noSelect ? { selected: false } : {}) } as AppNode;
+          }) });
+        },
+        allowSelectAll: () => {
+          const pg = page();
+          const count = pg.nodes.filter((n) => n.type !== 'backdrop' && n.data.noSelect).length;
+          if (!count) return 0;
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => (n.type !== 'backdrop' && n.data.noSelect ? ({ ...n, data: { ...n.data, noSelect: undefined } } as AppNode) : n)) });
+          return count;
+        },
         orderSelected: (to) => {
           const pg = page();
           const isSel = (n: AppNode) => !!n.selected && n.type !== 'backdrop';
@@ -1172,7 +1227,7 @@ export const useDiagram = create<DiagramState>()(
         },
         selectIds: (ids, add) => {
           const pg = page();
-          const want = new Set(ids);
+          const want = new Set(ids.filter((id) => { const n = pg.nodes.find((x) => x.id === id); return !(n && n.type !== 'backdrop' && n.data.noSelect); }));
           const nodes = pg.nodes.map((n) => {
             const sel = want.has(n.id) || (!!add && !!n.selected);
             return !!n.selected === sel ? n : { ...n, selected: sel };
@@ -1305,7 +1360,7 @@ export const useDiagram = create<DiagramState>()(
         },
         selectAll: () =>
           commit({
-            nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected ? n : { ...n, selected: true })),
+            nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected || n.data.noSelect ? n : { ...n, selected: true })),
             edges: page().edges.map((e) => (e.selected ? e : { ...e, selected: true })),
           }),
         addCallout: (position, target) => {
