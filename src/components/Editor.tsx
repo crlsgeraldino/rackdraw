@@ -229,6 +229,7 @@ function Canvas() {
   }, []);
   const presenting = usePresenting((s) => s.on);
   const snap = usePref('snapToGrid');
+  const gridSize = usePref('gridSize') || 20;
   const navPane = usePref('navPane');
   const reconnecting = useRef<string | null>(null); // cable whose end is being moved
   const follow = useFollowLink();
@@ -401,7 +402,7 @@ function Canvas() {
         connectionMode={ConnectionMode.Loose}
         defaultEdgeOptions={{ type: 'cable' }}
         snapToGrid={snap}
-        snapGrid={[10, 10]}
+        snapGrid={[gridSize / 2, gridSize / 2]}
         disableKeyboardA11y
         deleteKeyCode={['Delete', 'Backspace']}
         multiSelectionKeyCode={['Shift', 'Control', 'Meta']}

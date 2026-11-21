@@ -8,7 +8,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode, patternOf, type LinePattern } from '@/lib/types';
+import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode, patternOf, type LinePattern, type ExtraLink } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
@@ -160,6 +160,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <ExtraFieldsEditor node={node} />
       <Field label="Location" value={d.location} onChange={set('location')} />
       <LinkField nodeId={node.id} value={d.link} />
+      <MoreLinks nodeId={node.id} links={d.moreLinks} />
       <div className="flex gap-2">
         <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
         <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
@@ -551,6 +552,30 @@ function LinkField({ nodeId, value }: { nodeId: string; value?: string }) {
   );
 }
 
+/** More hyperlinks for an item (Visio allows several): a name and an address each. */
+function MoreLinks({ nodeId, links }: { nodeId: string; links?: ExtraLink[] }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const follow = useFollowLink();
+  const list = links ?? [];
+  const set = (next: ExtraLink[]) => update(nodeId, { moreLinks: next.length ? next : undefined });
+  return (
+    <div className="mb-2">
+      {list.map((l, i) => (
+        <div key={i} className="mb-1 flex gap-1">
+          <input className="w-24 shrink-0 rounded border border-gray-300 px-1.5 py-1 text-xs outline-none focus:border-blue-500" placeholder="Name" value={l.label ?? ''} onFocus={snapshot}
+            onChange={(e) => set(list.map((x, j) => (j === i ? { ...x, label: e.target.value || undefined } : x)))} aria-label="Link name" />
+          <input className={`min-w-0 flex-1 rounded border px-1.5 py-1 text-xs outline-none ${l.address.trim() && !resolveLink(l.address) ? 'border-red-400' : 'border-gray-300 focus:border-blue-500'}`} placeholder="https://… or 192.168.1.1"
+            value={l.address} onFocus={snapshot} onChange={(e) => set(list.map((x, j) => (j === i ? { ...x, address: e.target.value } : x)))} aria-label="Link address" />
+          {resolveLink(l.address) && <button className="shrink-0 rounded border border-gray-300 px-1.5 text-[11px] text-blue-700 hover:bg-blue-50" onClick={() => follow(l.address)}>Open</button>}
+          <button className="shrink-0 px-1 text-gray-400 hover:text-red-600" aria-label="Remove link" onClick={() => { snapshot(); set(list.filter((_, j) => j !== i)); }}>✕</button>
+        </div>
+      ))}
+      <button className="text-[11px] text-blue-700 hover:underline" onClick={() => { snapshot(); set([...list, { address: '' }]); }}>+ Add another link</button>
+    </div>
+  );
+}
+
 /** Cable run length: typed, or measured from the drawing when the page has a scale. */
 function CableLength({ id, data }: { id: string; data: CableData }) {
   const scale = useCurrentPage().scale;
@@ -741,6 +766,7 @@ function ShapeProps({ node }: { node: ShapeNode }) {
       <LayerSelect value={d.layer} onChange={(layer) => set({ layer })} />
       <div className="mb-2"><PositionEditor id={node.id} /></div>
       <LinkField nodeId={node.id} value={d.link} />
+      <MoreLinks nodeId={node.id} links={d.moreLinks} />
       <p className="mt-2 text-[10px] text-gray-400">Drag from a blue dot on its edge to draw an arrow to another shape or device.</p>
     </>
   );
@@ -943,7 +969,7 @@ export function PropertiesPanel() {
         <button className="mt-1 rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50" onClick={() => useDiagram.getState().fitZoneToContents(z.id)}>
           Fit to contents
         </button>
-        <div className="mt-3"><LinkField nodeId={z.id} value={z.data.link} /></div>
+        <div className="mt-3"><LinkField nodeId={z.id} value={z.data.link} /><MoreLinks nodeId={z.id} links={z.data.moreLinks} /></div>
       </>
     );
   } else if (selNodes[0]?.type === 'note') {

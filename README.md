@@ -101,6 +101,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Several links per item, grid spacing
+
+- In the Shape Data pane, under **Link**, **+ Add another link** gives an item more hyperlinks, each with a name: e.g.
+  the web UI, the vendor docs and the ticket. The link badge then opens a list to pick from. Find searches them, and
+  Visio exports carry every link as a real Visio hyperlink (pages by name).
+- **View → Grid**: Fine, Normal or Coarse squares; Snap to grid follows the grid you see (every half square).
+
 ## Page color, borders and titles (Design → Backgrounds)
 
 - **Page Color**: a soft background for the drawing page (white, greys, ivory, light blue, green, pink, lilac).

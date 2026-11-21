@@ -82,11 +82,22 @@ export interface NodeExtras {
   locked?: boolean;
   /** Hyperlink: a web/mailto address, or `page:<pageId>` to jump to another page of the project. */
   link?: string;
+  /** More hyperlinks (Visio allows several per shape), each with an optional name. */
+  moreLinks?: ExtraLink[];
   /** Review comments on this item (Review → New Comment). */
   comments?: ItemComment[];
   /** ScreenTip (Insert → ScreenTip): text shown when hovering the item. */
   tip?: string;
 }
+
+export interface ExtraLink {
+  label?: string;
+  address: string;
+}
+
+/** Every hyperlink of an item, the main one first. */
+export const allLinks = (d: { link?: string; moreLinks?: ExtraLink[] }): ExtraLink[] =>
+  [...(d.link?.trim() ? [{ address: d.link }] : []), ...(d.moreLinks ?? []).filter((l) => l.address.trim())];
 
 export interface ItemComment {
   id: string;

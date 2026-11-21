@@ -10,7 +10,6 @@ import { FRAME_COLOR, type DeviceData } from '@/lib/types';
 import { useCurrentPage, useCurrentProject } from '@/store/useDiagramStore';
 
 export const RULER = 18;
-const GRID = 20;
 
 /** Bounding box of everything drawn, as a compact string so the sheet only re-renders when it changes. */
 function contentKey(s: NodesStore) {
@@ -49,6 +48,7 @@ export function PageSheet() {
   const frame = look?.frame ?? 'none';
   const fc = look?.frameColor ?? FRAME_COLOR;
   const grid = usePref('grid');
+  const GRID = usePref('gridSize') || 20;
   const breaks = usePref('pageBreaks');
   useOverlayVersion(); // grow when an info box or label changes size
   const key = useNodesStore(contentKey);

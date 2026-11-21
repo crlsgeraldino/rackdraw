@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { openUrl, resolveLink } from '@/lib/links';
 import { openComments } from './CommentsPanel';
-import type { NodeExtras } from '@/lib/types';
+import { allLinks, type ExtraLink, type NodeExtras } from '@/lib/types';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 
 /** Follows a hyperlink: switches page for page links, opens web links in the browser. */
@@ -26,10 +27,30 @@ export function useLinkLabel(link?: string) {
   return `Page: ${project.pages.find((p) => p.id === t.pageId)?.name ?? '(deleted page)'}`;
 }
 
+/** An item's links when it has several: pick one to follow (like Visio's hyperlink list on right-click). */
+function LinkMenu({ links, onPick, onClose }: { links: ExtraLink[]; onPick: (address: string) => void; onClose: () => void }) {
+  const project = useCurrentProject();
+  const name = (l: ExtraLink) => {
+    if (l.label?.trim()) return l.label;
+    const t = resolveLink(l.address);
+    return t?.kind === 'page' ? `Page: ${project.pages.find((p) => p.id === t.pageId)?.name ?? '(deleted page)'}` : l.address;
+  };
+  return (
+    <div className="nodrag nopan absolute right-0 top-6 z-20 min-w-[180px] max-w-[280px] rounded border border-gray-200 bg-white py-1 text-left text-xs shadow-lg" onMouseLeave={onClose}>
+      {links.map((l, i) => (
+        <button key={i} type="button" className="block w-full truncate px-3 py-1 text-left text-blue-700 hover:bg-blue-50" title={l.address}
+          onClick={(e) => { e.stopPropagation(); onPick(l.address); }}>{name(l)}</button>
+      ))}
+    </div>
+  );
+}
+
 /** Small link button and lock marker in an item's top-right corner. */
 export function NodeBadges({ data, selected }: { data: NodeExtras; selected?: boolean }) {
   const follow = useFollowLink();
-  const label = useLinkLabel(data.link);
+  const links = allLinks(data);
+  const label = useLinkLabel(links[0]?.address);
+  const [menu, setMenu] = useState(false);
   const open = (data.comments ?? []).filter((c) => !c.resolved).length;
   if (!label && !(data.locked && selected) && !open) return null;
   return (
@@ -38,12 +59,15 @@ export function NodeBadges({ data, selected }: { data: NodeExtras; selected?: bo
         <button
           type="button"
           className="nodrag nopan flex h-5 w-5 items-center justify-center rounded-full border border-blue-300 bg-white text-[11px] text-blue-700 shadow hover:bg-blue-50"
-          onClick={(e) => { e.stopPropagation(); follow(data.link); }}
-          title={`Open link: ${label}`}
+          onClick={(e) => { e.stopPropagation(); if (links.length > 1) setMenu(!menu); else follow(links[0]?.address); }}
+          title={links.length > 1 ? `${links.length} links` : `Open link: ${label}`}
           aria-label={`Open link: ${label}`}
         >
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6.5 9.5l3-3M7 4.5l1.2-1.2a2.6 2.6 0 0 1 3.7 3.7L10.7 8.2M9 11.5l-1.2 1.2a2.6 2.6 0 0 1-3.7-3.7L5.3 7.8" strokeLinecap="round" /></svg>
         </button>
+      )}
+      {label && menu && (
+        <LinkMenu links={links} onPick={(a) => { setMenu(false); follow(a); }} onClose={() => setMenu(false)} />
       )}
       {open > 0 && (
         <button

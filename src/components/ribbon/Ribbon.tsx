@@ -1576,6 +1576,7 @@ function ViewTab() {
   const rulers = usePref('rulers');
   const dynamicGrid = usePref('dynamicGrid');
   const snapGrid = usePref('snapToGrid');
+  const gridSizePref = usePref('gridSize') || 20;
   const navPane = usePref('navPane');
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
@@ -1609,7 +1610,12 @@ function ViewTab() {
           <Check label="Dynamic grid" checked={dynamicGrid} onChange={(v) => setPref('dynamicGrid', v)} title="While dragging, snap into line with other shapes and show guides" />
         </Column>
         <Column>
-          <Check label="Snap to grid" checked={snapGrid} onChange={(v) => setPref('snapToGrid', v)} title="Moved items land on the 10px grid" />
+          <Check label="Snap to grid" checked={snapGrid} onChange={(v) => setPref('snapToGrid', v)} title="Moved items land on the grid (every half square)" />
+          <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]" title="Grid spacing (like Visio's Ruler & Grid): snapping follows it">Grid
+            <select className="rounded border border-gray-300 bg-white px-1 py-0 text-[11px]" value={gridSizePref} onChange={(e) => setPref('gridSize', Number(e.target.value))}>
+              <option value={10}>Fine</option><option value={20}>Normal</option><option value={40}>Coarse</option>
+            </select>
+          </label>
           <Check label="Navigation" checked={navPane} onChange={(v) => setPref('navPane', v)} title="Pages and everything on them; click to go to an item (like Visio's Drawing Explorer)" />
           <Check label="Quick info" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
         </Column>

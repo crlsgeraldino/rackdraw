@@ -26,7 +26,11 @@ function nodeFields(n: AppNode): { item: string; fields: { path: string[]; label
     { path: ['comments', String(i), 'text'], label: 'Comment', value: c.text },
     ...(c.replies ?? []).map((r, j) => ({ path: ['comments', String(i), 'replies', String(j), 'text'], label: 'Reply', value: r.text })),
   ]);
-  return { item: base.item, fields: [...base.fields, ...comments] };
+  const more = n.type === 'backdrop' ? [] : (n.data.moreLinks ?? []).flatMap((l, i) => [
+    ...(l.label ? [{ path: ['moreLinks', String(i), 'label'], label: 'Link name', value: l.label }] : []),
+    { path: ['moreLinks', String(i), 'address'], label: 'Link', value: l.address },
+  ]).filter((f) => f.value);
+  return { item: base.item, fields: [...base.fields, ...comments, ...more] };
 }
 
 function ownFields(n: AppNode): { item: string; fields: { path: string[]; label: string; value: string }[] } {

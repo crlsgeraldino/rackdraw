@@ -48,6 +48,8 @@ export interface VText {
 export type VShape = {
   name?: string;
   data?: [string, string][];
+  /** Hyperlinks: a web address, or a page of this drawing (subAddress = page name). */
+  links?: { label?: string; address?: string; subAddress?: string }[];
   text?: VText;
   /** Indexes into the page's layers. */
   layers?: number[];
@@ -146,6 +148,14 @@ function textXml(t: VText | undefined, box?: { w: number; h: number }) {
   );
 }
 
+/** Visio Hyperlink section: one row per link; the first is the default (followed on Ctrl+click). */
+function linksXml(links?: VShape['links']) {
+  if (!links?.length) return '';
+  return `<Section N="Hyperlink">${links
+    .map((l, i) => `<Row N="Row_${i + 1}">${cell('Description', l.label ?? '')}${cell('Address', l.address ?? '')}${cell('SubAddress', l.subAddress ?? '')}${cell('NewWindow', 0)}${cell('Default', i === 0 ? 1 : 0)}</Row>`)
+    .join('')}</Section>`;
+}
+
 function dataXml(data?: [string, string][]) {
   const rows = (data ?? []).filter(([, v]) => v !== undefined && v !== null);
   if (!rows.length) return '';
@@ -187,7 +197,7 @@ function pageXml(page: VPage): PageOut {
       const rows = s.points.map((p, k) => `<Row T="${k ? 'LineTo' : 'MoveTo'}" IX="${k + 1}">${cell('X', p.x - box.x)}${cell('Y', box.y + box.h - p.y)}</Row>`);
       body = styleCells({ ...s, fill: null }) +
         (s.arrowStart ? cell('BeginArrow', 13) + cell('BeginArrowSize', 1) : '') +
-        (s.arrowEnd ? cell('EndArrow', 13) + cell('EndArrowSize', 1) : '') + dataXml(s.data) +
+        (s.arrowEnd ? cell('EndArrow', 13) + cell('EndArrowSize', 1) : '') + dataXml(s.data) + linksXml(s.links) +
         `<Section N="Geometry" IX="0">${cell('NoFill', 1)}${cell('NoLine', 0)}${cell('NoShow', 0)}${rows.join('')}</Section>`;
     } else {
       box = s.box;
@@ -197,7 +207,7 @@ function pageXml(page: VPage): PageOut {
           ? `<Section N="Connection">${s.ports.map((p, k) => `<Row N="${rowName(p.name, used)}" IX="${k}">${cell('X', p.x)}${cell('Y', box.h - p.y)}${cell('DirX', 0)}${cell('DirY', 0)}${cell('Type', 0)}</Row>`).join('')}</Section>`
           : '';
         body = cell('ImgOffsetX', 0) + cell('ImgOffsetY', 0) + cell('ImgWidth', box.w) + cell('ImgHeight', box.h) +
-          cell('LinePattern', 0) + cell('FillPattern', 0) + textXml(s.text) + dataXml(s.data) + conns;
+          cell('LinePattern', 0) + cell('FillPattern', 0) + textXml(s.text) + dataXml(s.data) + linksXml(s.links) + conns;
         // Schema order: cells, sections, Text, then ForeignData.
         foreign = `<ForeignData ForeignType="Bitmap" CompressionType="PNG"><Rel r:id="${relFor(s.media)}"/></ForeignData>`;
       } else {
@@ -210,7 +220,7 @@ function pageXml(page: VPage): PageOut {
         } else {
           geo = closedGeometry([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }], !s.fill);
         }
-        body = styleCells(s) + textXml(s.text, box) + dataXml(s.data) + geo;
+        body = styleCells(s) + textXml(s.text, box) + dataXml(s.data) + linksXml(s.links) + geo;
       }
     }
     const pin = cell('PinX', box.x + box.w / 2) + cell('PinY', H - (box.y + box.h / 2)) + cell('Width', box.w) + cell('Height', box.h) +

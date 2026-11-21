@@ -7,7 +7,8 @@ import { editableCopy } from '../shapeCopy';
 import { realLength } from '../units';
 import { turnedBox } from '../rotation';
 import { expandFields } from '../headerFooter';
-import { listLines, patternOf, type Crop, type TextLook } from '../types';
+import { allLinks, listLines, patternOf, type Crop, type TextLook } from '../types';
+import { resolveLink } from '../links';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -167,7 +168,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       if (!b || !b.w || !b.h) continue;
       const layer = n.type === 'device' || n.type === 'shape' || n.type === 'measure' ? n.data.layer : undefined;
       if (layer && hidden.has(layer)) continue;
-      const f0 = front.length, t0 = texts.length;
+      const f0 = front.length, t0 = texts.length, z0 = zones.length;
       switch (n.type) {
         case 'backdrop':
           back.push({ kind: 'image', name: 'Floor plan', box: ibox(b), media: await addMedia(`bd:${n.id}`, n.data.image, n.data.naturalWidth, n.data.naturalHeight) });
@@ -330,6 +331,15 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           }
           break;
         }
+      }
+      // Hyperlinks go on the item's main shape (web links as addresses, page links as the page name).
+      const links = n.type === 'backdrop' ? [] : allLinks(n.data);
+      const main = zones[z0] ?? front[f0];
+      if (links.length && main) {
+        main.links = links.map((l) => {
+          const t = resolveLink(l.address);
+          return t?.kind === 'page' ? { label: l.label, subAddress: project.pages.find((p) => p.id === t.pageId)?.name ?? '' } : { label: l.label, address: t?.kind === 'url' ? t.url : l.address };
+        });
       }
       // Everything drawn for an item on a layer (picture, label, info box) goes on that Visio layer.
       const li = layerIdx(layer);
