@@ -101,6 +101,24 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Tables (Insert → Table)
+
+- Pick a size on the grid (like Office), or a ready-made **VLAN table**, **ISP / circuits**, **Wi-Fi networks**, or an
+  **IP plan from this page's devices** (a snapshot of names, models, IPs and locations).
+- Double-click a cell to type; **Tab** / **Shift+Tab** move between cells, and Tab in the last cell adds a row (like
+  Word). Enter finishes, Shift+Enter starts a new line in the cell. Field codes (Insert → Field) work in cells too.
+- The **Shape** tab's **Table** group adds rows and columns next to the cell you last clicked, deletes them, and turns
+  the shaded header row on or off. Fill, line, text colour and font come from the usual Home / Shape styles.
+- Find & Replace searches cells; Visio exports get a real grid of cells.
+
+## Number Shapes (Home → Editing)
+
+- Like Visio's Number Shapes: give the selected items (or every device on the page) numbered names in reading order,
+  e.g. **AP-01, AP-02…** or **Camera 1, Camera 2…**. Choose start, step, digits, prefix, whether the number goes
+  before, after or instead of the name, and the order (left to right by rows, top to bottom by columns, or drawing
+  order). "Replace an existing number" renumbers names that already have one. A preview shows every new name first;
+  one Ctrl+Z puts them all back.
+
 ## Fields (Insert → Field)
 
 - Put live values into a text box or drawing shape: client name, site, date, sheet (page) name, page number, number

@@ -212,7 +212,7 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform' | 'table';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
 export interface ShapeData extends Record<string, unknown>, NodeExtras {
@@ -244,6 +244,10 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   valign?: 'top' | 'middle' | 'bottom';
   /** Callout: the item its leader line points to (moves with it). */
   target?: string;
+  /** Table (Insert → Table): rows of cell text. */
+  cells?: string[][];
+  /** Table: the first row is a heading row (bold, shaded). */
+  headerRow?: boolean;
 }
 
 export interface TextFormat {

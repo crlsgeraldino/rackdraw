@@ -662,10 +662,14 @@ function ShapeProps({ node }: { node: ShapeNode }) {
   return (
     <>
       <div className="mb-3 text-[11px] uppercase tracking-wide text-gray-500">Shape · {d.kind}</div>
+      {d.kind === 'table' ? (
+        <p className="mb-2 text-[11px] text-gray-500">Double-click a cell to type in it (Tab = next cell). Add or delete rows and columns on the Shape tab.</p>
+      ) : (
       <label className="mb-2 block">
         <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Text (or double-click the shape)</span>
         <textarea className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500" rows={3} value={d.text} onFocus={snapshot} onChange={(e) => update(node.id, { text: e.target.value })} />
       </label>
+      )}
       <label className="mb-2 block">
         <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Text size: {d.fontSize}px</span>
         <input type="range" min={8} max={48} className="w-full" value={d.fontSize} onPointerDown={snapshot} onChange={(e) => update(node.id, { fontSize: Number(e.target.value) })} />

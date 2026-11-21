@@ -152,7 +152,20 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
           const angle = rot && d.kind !== 'door' && (d.kind !== 'arrow' || rot % 90 !== 0) ? (-rot * Math.PI) / 180 : undefined;
           const f0s = front.length;
-          if (d.kind === 'freeform') {
+          if (d.kind === 'table') {
+            const rows = d.cells ?? [];
+            const nc = Math.max(1, ...rows.map((r) => r.length));
+            const cw = bb.w / nc, rh = bb.h / Math.max(1, rows.length);
+            const line = d.stroke === 'transparent' ? '#374151' : d.stroke;
+            rows.forEach((row, r) => {
+              for (let c = 0; c < nc; c++) {
+                const head = d.headerRow && r === 0;
+                const v = row[c] ?? '';
+                front.push({ kind: 'rect', name: 'Table cell', box: { x: bb.x + c * cw, y: bb.y + r * rh, w: cw, h: rh }, fill: head ? '#E5E7EB' : d.fill === 'transparent' ? null : d.fill, line, lineWeightPt: 0.75,
+                  text: v ? { text: expandFields(v, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: head || d.bold, align: d.align ?? 'left', valign: 'middle', font: d.fontFamily } : undefined });
+              }
+            });
+          } else if (d.kind === 'freeform') {
             const pts = (d.points ?? []).map(([px, py]) => ({ px: px * bb.w, py: py * bb.h }));
             // Turn the drawn points about the centre, so the line needs no Angle.
             const c = Math.cos((rot * Math.PI) / 180), sn = Math.sin((rot * Math.PI) / 180);

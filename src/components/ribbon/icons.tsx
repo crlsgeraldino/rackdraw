@@ -46,6 +46,8 @@ const P: Record<string, React.ReactNode> = {
   connector: <><rect x="2" y="2" width="5" height="5" /><rect x="13" y="13" width="5" height="5" /><path d="M7 4.5h4.5v11H13" /></>,
   fullscreen: <><path d="M2 7V2h5M13 2h5v5M18 13v5h-5M7 18H2v-5" /><rect x="6" y="6" width="8" height="8" fill="#93c5fd" /></>,
   defineData: <><rect x="2" y="3" width="16" height="14" rx="1" /><path d="M2 7.5h16M7 3v14" /><path d="M10 11h5M10 14h3" stroke="#2563eb" /></>,
+  table: <><rect x="2" y="3" width="16" height="14" rx="1" /><path d="M2 3h16v4H2z" fill="#bfdbfe" /><path d="M2 7h16M2 12h16M7.5 3v14M12.5 3v14" /></>,
+  numbering: <><path d="M3 4h2v5M3 9h4" /><path d="M3 12.5c0-1 1-1.5 2-1.5s2 .5 2 1.5c0 1.5-4 2.5-4 4.5h4" /><path d="M10 5h8M10 10h8M10 15h8" /></>,
   screenTip: <><path d="M3 3h14v9H9l-4 4v-4H3z" fill="#fef3c7" /><path d="M6 6.5h8M6 9h5" /></>,
   dataGraphics: <><rect x="3" y="8" width="14" height="9" rx="1" /><rect x="3" y="3" width="6" height="3.5" rx="1" fill="#bbf7d0" /><rect x="10" y="3" width="7" height="3.5" rx="1" fill="#bfdbfe" /></>,
   rectTool: <><rect x="3" y="5" width="14" height="10" rx="1" /></>,

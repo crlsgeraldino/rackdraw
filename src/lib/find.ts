@@ -48,6 +48,10 @@ function ownFields(n: AppNode): { item: string; fields: { path: string[]; label:
     case 'note':
       return { item: 'Note', fields: f(['text'], 'Note', n.data.text) };
     case 'shape':
+      if (n.data.kind === 'table') {
+        const cells = (n.data.cells ?? []).flatMap((row, r) => row.flatMap((v, c) => f(['cells', String(r), String(c)], `Table row ${r + 1}, column ${c + 1}`, v)));
+        return { item: n.data.cells?.[0]?.filter(Boolean).join(' · ') || 'Table', fields: [...cells, ...f(['link'], 'Link', n.data.link)] };
+      }
       return { item: n.data.text?.split('\n')[0] || `Shape (${n.data.kind})`, fields: [...f(['text'], 'Text', n.data.text), ...f(['link'], 'Link', n.data.link)] };
     default:
       return { item: '', fields: [] };

@@ -8,6 +8,7 @@ import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode,
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
+import { setActiveCell, setCell } from '@/lib/table';
 import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
@@ -325,6 +326,7 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
 function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
   const common = { fill: d.fill, stroke: d.stroke, strokeWidth: d.lineWidth ?? 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
   switch (d.kind) {
+    case 'table': return null;
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
     case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
@@ -391,7 +393,8 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   const justify = data.align === 'left' ? 'justify-start' : data.align === 'right' ? 'justify-end' : 'justify-center';
   const items = data.valign === 'top' ? 'items-start' : data.valign === 'bottom' ? 'items-end' : 'items-center';
   // Free rotation (Visio's rotation handle) for drawing shapes; doors turn in 90° steps, windows and callouts don't.
-  const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout';
+  const rotatable = data.kind !== 'door' && data.kind !== 'window' && data.kind !== 'callout' && data.kind !== 'table';
+  const isTable = data.kind === 'table';
   const outer = useRef<HTMLDivElement>(null);
   // Insert → Field: codes like &[Client] or &[Page] show their values (the codes stay in the text while editing).
   const fieldText = useDiagram((s) => {
@@ -400,17 +403,18 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
     return expandFields(data.text, p, p.activePageId);
   });
   useEffect(() => {
-    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked) { snapshot(); setEditing(true); } };
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked && !isTable) { snapshot(); setEditing(true); } };
     window.addEventListener(EDIT_TEXT_EVENT, on);
     return () => window.removeEventListener(EDIT_TEXT_EVENT, on);
-  }, [id, data.locked, snapshot]);
+  }, [id, data.locked, snapshot, isTable]);
   // A turned shape gets its own resize handles, turned with it (React Flow's only work square to the page).
   const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (
-    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { snapshot(); setEditing(true); }}>
+    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { if (!isTable) { snapshot(); setEditing(true); } }}>
       <NodeResizer isVisible={selected && !data.locked && !turned} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
+      {isTable ? <TableBody id={id} data={data} /> : (
       <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
       <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
@@ -433,9 +437,90 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}
       {turned && selected && !data.locked && !editing && <TurnedResizer id={id} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} rotation={data.rotation ?? 0} />}
       </div>
+      )}
       {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
         <Handle key={side} id={side} type="source" position={SIDE[side]} className="nc-handle-side" />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Insert → Table: a grid of cells. Double-click a cell to type in it; Tab / Shift+Tab move between cells (Tab in the
+ * last cell adds a row, like Word), Enter finishes (Shift+Enter = new line), Esc cancels.
+ */
+function TableBody({ id, data }: { id: string; data: ShapeData }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const snapshot = useDiagram((s) => s.snapshot);
+  const [edit, setEdit] = useState<{ r: number; c: number } | null>(null);
+  const cells = data.cells?.length ? data.cells : [['']];
+  const nc = Math.max(1, ...cells.map((r) => r.length));
+  const project = useCurrentProject();
+  const line = data.stroke === 'transparent' ? '#374151' : data.stroke;
+  const border = `${data.lineWidth ?? 1}px solid ${line}`;
+  const save = (r: number, c: number, v: string, then?: { r: number; c: number } | null) => {
+    let next = cells.map((row) => [...row, ...Array(Math.max(0, nc - row.length)).fill('')]);
+    if (next[r][c] !== v) next = setCell(next, r, c, v);
+    const grew = !!then && then.r >= next.length;
+    if (grew) next = [...next, Array(nc).fill('')];
+    update(id, { cells: next });
+    if (grew) {
+      // The table gets taller by one row, so the rows keep their size.
+      const st = useDiagram.getState();
+      const n = activePage(st.projects[st.currentId]).nodes.find((x) => x.id === id);
+      const h = n?.height ?? n?.measured?.height;
+      const w = n?.width ?? n?.measured?.width;
+      if (n && h && w) st.setNodeBox(id, n.position, w, Math.round(h + h / cells.length));
+    }
+    setEdit(then ?? null);
+    if (then) setActiveCell(id, then.r, then.c);
+  };
+  return (
+    <div className="absolute inset-0 overflow-hidden" style={{ background: data.fill === 'transparent' ? undefined : data.fill, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
+      <table className="h-full w-full border-collapse" style={{ tableLayout: 'fixed', color: data.textColor, fontSize: data.fontSize, fontFamily: data.fontFamily, lineHeight: 1.2 }}>
+        <tbody>
+          {cells.map((row, r) => (
+            <tr key={r}>
+              {Array.from({ length: nc }, (_, c) => {
+                const head = data.headerRow && r === 0;
+                const v = row[c] ?? '';
+                return (
+                  <td
+                    key={c}
+                    className="overflow-hidden px-1.5 align-middle"
+                    style={{ border, background: head ? `color-mix(in srgb, ${line} 16%, white)` : undefined, fontWeight: head || data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textAlign: data.align ?? 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                    onPointerDown={() => setActiveCell(id, r, c)}
+                    onDoubleClick={(e) => { e.stopPropagation(); if (data.locked) return; snapshot(); setActiveCell(id, r, c); setEdit({ r, c }); }}
+                  >
+                    {edit && edit.r === r && edit.c === c ? (
+                      <textarea
+                        autoFocus
+                        rows={1}
+                        className="nodrag nopan block h-full w-full resize-none bg-white/90 outline-none"
+                        style={{ font: 'inherit', textAlign: 'inherit' }}
+                        defaultValue={v}
+                        onFocus={(e) => e.currentTarget.select()}
+                        onBlur={(e) => { if (e.target.isConnected) save(r, c, e.target.value); }}
+                        onKeyDown={(e) => {
+                          const t = e.currentTarget;
+                          if (e.key === 'Escape') { e.preventDefault(); setEdit(null); }
+                          else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(r, c, t.value); }
+                          else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            const i = r * nc + c + (e.shiftKey ? -1 : 1);
+                            save(r, c, t.value, i < 0 ? null : { r: Math.floor(i / nc), c: i % nc });
+                          }
+                          e.stopPropagation();
+                        }}
+                      />
+                    ) : (v.includes('&[') ? expandFields(v, project, project.activePageId) : v)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

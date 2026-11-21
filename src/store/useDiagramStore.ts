@@ -154,6 +154,10 @@ interface DiagramState {
   /** Drag a page tab: put the page at this position. */
   movePageTo: (id: string, index: number) => void;
   /** Select by Type (Home → Editing → Select): what to select on the active page. */
+  /** Adds a table (Insert → Table) centred on `position`. */
+  addTable: (position: { x: number; y: number }, cells: string[][]) => void;
+  /** Renames items on the active page in one undo step: devices get a new name, drawing shapes new text. */
+  renameItems: (names: Map<string, string>) => void;
   selectWhere: (what: 'devices' | 'cables' | 'shapes' | 'text' | 'zones' | 'same' | `layer:${string}`) => number;
   /** Sets (or clears) the ScreenTip of the selected items. */
   setTipOnSelection: (tip: string) => void;
@@ -985,6 +989,32 @@ export const useDiagram = create<DiagramState>()(
           return targets.length;
         },
         formatKind: () => formatClip?.kind ?? null,
+        addTable: (position, cells) => {
+          get().snapshot();
+          const cols = Math.max(1, ...cells.map((r) => r.length));
+          const size = { width: Math.max(160, cols * 110), height: Math.max(40, cells.length * 26) };
+          const node: AppNode = {
+            id: `s-${uid()}`,
+            type: 'shape',
+            position: { x: Math.round(position.x - size.width / 2), y: Math.round(position.y - size.height / 2) },
+            ...size,
+            selected: true,
+            data: { kind: 'table', text: '', cells, headerRow: true, fill: '#ffffff', stroke: theme()?.line ?? '#374151', textColor: theme()?.text ?? '#111827', fontSize: 12, lineWidth: 1, align: 'left' },
+          } as AppNode;
+          commit({ nodes: [...page().nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), node] });
+        },
+        renameItems: (names) => {
+          if (!names.size) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => {
+            const v = names.get(n.id);
+            if (v === undefined) return n;
+            if (n.type === 'device') return { ...n, data: { ...n.data, name: v } };
+            if (n.type === 'shape') return { ...n, data: { ...n.data, text: v } };
+            if (n.type === 'zone') return { ...n, data: { ...n.data, title: v } };
+            return n;
+          }) });
+        },
         selectWhere: (what) => {
           const pg = page();
           const sel = pg.nodes.filter((n) => n.selected);

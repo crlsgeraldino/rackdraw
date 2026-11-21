@@ -15,6 +15,8 @@ import { reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { HF_CODES } from '@/lib/headerFooter';
+import { TABLE_PRESETS, activeCell, deleteCol, deleteRow, insertCol, insertRow, makeTable } from '@/lib/table';
+import { openNumberShapes } from '../NumberShapesDialog';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { openChangeShape } from '../ChangeShapeDialog';
 import { openVersions } from '../VersionsDialog';
@@ -589,6 +591,7 @@ function HomeTab() {
         <Column>
           <Small icon="find" label="Find" onClick={() => openFind(false)} title="Find (Ctrl+F)" />
           <Small icon="replace" label="Replace" onClick={() => openFind(true)} title="Replace (Ctrl+H)" />
+          <Small icon="numbering" label="Number Shapes" onClick={openNumberShapes} title="Number the selected devices or shapes in reading order, e.g. AP-01, AP-02 (like Visio's Number Shapes)" />
           <Drop width={230} trigger={(open) => <Small icon="selectAll" label="Select ▾" onClick={open} title="Select all, or select by type (like Visio)" />}>
             {(close) => {
               const pick = (w: Parameters<typeof s.selectWhere>[0]) => { s.selectWhere(w); close(); };
@@ -700,6 +703,9 @@ function InsertTab() {
           <Small icon="grid" label="Window" onClick={() => shape('window')} />
         </Column>
       </Group>
+      <Group label="Tables">
+        <TablePicker at={center} />
+      </Group>
       <Group label="Diagram Parts">
         <Big icon="zone" label="Zone" onClick={() => s.addZone(center())} title="A room, rack or area outline" />
         <Big icon="note" label="Note" onClick={() => s.addNote(center())} />
@@ -783,11 +789,84 @@ async function saveTemplate() {
   alert(`Saved. Choose "${name}" under File → New client.`);
 }
 
+/** Insert → Table: pick the size on a grid (like Office), or a ready-made network table. */
+function TablePicker({ at }: { at: () => { x: number; y: number } }) {
+  const [hover, setHover] = useState<[number, number]>([0, 0]);
+  const page = useCurrentPage();
+  const add = (cells: string[][]) => useDiagram.getState().addTable(at(), cells);
+  const devices = page.nodes.filter((n) => n.type === 'device');
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={232} trigger={(open) => <Big icon="table" label="Table" onClick={open} title="A table on the page, e.g. VLANs, circuits or an IP plan" />}>
+        {(close) => (
+          <div className="p-2 text-xs">
+            <div className="mb-1 text-gray-600">{hover[0] ? `${hover[1]} × ${hover[0]} table` : 'Insert Table'}</div>
+            <div className="grid grid-cols-8 gap-[3px]" onMouseLeave={() => setHover([0, 0])}>
+              {Array.from({ length: 64 }, (_, i) => {
+                const r = Math.floor(i / 8) + 1, c = (i % 8) + 1;
+                const on = r <= hover[0] && c <= hover[1];
+                return <button key={i} aria-label={`${c} by ${r}`} className={`h-[22px] w-[22px] border ${on ? 'border-blue-500 bg-blue-100' : 'border-gray-300 bg-white'}`}
+                  onMouseEnter={() => setHover([r, c])} onClick={() => { add(makeTable(r, c)); close(); }} />;
+              })}
+            </div>
+            <div className="mt-2 border-t border-gray-100 pt-1">
+              {TABLE_PRESETS.map((p) => (
+                <button key={p.id} className="block w-full rounded px-2 py-1 text-left hover:bg-blue-50" onClick={() => { add(p.cells()); close(); }}>{p.label}</button>
+              ))}
+              <button className="block w-full rounded px-2 py-1 text-left hover:bg-blue-50 disabled:opacity-40" disabled={!devices.length} title="A snapshot of this page's devices (it doesn't update)"
+                onClick={() => {
+                  add([['Device', 'Model', 'IP', 'Location'], ...devices.map((n) => (n.type === 'device' ? [n.data.name ?? '', n.data.model ?? '', n.data.ip ?? '', n.data.location ?? ''] : []))]);
+                  close();
+                }}>IP plan from this page&apos;s devices</button>
+            </div>
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
+/** Contextual Table group: rows and columns at the cell last clicked. */
+function TableGroup({ node }: { node: ShapeNode }) {
+  const s = useDiagram.getState();
+  const cells = node.data.cells?.length ? node.data.cells : [['']];
+  const run = (fn: (t: string[][], r: number, c: number) => string[][], grow?: 'w' | 'h' | '-w' | '-h') => {
+    const { r, c } = activeCell(node.id, cells);
+    const next = fn(cells, r, c);
+    if (next === cells) return;
+    const nc = Math.max(1, ...cells.map((x) => x.length));
+    const w = node.width ?? node.measured?.width ?? 300, h = node.height ?? node.measured?.height ?? 100;
+    // Keep the rows and columns the same size: the table grows or shrinks by one of them.
+    const nw = grow === 'w' ? w + w / nc : grow === '-w' ? w - w / nc : w;
+    const nh = grow === 'h' ? h + h / cells.length : grow === '-h' ? h - h / cells.length : h;
+    s.snapshot();
+    s.updateNodeData(node.id, { cells: next });
+    s.setNodeBox(node.id, node.position, Math.round(nw), Math.round(nh));
+  };
+  return (
+    <Group label="Table">
+      <Column>
+        <Small icon="table" label="Row Above" onClick={() => run((t, r) => insertRow(t, r), 'h')} />
+        <Small icon="table" label="Row Below" onClick={() => run((t, r) => insertRow(t, r + 1), 'h')} />
+        <Small icon="delete" label="Delete Row" onClick={() => run((t, r) => deleteRow(t, r), '-h')} disabled={cells.length < 2} />
+      </Column>
+      <Column>
+        <Small icon="table" label="Column Left" onClick={() => run((t, _r, c) => insertCol(t, c), 'w')} />
+        <Small icon="table" label="Column Right" onClick={() => run((t, _r, c) => insertCol(t, c + 1), 'w')} />
+        <Small icon="delete" label="Delete Column" onClick={() => run((t, _r, c) => deleteCol(t, c), '-w')} disabled={Math.max(...cells.map((x) => x.length)) < 2} />
+      </Column>
+      <Column>
+        <Check label="Header Row" checked={!!node.data.headerRow} onChange={(v) => { s.snapshot(); s.updateNodeData(node.id, { headerRow: v || undefined }); }} />
+      </Column>
+    </Group>
+  );
+}
+
 /** Insert → Field: adds a field code to the selected text box / shape, or a new text box with it. */
 function insertField(code: string) {
   const st = useDiagram.getState();
   const pg = activePage(st.projects[st.currentId]);
-  const shape = pg.nodes.find((n) => n.selected && n.type === 'shape');
+  const shape = pg.nodes.find((n) => n.selected && n.type === 'shape' && n.data.kind !== 'table');
   if (shape && shape.type === 'shape') {
     st.snapshot();
     st.updateNodeData(shape.id, { text: shape.data.text ? `${shape.data.text} ${code}` : code });
@@ -1140,7 +1219,8 @@ function ShapeTab() {
           <Big icon="changeShape" label="Change Shape" onClick={openChangeShape} title="Swap the picture for another shape, keeping the device's details and cables (like Visio's Change Shape)" />
         </Group>
       )}
-      {!device && node?.type === 'shape' && (
+      {node?.type === 'shape' && node.data.kind === 'table' && <TableGroup node={node} />}
+      {!device && node?.type === 'shape' && node.data.kind !== 'table' && (
         <Group label="Shape">
           <div className="flex items-start pt-1">
             <Drop width={180} trigger={(open) => <Big icon="changeShape" label="Change Shape" onClick={open} title="Turn the selected drawing shapes into another kind" />}>

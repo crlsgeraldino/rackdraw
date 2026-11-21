@@ -18,6 +18,7 @@ import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
+import { NumberShapesDialog } from './NumberShapesDialog';
 import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
@@ -480,6 +481,7 @@ export default function Editor() {
         <ShortcutsDialog />
         <ChangeShapeDialog />
         <VersionsDialog />
+        <NumberShapesDialog />
       </div>
     </ReactFlowProvider>
   );
