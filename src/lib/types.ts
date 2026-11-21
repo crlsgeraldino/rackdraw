@@ -212,7 +212,7 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform' | 'table';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform' | 'table' | 'image';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
 export interface ShapeData extends Record<string, unknown>, NodeExtras {
@@ -248,6 +248,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   cells?: string[][];
   /** Table: the first row is a heading row (bold, shaded). */
   headerRow?: boolean;
+  /** Picture (Insert → Picture / paste): the image as a data URL. */
+  src?: string;
 }
 
 export interface TextFormat {

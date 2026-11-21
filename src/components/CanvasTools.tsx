@@ -128,6 +128,28 @@ export function DrawOverlay() {
           if (made) useDiagram.getState().setNodeBox(made.id, { x, y }, Math.max(20, w), Math.max(14, h));
           return;
         }
+        if (tool === 'lasso') {
+          const loop = [...pts, local(e)].map(toFlow);
+          setPts([]);
+          // Items entirely inside the loop are selected (Shift adds to the selection); then back to the pointer.
+          const inside = (x: number, y: number) => {
+            let hit = false;
+            for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+              const a = loop[i], b = loop[j];
+              if ((a.y > y) !== (b.y > y) && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+            }
+            return hit;
+          };
+          const ids = loop.length < 3 ? [] : rf.getNodes().filter((n) => {
+            if (n.type === 'backdrop' || n.hidden || n.id.startsWith('bg:')) return false;
+            const p = rf.getInternalNode(n.id)?.internals.positionAbsolute ?? n.position;
+            const w = n.measured?.width ?? n.width ?? 0, h = n.measured?.height ?? n.height ?? 0;
+            return inside(p.x, p.y) && inside(p.x + w, p.y) && inside(p.x, p.y + h) && inside(p.x + w, p.y + h);
+          }).map((n) => n.id);
+          s.selectIds(ids, e.shiftKey);
+          setTool(null);
+          return;
+        }
         if (tool === 'connector') {
           setPts([]);
           const to = nodeAt(e);
@@ -146,7 +168,7 @@ export function DrawOverlay() {
           s.addFreeform(kept.map(toFlow));
         }
       }}
-      title={tool === 'line' ? 'Drag to draw a line (Shift = straight). Esc to stop.' : tool === 'connector' ? 'Drag from one device or shape to another to connect them. Esc to stop.' : 'Drag to draw freehand. Esc to stop.'}
+      title={tool === 'lasso' ? 'Draw a loop round the items to select (Shift adds to the selection). Esc to stop.' : tool === 'line' ? 'Drag to draw a line (Shift = straight). Esc to stop.' : tool === 'connector' ? 'Drag from one device or shape to another to connect them. Esc to stop.' : 'Drag to draw freehand. Esc to stop.'}
     >
       {pts.length > 1 && boxTool && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
@@ -161,11 +183,13 @@ export function DrawOverlay() {
       )}
       {pts.length > 1 && !boxTool && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
-          <polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          {tool === 'lasso'
+            ? <polygon points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="#3b82f614" stroke="#2563eb" strokeWidth={1.5} strokeDasharray="5 4" strokeLinejoin="round" />
+            : <polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />}
         </svg>
       )}
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-blue-600 px-2 py-0.5 text-xs text-white shadow">
-        {tool === 'line' ? 'Line tool' : tool === 'connector' ? 'Connector tool: drag from one item to another' : tool === 'rect' ? 'Rectangle tool (Shift: square)' : tool === 'ellipse' ? 'Ellipse tool (Shift: circle)' : 'Pencil tool'} · Esc to stop
+        {tool === 'lasso' ? 'Lasso Select: draw round the items' : tool === 'line' ? 'Line tool' : tool === 'connector' ? 'Connector tool: drag from one item to another' : tool === 'rect' ? 'Rectangle tool (Shift: square)' : tool === 'ellipse' ? 'Ellipse tool (Shift: circle)' : 'Pencil tool'} · Esc to stop
       </div>
     </div>
   );

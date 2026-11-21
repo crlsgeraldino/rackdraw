@@ -101,6 +101,17 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Pictures and Lasso Select
+
+- **Insert → Picture** puts a logo, a photo of the rack or a screenshot on the page as a shape you can move, resize
+  (it keeps its proportions), rotate, border, shadow and put on a layer. **Ctrl+V** pastes a screenshot straight from
+  the clipboard, and a picture file dragged in from Explorer lands where you drop it. Large photos are shrunk.
+  **Background Picture** (beside it) still puts a floor plan or site photo behind the page. Visio exports keep the
+  pictures.
+- **Home → Tools → Lasso Select**: draw a loop round the items to select; only items entirely inside are picked, plus
+  the cables between them. Hold Shift to add to the current selection. The pointer comes back afterwards so you can
+  move what you caught.
+
 ## Tables (Insert → Table)
 
 - Pick a size on the grid (like Office), or a ready-made **VLAN table**, **ISP / circuits**, **Wi-Fi networks**, or an

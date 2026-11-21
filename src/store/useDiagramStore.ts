@@ -154,6 +154,10 @@ interface DiagramState {
   /** Drag a page tab: put the page at this position. */
   movePageTo: (id: string, index: number) => void;
   /** Select by Type (Home → Editing → Select): what to select on the active page. */
+  /** Adds a picture shape (Insert → Picture, paste or drop an image) centred on `position`, at most 360px wide/high. */
+  addPicture: (position: { x: number; y: number }, src: string, width: number, height: number) => void;
+  /** Lasso Select: selects these items (and the cables between selected items); `add` keeps the current selection. */
+  selectIds: (ids: string[], add?: boolean) => void;
   /** Adds a table (Insert → Table) centred on `position`. */
   addTable: (position: { x: number; y: number }, cells: string[][]) => void;
   /** Renames items on the active page in one undo step: devices get a new name, drawing shapes new text. */
@@ -989,6 +993,36 @@ export const useDiagram = create<DiagramState>()(
           return targets.length;
         },
         formatKind: () => formatClip?.kind ?? null,
+        addPicture: (position, src, width, height) => {
+          get().snapshot();
+          const k = Math.min(1, 360 / Math.max(width, height, 1));
+          const w = Math.max(20, Math.round(width * k)), h = Math.max(20, Math.round(height * k));
+          const node: AppNode = {
+            id: `s-${uid()}`,
+            type: 'shape',
+            position: { x: Math.round(position.x - w / 2), y: Math.round(position.y - h / 2) },
+            width: w,
+            height: h,
+            selected: true,
+            data: { kind: 'image', text: '', src, fill: 'transparent', stroke: 'transparent', textColor: theme()?.text ?? '#111827', fontSize: 14, rotation: 0, valign: 'bottom' },
+          } as AppNode;
+          const pg = page();
+          commit({ nodes: [...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), node], edges: pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)) });
+        },
+        selectIds: (ids, add) => {
+          const pg = page();
+          const want = new Set(ids);
+          const nodes = pg.nodes.map((n) => {
+            const sel = want.has(n.id) || (!!add && !!n.selected);
+            return !!n.selected === sel ? n : { ...n, selected: sel };
+          });
+          const on = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
+          const edges = pg.edges.map((e) => {
+            const sel = (on.has(e.source) && on.has(e.target)) || (!!add && !!e.selected);
+            return !!e.selected === sel ? e : { ...e, selected: sel };
+          });
+          commit({ nodes, edges });
+        },
         addTable: (position, cells) => {
           get().snapshot();
           const cols = Math.max(1, ...cells.map((r) => r.length));

@@ -26,6 +26,7 @@ import { EDIT_TEXT_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, portTaken, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { activePage } from '@/lib/project';
+import { insertPictureFile } from '@/lib/pictures';
 import { edgeTypes } from './CableEdgeView';
 import { PageSheet, RULER, Rulers } from './CanvasPage';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
@@ -91,6 +92,13 @@ function useClipboardEvents() {
     const onPaste = (e: ClipboardEvent) => {
       if (inField(e.target) || useDiagram.getState().view !== 'diagram') return;
       const raw = e.clipboardData?.getData(CLIP_MIME);
+      // A screenshot or copied picture: put it on the page (Visio pastes pictures as shapes too).
+      const file = !raw ? [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/')) : undefined;
+      if (file) {
+        e.preventDefault();
+        void insertPictureFile(file);
+        return;
+      }
       if (!raw) return;
       try {
         const clip = JSON.parse(raw) as Clipboard;
@@ -267,8 +275,11 @@ function Canvas() {
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const id = e.dataTransfer.getData(DND_TYPE);
-    if (!id) return;
     const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    // A picture dragged in from Explorer or a browser.
+    const file = !id ? [...e.dataTransfer.files].find((f) => f.type.startsWith('image/') || /\.svg$/i.test(f.name)) : undefined;
+    if (file) return void insertPictureFile(file, pos);
+    if (!id) return;
     if (id === '__zone') return addZone(pos);
     if (id === '__note') return addNote(pos);
     if (id === '__measure') return useDiagram.getState().addMeasure({ x: pos.x - 100, y: pos.y });

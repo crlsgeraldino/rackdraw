@@ -55,6 +55,16 @@ export interface ExportContext {
   showPage: (page: Page) => Promise<void>;
 }
 
+/** A picture's own size (so it goes into the Visio file at full quality). */
+function loadPicture(src: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth || 300, h: img.naturalHeight || 300 });
+    img.onerror = () => resolve({ w: 300, h: 300 });
+    img.src = src;
+  });
+}
+
 export async function exportVsdx(project: Project, ctx: ExportContext): Promise<Uint8Array> {
   const media: Record<string, Uint8Array> = {};
   const mediaFor = new Map<string, string>(); // picture key → file name
@@ -152,7 +162,13 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
           const angle = rot && d.kind !== 'door' && (d.kind !== 'arrow' || rot % 90 !== 0) ? (-rot * Math.PI) / 180 : undefined;
           const f0s = front.length;
-          if (d.kind === 'table') {
+          if (d.kind === 'image') {
+            if (d.src) {
+              const img = await loadPicture(d.src);
+              front.push({ kind: 'image', name: 'Picture', box: bb, media: await addMedia(`img:${n.id}`, d.src, Math.max(1, Math.round(img.w)), Math.max(1, Math.round(img.h))) });
+            }
+            if (d.stroke !== 'transparent' || d.text) front.push({ kind: 'rect', box: bb, fill: null, line: d.stroke === 'transparent' ? null : d.stroke, lineWeightPt: pt(d.lineWidth ?? 2), text });
+          } else if (d.kind === 'table') {
             const rows = d.cells ?? [];
             const nc = Math.max(1, ...rows.map((r) => r.length));
             const cw = bb.w / nc, rh = bb.h / Math.max(1, rows.length);

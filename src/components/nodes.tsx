@@ -327,6 +327,7 @@ function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
   const common = { fill: d.fill, stroke: d.stroke, strokeWidth: d.lineWidth ?? 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
   switch (d.kind) {
     case 'table': return null;
+    case 'image': return d.stroke === 'transparent' ? null : <rect x={0.5} y={0.5} width={w - 1} height={h - 1} {...common} fill="none" />;
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
     case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
@@ -411,14 +412,20 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (
     <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { if (!isTable) { snapshot(); setEditing(true); } }}>
-      <NodeResizer isVisible={selected && !data.locked && !turned} minWidth={30} minHeight={20} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
+      <NodeResizer isVisible={selected && !data.locked && !turned} keepAspectRatio={data.kind === 'image'} minWidth={20} minHeight={14} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
       {isTable ? <TableBody id={id} data={data} /> : (
       <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
-      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
+      <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ zIndex: data.kind === 'image' ? 1 : undefined, transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
         <ShapeOutline d={data} w={w} h={h} />
       </svg>
+      {data.kind === 'image' && data.src && (
+        // Pictures stretch with their box (resizing keeps the proportions); the border, if any, is drawn over them.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={data.src} alt={data.text || 'Picture'} draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none"
+          style={{ objectFit: 'fill', filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }} />
+      )}
       {data.kind === 'text' && selected && !editing && <div className="nc-ui pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
       {editing ? (
         <textarea

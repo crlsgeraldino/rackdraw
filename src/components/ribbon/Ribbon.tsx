@@ -25,6 +25,7 @@ import { setPresenting, setTool, useTool } from '@/lib/tools';
 import { SAVE_SELECTION_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
+import { insertPictureFile } from '@/lib/pictures';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
@@ -480,6 +481,7 @@ function HomeTab() {
           <Small icon="pointer" label="Pointer" active={!tool} onClick={() => setTool(null)} title="Pointer tool: select and move (Esc)" />
           <Small icon="lineTool" label="Line" active={tool === 'line'} onClick={() => setTool(tool === 'line' ? null : 'line')} title="Line tool: drag to draw lines (Shift = straight)" />
           <Small icon="pencil" label="Pencil" active={tool === 'pencil'} onClick={() => setTool(tool === 'pencil' ? null : 'pencil')} title="Pencil tool: drag to draw freehand" />
+          <Small icon="lasso" label="Lasso Select" active={tool === 'lasso'} onClick={() => setTool(tool === 'lasso' ? null : 'lasso')} title="Lasso Select: draw a loop round the items to select (Shift adds to the selection)" />
         </Column>
         <Column>
           <Small icon="connector" label="Connector" active={tool === 'connector'} onClick={() => setTool(tool === 'connector' ? null : 'connector')} title="Connector tool (Ctrl+3): drag from one device or shape to another to connect them (nearest free ports)" />
@@ -652,6 +654,7 @@ function InsertTab() {
   const s = useDiagram.getState();
   const center = useCanvasCenter();
   const pictureRef = useRef<HTMLInputElement>(null);
+  const shapePicRef = useRef<HTMLInputElement>(null);
   const project = useCurrentProject();
   const n = project.pages.length + 1;
   const shape = (kind: ShapeKind) => s.addShape(kind, center());
@@ -671,12 +674,18 @@ function InsertTab() {
         <Big icon="floorplan" label="Floor Plan" onClick={() => s.addPage(`Floor plan ${n}`, 'floorplan')} title="Add a floor plan page" />
       </Group>
       <Group label="Illustrations">
-        <Big icon="picture" label="Picture" onClick={() => pictureRef.current?.click()} title="Put a floor plan or site photo behind this page" />
+        <Big icon="picture" label="Picture" onClick={() => shapePicRef.current?.click()} title="A picture on the page: a logo, a photo of the rack, a screenshot (you can also paste with Ctrl+V or drag a file in)" />
         <Column>
+          <Small icon="picture" label="Background Picture" onClick={() => pictureRef.current?.click()} title="Put a floor plan or site photo behind this page" />
           <Small icon="device" label="Image as Device" onClick={() => paletteAction('import-image')} title="Import a picture and mark its ports" />
           <Small icon="visio" label="Visio Stencil" onClick={() => paletteAction('import-visio')} title="Import shapes from a Visio stencil (.vssx)" />
           <Small icon="library" label="Stencil Library" onClick={() => paletteAction('import-library')} title="Import a .netcraft-stencils.json library" />
         </Column>
+        <input ref={shapePicRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/*" onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) void insertPictureFile(f, center());
+        }} />
         <input ref={pictureRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.svg,image/*" onChange={async (e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
@@ -866,7 +875,7 @@ function TableGroup({ node }: { node: ShapeNode }) {
 function insertField(code: string) {
   const st = useDiagram.getState();
   const pg = activePage(st.projects[st.currentId]);
-  const shape = pg.nodes.find((n) => n.selected && n.type === 'shape' && n.data.kind !== 'table');
+  const shape = pg.nodes.find((n) => n.selected && n.type === 'shape' && n.data.kind !== 'table' && n.data.kind !== 'image');
   if (shape && shape.type === 'shape') {
     st.snapshot();
     st.updateNodeData(shape.id, { text: shape.data.text ? `${shape.data.text} ${code}` : code });
