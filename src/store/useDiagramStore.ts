@@ -185,11 +185,11 @@ interface DiagramState {
   /** Moves nodes on the active page to new positions (one undo step). */
   setPositions: (positions: Map<string, { x: number; y: number }>) => void;
   /** Remembers the formatting of the selected cable, shape or device; returns what kind was copied. */
-  copyFormat: () => 'cable' | 'shape' | 'device' | null;
+  copyFormat: () => FormatKind | null;
   /** Applies the copied formatting to selected items of the same kind; returns how many changed. */
   pasteFormat: () => number;
   /** What `copyFormat` holds, for menus. */
-  formatKind: () => 'cable' | 'shape' | 'device' | null;
+  formatKind: () => FormatKind | null;
   /** Shows a page and selects one node or cable on it (used by Find). */
   selectItem: (pageId: string, kind: 'node' | 'edge', id: string) => void;
   /** Replaces `term` in the given Find hits (undoable). Returns how many fields changed. */
@@ -319,7 +319,18 @@ export interface Clipboard {
 export const CLIP_MIME = 'application/x-netcraft-clip';
 
 /** Formatting copied with Copy format (format painter). */
-let formatClip: { kind: 'cable' | 'shape' | 'device'; patch: Record<string, unknown> } | null = null;
+type FormatKind = 'cable' | 'shape' | 'device' | 'zone' | 'note';
+/** Format Painter: the copied item's own format (for items of its kind) and its text look (for any item with text). */
+let formatClip: { kind: FormatKind; patch: Record<string, unknown>; look: TextLook } | null = null;
+
+const LOOK_KEYS = ['fontFamily', 'fontSize', 'bold', 'italic', 'underline', 'strike', 'textColor'] as const;
+const lookOf = (d: Record<string, unknown>): TextLook => Object.fromEntries(LOOK_KEYS.filter((k) => d[k] !== undefined).map((k) => [k, d[k]])) as TextLook;
+
+/**
+ * Smart Duplicate (Visio): the copies made by the last Ctrl+D and where their originals were. If those copies are
+ * duplicated again, the new ones keep the same spacing (including any move made in between).
+ */
+let lastDuplicate: Map<string, { x: number; y: number }> | null = null;
 
 /** Last copy, and how many times it has been pasted (each paste lands a little further down-right). */
 let clipboard: { clip: Clipboard; pasted: number } | null = null;
@@ -978,14 +989,18 @@ export const useDiagram = create<DiagramState>()(
           const n = pg.nodes.find((x) => x.selected && x.type !== 'backdrop');
           if (e && !n) {
             const d = (e.data ?? { cable: 'Cat6' }) as CableData;
-            formatClip = { kind: 'cable', patch: { cable: d.cable, color: d.color, route: d.route, arrows: d.arrows } };
+            formatClip = { kind: 'cable', patch: { cable: d.cable, color: d.color, route: d.route, arrows: d.arrows, weight: d.weight }, look: lookOf(d) };
           } else if (n?.type === 'shape') {
             const d = n.data;
-            formatClip = { kind: 'shape', patch: { fill: d.fill, stroke: d.stroke, textColor: d.textColor, fontSize: d.fontSize, dashed: d.dashed, linePattern: d.linePattern, fillTransparency: d.fillTransparency, gradient: d.gradient, lineWidth: d.lineWidth, shadow: d.shadow } };
+            formatClip = { kind: 'shape', patch: { fill: d.fill, stroke: d.stroke, textColor: d.textColor, fontSize: d.fontSize, dashed: d.dashed, linePattern: d.linePattern, fillTransparency: d.fillTransparency, gradient: d.gradient, lineWidth: d.lineWidth, shadow: d.shadow, rounding: d.rounding, align: d.align, valign: d.valign }, look: lookOf(d) };
           } else if (n?.type === 'device') {
             const d = n.data;
             const infoBox = d.infoBox ? { ...d.infoBox, offset: undefined } : undefined;
-            formatClip = { kind: 'device', patch: { labelFields: d.labelFields, infoBox, status: d.status } };
+            formatClip = { kind: 'device', patch: { labelFields: d.labelFields, infoBox, status: d.status }, look: lookOf(d) };
+          } else if (n?.type === 'zone') {
+            formatClip = { kind: 'zone', patch: { color: n.data.color }, look: lookOf(n.data) };
+          } else if (n?.type === 'note') {
+            formatClip = { kind: 'note', patch: {}, look: lookOf(n.data) };
           } else return null;
           return formatClip.kind;
         },
@@ -993,27 +1008,32 @@ export const useDiagram = create<DiagramState>()(
           const clip = formatClip;
           if (!clip) return 0;
           const pg = page();
-          if (clip.kind === 'cable') {
-            const ids = pg.edges.filter((e) => e.selected).map((e) => e.id);
-            if (!ids.length) return 0;
-            get().snapshot();
-            commit({ edges: pg.edges.map((e) => (e.selected ? { ...e, data: { ...(e.data as CableData), ...clip.patch } } : e)) });
-            return ids.length;
-          }
-          const targets = pg.nodes.filter((n) => n.selected && n.type === clip.kind);
-          if (!targets.length) return 0;
+          const look = clip.look;
+          const hasLook = Object.keys(look).length > 0;
+          // Same kind: the whole format. Other kinds with text: just the font (Visio paints text formatting across).
+          const nodeTargets = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && n.type !== 'measure' && (n.type === clip.kind || hasLook));
+          const edgeTargets = pg.edges.filter((e) => e.selected && (clip.kind === 'cable' || hasLook));
+          if (!nodeTargets.length && !edgeTargets.length) return 0;
           get().snapshot();
           commit({
             nodes: pg.nodes.map((n) => {
-              if (!n.selected || n.type !== clip.kind) return n;
+              if (!nodeTargets.includes(n)) return n;
+              const same = n.type === clip.kind;
               // Keep each device's own info-box position.
-              const patch = clip.kind === 'device' && n.type === 'device' && clip.patch.infoBox
+              const own = !same ? {} : clip.kind === 'device' && n.type === 'device' && clip.patch.infoBox
                 ? { ...clip.patch, infoBox: { ...(clip.patch.infoBox as object), offset: n.data.infoBox?.offset } }
                 : clip.patch;
-              return { ...n, data: { ...n.data, ...patch } } as AppNode;
+              // A drawing shape always has a size and colour; others fall back to their usual look when unset.
+              const lk = n.type === 'shape' ? Object.fromEntries(Object.entries(look).filter(([, v]) => v !== undefined)) : { ...Object.fromEntries(LOOK_KEYS.map((k) => [k, undefined])), ...look };
+              return { ...n, data: { ...n.data, ...lk, ...own } } as AppNode;
+            }),
+            edges: pg.edges.map((e) => {
+              if (!edgeTargets.includes(e)) return e;
+              const d = (e.data ?? { cable: 'Cat6' }) as CableData;
+              return { ...e, data: { ...d, ...Object.fromEntries(LOOK_KEYS.map((k) => [k, undefined])), ...look, ...(clip.kind === 'cable' ? clip.patch : {}) } as CableData };
             }),
           });
-          return targets.length;
+          return nodeTargets.length + edgeTargets.length;
         },
         formatKind: () => formatClip?.kind ?? null,
         addPicture: (position, src, width, height) => {
@@ -1309,14 +1329,25 @@ export const useDiagram = create<DiagramState>()(
             if (g && !groups.has(g)) groups.set(g, `g-${uid()}`);
             return g ? { group: groups.get(g) } : {};
           };
+          // Smart Duplicate: duplicating the last copies again repeats the spacing between them and their originals.
+          const mem = lastDuplicate;
+          const first = sel[0];
+          const from = mem && sel.every((n) => mem.has(n.id)) ? mem.get(first.id)! : null;
+          const off = from ? { x: first.position.x - from.x, y: first.position.y - from.y } : { x: 40, y: 40 };
+          const ids = new Map(sel.map((n) => [n.id, reId(n.id)]));
           const copies = sel.map((n) => ({
             ...n,
-            id: reId(n.id),
-            position: { x: n.position.x + 40, y: n.position.y + 40 },
+            id: ids.get(n.id)!,
+            position: { x: n.position.x + off.x, y: n.position.y + off.y },
             selected: true,
             data: { ...n.data, ...regroup(extras(n).group) },
           })) as AppNode[];
-          commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), ...copies] });
+          // Cables between duplicated items are duplicated too (Visio copies connectors glued at both ends).
+          const cables = pg.edges.filter((e) => ids.has(e.source) && ids.has(e.target)).map((e) => ({
+            ...e, id: `e-${uid()}`, source: ids.get(e.source)!, target: ids.get(e.target)!, selected: false,
+          }));
+          lastDuplicate = new Map(sel.map((n) => [ids.get(n.id)!, n.position]));
+          commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), ...copies], edges: [...pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)), ...cables] });
         },
 
         applyImport: (plan, defaultStencilId, link) => {

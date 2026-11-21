@@ -7,6 +7,10 @@ export const useTool = create<{ tool: DrawTool | null }>(() => ({ tool: null }))
 
 export const setTool = (tool: DrawTool | null) => useTool.setState({ tool });
 
+/** Format Painter mode: on = the next item clicked gets the copied format; sticky (double-click) = until Esc. */
+export const usePainter = create<{ on: boolean; sticky: boolean }>(() => ({ on: false, sticky: false }));
+export const setPainter = (on: boolean, sticky = false) => usePainter.setState({ on, sticky: on && sticky });
+
 /** View → Full Screen (F5): the drawing alone, page by page. */
 export const usePresenting = create<{ on: boolean }>(() => ({ on: false }));
 export function setPresenting(on: boolean) {

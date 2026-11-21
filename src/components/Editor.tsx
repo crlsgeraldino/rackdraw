@@ -22,6 +22,7 @@ import { NumberShapesDialog } from './NumberShapesDialog';
 import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, DrawOverlay, GuidesLayer, PresentBar } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
+import { setPainter, usePainter } from '@/lib/tools';
 import { EDIT_TEXT_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, portTaken, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
@@ -120,11 +121,21 @@ function useClipboardEvents() {
   }, []);
 }
 
+/** Format Painter: the clicked item becomes the selection and gets the copied format. */
+function paintOnto(kind: 'node' | 'edge', id: string) {
+  const s = useDiagram.getState();
+  const pageId = s.projects[s.currentId].activePageId;
+  s.selectItem(pageId, kind, id);
+  s.pasteFormat();
+  if (!usePainter.getState().sticky) setPainter(false);
+}
+
 function Canvas() {
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
   const page = useCurrentPage();
   const display = useDisplay();
+  const painting = usePainter((p) => p.on);
   // Layer Properties: hidden layers are hidden on the canvas (and so in exports); locked layers can't be selected or
   // moved; non-printing layers are tagged so prints and picture exports leave them out.
   const layerProps = useMemo(() => {
@@ -310,7 +321,11 @@ function Canvas() {
         return;
       }
       if (e.key === 'F1') { e.preventDefault(); window.dispatchEvent(new Event(SHORTCUTS_EVENT)); return; }
+      if (e.key === 'Escape' && usePainter.getState().on) { setPainter(false); return; }
       if (!mod) return;
+      // Ctrl+Shift+C / Ctrl+Shift+V: copy / paste formatting (Office).
+      if (e.shiftKey && key === 'c') { e.preventDefault(); s.copyFormat(); return; }
+      if (e.shiftKey && key === 'v') { e.preventDefault(); s.pasteFormat(); return; }
       // Ctrl+Page Down / Page Up: next / previous page (Visio).
       if (e.key === 'PageDown' || e.key === 'PageUp') {
         const proj = s.projects[s.currentId];
@@ -346,7 +361,7 @@ function Canvas() {
   }, [duplicateSelected, rf]);
 
   return (
-    <div className="relative flex-1" style={{ fontFamily: project.display?.font }} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
+    <div className={`relative flex-1 ${painting ? 'nc-painting' : ''}`} style={{ fontFamily: project.display?.font }} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
       {rulers && <Rulers />}
       <div className="absolute inset-0" style={rulers ? { left: RULER, top: RULER } : undefined}>
       <ReactFlow<AppNode, CableEdge>
@@ -373,7 +388,12 @@ function Canvas() {
         nodesConnectable={!presenting}
         elementsSelectable={!presenting}
         onNodeDragStart={snapshot}
-        onNodeClick={(_, n) => { if (presenting && n.type !== 'backdrop' && n.data.link) follow(n.data.link); }}
+        onNodeClick={(_, n) => {
+          if (presenting && n.type !== 'backdrop' && n.data.link) follow(n.data.link);
+          else if (usePainter.getState().on && n.type !== 'backdrop') paintOnto('node', n.id);
+        }}
+        onEdgeClick={(_, ed) => { if (usePainter.getState().on) paintOnto('edge', ed.id); }}
+        onPaneClick={() => { if (usePainter.getState().on && !usePainter.getState().sticky) setPainter(false); }}
         onNodeContextMenu={(e, n) => openMenu(e, { kind: 'node', id: n.id, x: e.clientX, y: e.clientY })}
         onEdgeContextMenu={(e, ed) => openMenu(e, { kind: 'edge', id: ed.id, x: e.clientX, y: e.clientY })}
         onPaneContextMenu={(e) => openMenu(e as React.MouseEvent, { kind: 'pane', x: e.clientX, y: e.clientY })}

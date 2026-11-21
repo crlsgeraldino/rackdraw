@@ -95,3 +95,6 @@ body {
 .nc-exporting .nc-selected-icon > div:first-child { outline: none !important; }
 .nc-exporting .react-flow__node.selected { box-shadow: none !important; }
 .nc-exporting .nc-export-hide { visibility: hidden !important; }
+
+/* Format Painter: a paintbrush-style cursor over everything that can take the format. */
+.nc-painting .react-flow__pane, .nc-painting .react-flow__node, .nc-painting .react-flow__edge { cursor: copy !important; }

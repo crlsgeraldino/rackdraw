@@ -101,6 +101,16 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Format Painter and Smart Duplicate
+
+- **Home → Format Painter** works like Office / Visio: select an item, click Format Painter, then click the item to
+  paint. **Double-click** it to paint several items, **Esc** to stop. Same-kind items get the whole format (fill, line,
+  cable type…); any other item with text gets the font, size, style and colour. **Ctrl+Shift+C / Ctrl+Shift+V** copy
+  and paste formatting from the keyboard.
+- **Smart Duplicate (Ctrl+D)**: duplicate, move the copy where the next one should go, and press Ctrl+D again: each
+  new copy keeps that spacing, so a row of APs or cameras takes a few key presses. Cables between the duplicated items
+  are copied too.
+
 ## Off-page references
 
 - **Insert → Off-page Ref** (Visio's Off-page Reference): pick the page a cable or path continues on (or **New page…**);

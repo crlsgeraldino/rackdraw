@@ -22,7 +22,7 @@ import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { openChangeShape } from '../ChangeShapeDialog';
 import { openVersions } from '../VersionsDialog';
 import { THEMES, themeById, type Theme } from '@/lib/themes';
-import { setPresenting, setTool, useTool } from '@/lib/tools';
+import { setPainter, setPresenting, setTool, usePainter, useTool } from '@/lib/tools';
 import { SAVE_SELECTION_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
@@ -501,8 +501,8 @@ function HomeTab() {
           <Small icon="duplicate" label="Duplicate" onClick={s.duplicateSelected} disabled={!st.count} title="Duplicate (Ctrl+D)" />
         </Column>
         <Column>
-          <Small icon="painter" label="Copy format" onClick={() => { if (!s.copyFormat()) alert('Select one cable, shape or device to copy its format.'); }} disabled={!st.count && !anyEdge} title="Format Painter: copy the format of the selected item" />
-          <Small icon="painter" label={`Paste format${fmt ? '' : ''}`} onClick={() => { if (!s.pasteFormat()) alert('Select items of the same kind to paste the format onto.'); }} disabled={!fmt} title={fmt ? `Paste the copied ${fmt} format onto the selection` : 'Copy a format first'} />
+          <PainterButton disabled={!st.count && !anyEdge} />
+          <Small icon="painter" label="Paste format" onClick={() => { if (!s.pasteFormat()) alert('Select the items to paste the format onto.'); }} disabled={!fmt} title={fmt ? `Paste the copied ${fmt} format onto the selection (Ctrl+Shift+V)` : 'Copy a format first'} />
         </Column>
       </Group>
       <Group label="Tools">
@@ -1091,6 +1091,25 @@ function QuickStyles({ disabled }: { disabled: boolean }) {
         </div>
       )}
     </Drop>
+  );
+}
+
+/**
+ * Format Painter like Office / Visio: click, then click the item to paint (its format and text look); double-click to
+ * keep painting several items, Esc (or clicking it again) to stop.
+ */
+function PainterButton({ disabled }: { disabled: boolean }) {
+  const painter = usePainter();
+  const start = (sticky: boolean) => {
+    if (painter.on && !sticky) return setPainter(false);
+    if (!useDiagram.getState().copyFormat()) return alert('Select one item to copy its format from.');
+    setPainter(true, sticky);
+  };
+  return (
+    <span onDoubleClick={() => start(true)}>
+      <Small icon="painter" label={painter.on ? (painter.sticky ? 'Painting… (Esc)' : 'Click an item') : 'Format Painter'} active={painter.on} disabled={disabled && !painter.on}
+        onClick={() => start(false)} title="Format Painter (Ctrl+Shift+C): copy the selected item's format, then click the item to paint. Double-click to paint several; Esc to stop." />
+    </span>
   );
 }
 
