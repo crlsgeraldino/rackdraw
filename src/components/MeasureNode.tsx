@@ -4,6 +4,7 @@ import { useReactFlow, type NodeProps } from '@xyflow/react';
 import { useRef } from 'react';
 import { realLength } from '@/lib/units';
 import type { MeasureNode } from '@/lib/types';
+import { dashFor, patternOf } from '@/lib/types';
 import { useCurrentPage, useDiagram } from '@/store/useDiagramStore';
 
 const TICK = 7;
@@ -69,7 +70,7 @@ function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
         {plain ? (
           <line
             x1={0} y1={0} x2={dx} y2={dy} stroke={lineColor} strokeWidth={data.thickness ?? 2} strokeLinecap="round"
-            strokeDasharray={data.dashed ? `${(data.thickness ?? 2) * 3} ${(data.thickness ?? 2) * 2}` : undefined}
+            strokeDasharray={dashFor(patternOf(data), data.thickness ?? 2).strokeDasharray}
             markerStart={data.arrowStart ? `url(#${marker}-l)` : undefined} markerEnd={data.arrowEnd ? `url(#${marker}-l)` : undefined}
           />
         ) : wall ? (

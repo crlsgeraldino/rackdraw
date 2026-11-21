@@ -7,7 +7,7 @@ import { editableCopy } from '../shapeCopy';
 import { realLength } from '../units';
 import { turnedBox } from '../rotation';
 import { expandFields } from '../headerFooter';
-import { patternOf } from '../types';
+import { listLines, patternOf, type Crop } from '../types';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -62,6 +62,22 @@ function loadPicture(src: string): Promise<{ w: number; h: number }> {
     const img = new Image();
     img.onload = () => resolve({ w: img.naturalWidth || 300, h: img.naturalHeight || 300 });
     img.onerror = () => resolve({ w: 300, h: 300 });
+    img.src = src;
+  });
+}
+
+/** The kept part of a cropped picture, as a PNG data URL. */
+function cropPicture(src: string, size: { w: number; h: number }, c: Crop): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const sx = size.w * c.l, sy = size.h * c.t, sw = Math.max(1, size.w * (1 - c.l - c.r)), sh = Math.max(1, size.h * (1 - c.t - c.b));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(sw); cv.height = Math.round(sh);
+      cv.getContext('2d')?.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+      resolve(cv.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(src);
     img.src = src;
   });
 }
@@ -157,7 +173,9 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'shape': {
           const d = n.data;
           const style = { fill: d.fill === 'transparent' ? null : d.fill, fillTransparency: d.fillTransparency ? d.fillTransparency / 100 : undefined, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, pattern: patternOf(d), lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
-          const text = d.text ? { text: expandFields(d.text, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign, font: d.fontFamily } : undefined;
+          const listed = listLines(d.text ?? '', d.list);
+          const shown = listed ? listed.map((l) => (l.mark ? `${l.mark} ${l.text}` : l.text)).join('\n') : d.text;
+          const text = d.text ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign, font: d.fontFamily } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
@@ -166,7 +184,10 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           if (d.kind === 'image') {
             if (d.src) {
               const img = await loadPicture(d.src);
-              front.push({ kind: 'image', name: 'Picture', box: bb, media: await addMedia(`img:${n.id}`, d.src, Math.max(1, Math.round(img.w)), Math.max(1, Math.round(img.h))) });
+              const c = d.crop;
+              const src = c ? await cropPicture(d.src, img, c) : d.src;
+              const w = Math.max(1, Math.round(img.w * (c ? 1 - c.l - c.r : 1))), h = Math.max(1, Math.round(img.h * (c ? 1 - c.t - c.b : 1)));
+              front.push({ kind: 'image', name: 'Picture', box: bb, media: await addMedia(`img:${n.id}:${c ? [c.l, c.t, c.r, c.b].join(',') : ''}`, src, w, h) });
             }
             if (d.stroke !== 'transparent' || d.text) front.push({ kind: 'rect', box: bb, fill: null, line: d.stroke === 'transparent' ? null : d.stroke, lineWeightPt: pt(d.lineWidth ?? 2), text });
           } else if (d.kind === 'table') {
@@ -236,7 +257,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           if (n.data.variant === 'line') {
             front.push({
               kind: 'line', name: n.data.label || 'Line', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: n.data.color ?? '#374151',
-              lineWeightPt: pt(n.data.thickness ?? 2), dashed: n.data.dashed, arrowStart: n.data.arrowStart, arrowEnd: n.data.arrowEnd,
+              lineWeightPt: pt(n.data.thickness ?? 2), dashed: n.data.dashed, pattern: patternOf(n.data), arrowStart: n.data.arrowStart, arrowEnd: n.data.arrowEnd,
               text: n.data.label ? { text: n.data.label, sizePt: 8 } : undefined,
             });
             break;

@@ -101,6 +101,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Bullets, numbering and picture crop
+
+- **Home → Paragraph → Bullets / Numbering** turn the lines of a shape's text into a bulleted or numbered list (empty
+  lines are skipped in the numbering). Click again to turn it off. Visio exports keep the bullets and numbers.
+- Select a picture and use **Shape → Picture → Crop**: sliders cut off the left, top, right and bottom. The picture keeps
+  its size on the page; only the cut-off part goes. **Reset Picture** brings it all back. Visio exports get the
+  cropped picture.
+
 ## Fill and line options (like Visio's Format Shape)
 
 - **Fill ▾** (Home and Shape tabs) also sets **transparency** (0 / 25 / 50 / 75 %) and a **gradient fill** (lighter at

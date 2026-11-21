@@ -4,7 +4,7 @@ import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type Node
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, patternOf, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, patternOf, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
@@ -345,6 +345,13 @@ function ShapeOutline({ d, w, h, id }: { d: ShapeData; w: number; h: number; id?
   );
 }
 
+/** Places a picture so only its uncropped part fills the box (Picture → Crop). */
+function cropStyle(c?: { l: number; t: number; r: number; b: number }): React.CSSProperties {
+  if (!c) return { left: 0, top: 0, width: '100%', height: '100%' };
+  const kw = Math.max(0.05, 1 - c.l - c.r), kh = Math.max(0.05, 1 - c.t - c.b);
+  return { width: `${100 / kw}%`, height: `${100 / kh}%`, left: `${(-c.l / kw) * 100}%`, top: `${(-c.t / kh) * 100}%` };
+}
+
 /** Mixes a #rrggbb colour with white (amount 0 = the colour, 1 = white). */
 function mixWhite(hex: string, amount: number) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
@@ -436,6 +443,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
     const p = s.projects[s.currentId];
     return expandFields(data.text, p, p.activePageId);
   });
+  const listed = listLines(fieldText ?? '', data.list);
   useEffect(() => {
     const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked && !isTable) { snapshot(); setEditing(true); } };
     window.addEventListener(EDIT_TEXT_EVENT, on);
@@ -455,9 +463,10 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       </svg>
       {data.kind === 'image' && data.src && (
         // Pictures stretch with their box (resizing keeps the proportions); the border, if any, is drawn over them.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={data.src} alt={data.text || 'Picture'} draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none"
-          style={{ objectFit: 'fill', filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }} />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={data.src} alt={data.text || 'Picture'} draggable={false} className="absolute max-w-none select-none" style={cropStyle(data.crop)} />
+        </div>
       )}
       {data.kind === 'text' && selected && !editing && <div className="nc-ui pointer-events-none absolute inset-0 rounded border border-dashed border-blue-400" />}
       {editing ? (
@@ -471,7 +480,16 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
         />
       ) : (
         <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={textStyle}>
-          {fieldText}
+          {listed ? (
+            <div className="w-full">
+              {listed.map((l, i) => (
+                <div key={i} className="flex gap-1.5" style={{ justifyContent: data.align === 'right' ? 'flex-end' : data.align === 'left' ? 'flex-start' : 'center' }}>
+                  {l.mark && <span className="shrink-0">{l.mark}</span>}
+                  <span>{l.text || '\u00a0'}</span>
+                </div>
+              ))}
+            </div>
+          ) : fieldText}
         </div>
       )}
       {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}

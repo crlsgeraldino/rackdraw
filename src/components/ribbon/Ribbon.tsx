@@ -537,6 +537,14 @@ function HomeTab() {
               <AlignGlyph v={v} />
             </FmtBtn>
           ))}
+          {(['bullet', 'number'] as const).map((l) => {
+            const on = shapeSel.length > 0 && shapeSel.every((n) => n.data.list === l);
+            return (
+              <FmtBtn key={l} label={l === 'bullet' ? 'Bullets' : 'Numbering'} active={on} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { list: on ? null : l } })}>
+                <span className="text-[10px] leading-none">{l === 'bullet' ? '•≡' : '1≡'}</span>
+              </FmtBtn>
+            );
+          })}
         </div>
       </Group>
       <Group label="Shape Style">
@@ -870,6 +878,41 @@ function TablePicker({ at }: { at: () => { x: number; y: number } }) {
         )}
       </Drop>
     </div>
+  );
+}
+
+/** Contextual Picture group: Crop (how much of each side to cut off) and Reset. */
+function PictureGroup({ node }: { node: ShapeNode }) {
+  const s = useDiagram.getState();
+  const c = node.data.crop ?? { l: 0, t: 0, r: 0, b: 0 };
+  const side = (k: 'l' | 't' | 'r' | 'b', label: string) => {
+    const other = k === 'l' ? c.r : k === 'r' ? c.l : k === 't' ? c.b : c.t;
+    return (
+      <label key={k} className="flex items-center gap-2">
+        <span className="w-12 text-gray-600">{label}</span>
+        <input type="range" min={0} max={Math.round((0.9 - other) * 100)} value={Math.round(c[k] * 100)} className="flex-1"
+          onPointerDown={() => s.snapshot()} onKeyDown={() => s.snapshot()}
+          onChange={(e) => s.cropPicture(node.id, { ...c, [k]: Number(e.target.value) / 100 })} />
+        <span className="w-8 text-right text-gray-500">{Math.round(c[k] * 100)}%</span>
+      </label>
+    );
+  };
+  return (
+    <Group label="Picture">
+      <div className="flex items-start pt-1">
+        <Drop width={250} trigger={(open, isOpen) => <Big icon="crop" label="Crop" onClick={open} active={isOpen || !!node.data.crop} title="Cut off the edges of the picture (like Visio's Crop tool)" />}>
+          {() => (
+            <div className="space-y-1.5 p-2 text-xs">
+              {side('l', 'Left')}{side('t', 'Top')}{side('r', 'Right')}{side('b', 'Bottom')}
+              <p className="text-[10px] text-gray-400">The picture keeps its size; only the cut-off part goes. Reset brings it all back.</p>
+            </div>
+          )}
+        </Drop>
+      </div>
+      <Column>
+        <Small icon="undo" label="Reset Picture" disabled={!node.data.crop} onClick={() => { s.snapshot(); s.cropPicture(node.id, null); }} title="Undo the crop" />
+      </Column>
+    </Group>
   );
 }
 
@@ -1267,6 +1310,7 @@ function ShapeTab() {
         </Group>
       )}
       {node?.type === 'shape' && node.data.kind === 'table' && <TableGroup node={node} />}
+      {node?.type === 'shape' && node.data.kind === 'image' && <PictureGroup node={node} />}
       {!device && node?.type === 'shape' && node.data.kind !== 'table' && (
         <Group label="Shape">
           <div className="flex items-start pt-1">

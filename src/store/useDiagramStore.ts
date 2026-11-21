@@ -156,6 +156,8 @@ interface DiagramState {
   /** Select by Type (Home → Editing → Select): what to select on the active page. */
   /** Adds a picture shape (Insert → Picture, paste or drop an image) centred on `position`, at most 360px wide/high. */
   addPicture: (position: { x: number; y: number }, src: string, width: number, height: number) => void;
+  /** Picture → Crop: sets how much of each side is cut off; the box shrinks or grows so the picture keeps its scale. */
+  cropPicture: (id: string, crop: { l: number; t: number; r: number; b: number } | null) => void;
   /** Lasso Select: selects these items (and the cables between selected items); `add` keeps the current selection. */
   selectIds: (ids: string[], add?: boolean) => void;
   /** Adds a table (Insert → Table) centred on `position`. */
@@ -1009,6 +1011,19 @@ export const useDiagram = create<DiagramState>()(
           const pg = page();
           commit({ nodes: [...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), node], edges: pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)) });
         },
+        cropPicture: (id, crop) => {
+          const n = page().nodes.find((x) => x.id === id);
+          if (n?.type !== 'shape' || n.data.kind !== 'image') return;
+          const w = n.width ?? n.measured?.width ?? 100, h = n.height ?? n.measured?.height ?? 100;
+          const o = n.data.crop ?? { l: 0, t: 0, r: 0, b: 0 };
+          const c = crop ?? { l: 0, t: 0, r: 0, b: 0 };
+          // The whole (uncropped) picture's size on the page, from the current box.
+          const fw = w / Math.max(0.05, 1 - o.l - o.r), fh = h / Math.max(0.05, 1 - o.t - o.b);
+          const nw = Math.max(10, Math.round(fw * (1 - c.l - c.r))), nh = Math.max(10, Math.round(fh * (1 - c.t - c.b)));
+          const position = { x: Math.round(n.position.x + fw * (c.l - o.l)), y: Math.round(n.position.y + fh * (c.t - o.t)) };
+          const none = !c.l && !c.t && !c.r && !c.b;
+          commit({ nodes: page().nodes.map((x) => (x.id === id && x.type === 'shape' ? { ...x, position, width: nw, height: nh, style: { ...x.style, width: nw, height: nh }, data: { ...x.data, crop: none ? undefined : c } } : x)) });
+        },
         selectIds: (ids, add) => {
           const pg = page();
           const want = new Set(ids);
@@ -1163,7 +1178,7 @@ export const useDiagram = create<DiagramState>()(
             nodes: pg.nodes.map((n) => {
               if (!n.selected) return n;
               if (n.type === 'shape') {
-                const { sizeDelta, ...fmt } = text ?? {};
+                const { sizeDelta, list, ...fmt } = text ?? {};
                 return {
                   ...n,
                   data: {
@@ -1171,12 +1186,13 @@ export const useDiagram = create<DiagramState>()(
                     ...(weight !== undefined ? { lineWidth: weight ?? undefined } : {}), ...(shadow !== undefined ? { shadow: shadow || undefined } : {}),
                     ...(textColor ? { textColor } : {}),
                     ...(format ? { ...format, ...(format.linePattern ? { dashed: undefined } : {}) } : {}),
+                    ...(list !== undefined ? { list: list ?? undefined } : {}),
                     ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
                   },
                 };
               }
               if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
-              if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line || format?.linePattern)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}), ...(format?.linePattern ? { dashed: format.linePattern !== 'solid' || undefined } : {}) } };
+              if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line || format?.linePattern)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}), ...(format?.linePattern ? { linePattern: format.linePattern, dashed: format.linePattern !== 'solid' || undefined } : {}) } };
               return n;
             }),
             edges: line === undefined && weight === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? {

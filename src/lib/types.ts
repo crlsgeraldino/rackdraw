@@ -258,6 +258,20 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   linePattern?: LinePattern;
   /** Rounded corners of a rectangle, in px. */
   rounding?: number;
+  /** Bulleted or numbered lines (Home → Paragraph). */
+  list?: TextList | null;
+  /** Picture crop: how much is cut off each side, as fractions (0–1) of the whole picture. */
+  crop?: Crop;
+}
+
+export type TextList = 'bullet' | 'number';
+export interface Crop { l: number; t: number; r: number; b: number }
+
+/** Shape text as list lines: each non-empty line gets a bullet or its number. */
+export function listLines(text: string, list?: TextList | null): { mark: string; text: string }[] | null {
+  if (!list) return null;
+  let i = 0;
+  return text.split('\n').map((line) => (line.trim() ? { mark: list === 'bullet' ? '•' : `${++i}.`, text: line } : { mark: '', text: line }));
 }
 
 export type LinePattern = 'solid' | 'dash' | 'dot' | 'dashdot';
@@ -293,6 +307,8 @@ export interface TextFormat {
   /** Set the font size (px). */
   fontSize?: number;
   fontFamily?: string;
+  /** Bullets / numbering; null = none. */
+  list?: TextList | null;
 }
 
 /** Print / PDF header and footer (Visio's Page Setup → Header/Footer): left, centre and right text, with codes. */
@@ -316,6 +332,8 @@ export interface MeasureData extends Record<string, unknown>, NodeExtras {
   /** Line tool: colour, dashes and arrowheads. */
   color?: string;
   dashed?: boolean;
+  /** Line tool: dash / dot / dash-dot (wins over `dashed`). */
+  linePattern?: LinePattern;
   arrowStart?: boolean;
   arrowEnd?: boolean;
   layer?: string;
