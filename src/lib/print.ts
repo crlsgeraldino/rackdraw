@@ -1,5 +1,5 @@
 import { connectionRows, deviceRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
-import type { Project } from './types';
+import { FRAME_COLOR, type Project } from './types';
 import { hasHeaderFooter, hfCss } from './headerFooter';
 
 import { PAPER, type PaperSize } from './pageSetup';
@@ -31,8 +31,19 @@ function titleBlockHtml(p: Project, sheet: string) {
 }
 
 function headerHtml(p: Project, title: string) {
+  // Borders & Titles → banner: the sheet title big on a coloured band, the client under it.
+  if (p.display?.frame === 'banner') {
+    const sub = [p.name, p.site, p.address, new Date().toLocaleDateString()].filter(Boolean).map(esc).join(' &nbsp;·&nbsp; ');
+    return `<header class="banner" style="background:${p.display.frameColor ?? FRAME_COLOR}"><h1>${esc(title)}</h1><div class="sub">${sub}</div></header>`;
+  }
   const sub = [p.site, p.address, title, new Date().toLocaleDateString()].filter(Boolean).map(esc).join(' &nbsp;·&nbsp; ');
   return `<header><h1>${esc(p.name)}</h1><div class="sub">${sub}</div></header>`;
+}
+
+/** Page colour and simple frame of a printed sheet (Design → Backgrounds / Borders & Titles). */
+function sheetStyle(p: Project) {
+  const d = p.display;
+  return [d?.pageColor ? `background:${d.pageColor}` : '', d?.frame === 'simple' ? `border:2px solid ${d.frameColor ?? FRAME_COLOR};outline:1px solid ${d.frameColor ?? FRAME_COLOR};outline-offset:3px;padding:6pt` : ''].filter(Boolean).join(';');
 }
 
 function tableHtml(p: Project, title: string, cols: string[], rows: (string | number)[][]) {
@@ -56,7 +67,7 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
   const sheets: string[] = [];
 
   const picture = (title: string, url: string) =>
-    `<section class="nc-sheet" style="height:${sheetH}in">${headerHtml(p, title)}<div class="art"><img src="${url}" alt=""></div>${titleBlockHtml(p, title)}</section>`;
+    `<section class="nc-sheet" style="height:${sheetH}in;${sheetStyle(p)}">${headerHtml(p, title)}<div class="art"><img src="${url}" alt=""></div>${titleBlockHtml(p, title)}</section>`;
 
   for (const pg of p.pages) {
     if (!o.pageIds.includes(pg.id)) continue;
@@ -109,6 +120,9 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
   #${ROOT_ID} .nc-sheet { display: flex; flex-direction: column; overflow: hidden; }
   #${ROOT_ID} header h1 { font-size: 15pt; margin: 0; }
   #${ROOT_ID} header .sub { font-size: 8.5pt; color: #666; margin: 2pt 0 6pt; }
+  #${ROOT_ID} header.banner { color: #fff; padding: 6pt 8pt 4pt; margin-bottom: 6pt; }
+  #${ROOT_ID} header.banner .sub { color: #e5e7eb; margin-bottom: 0; }
+  #${ROOT_ID} .nc-sheet { box-sizing: border-box; }
   #${ROOT_ID} .art { position: relative; flex: 1; min-height: 0; }
   #${ROOT_ID} .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   #${ROOT_ID} .nc-tb { display: flex; height: ${TITLE_H}in; margin-top: 6pt; border: 1px solid #555; box-sizing: border-box; }

@@ -452,9 +452,17 @@ export interface DisplaySettings {
   jumpSize?: number;
   /** Corner radius of right-angle cables (px); 0 = square corners; missing = 8. */
   cableCorners?: number;
+  /** Design → Backgrounds: the drawing page's colour; missing = white. */
+  pageColor?: string;
+  /** Design → Borders & Titles: a frame round the page, or a title banner (page name and client). */
+  frame?: PageFrame;
+  /** Colour of the frame / banner; missing = navy. */
+  frameColor?: string;
 }
 
 export type JumpStyle = 'arc' | 'gap' | 'square';
+export type PageFrame = 'none' | 'simple' | 'banner';
+export const FRAME_COLOR = '#1e3a8a';
 
 export interface DataGraphic {
   /** Field key, as in Reports: 'ip', 'model', 'status', … or 'x:<field name>'. */

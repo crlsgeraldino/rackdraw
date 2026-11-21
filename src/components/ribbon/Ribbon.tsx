@@ -1163,6 +1163,56 @@ function PainterButton({ disabled }: { disabled: boolean }) {
   );
 }
 
+const PAGE_COLORS = ['#ffffff', '#f8fafc', '#f1f5f9', '#fefce8', '#fdf6e3', '#eff6ff', '#ecfdf5', '#fdf2f8', '#f5f3ff', '#e5e7eb'];
+const FRAME_COLORS = ['#1e3a8a', '#0f766e', '#334155', '#7c2d12', '#6d28d9', '#b91c1c', '#000000'];
+
+/** Design → Backgrounds (page colour) and Borders & Titles (frame / title banner), for the whole client. */
+function PageLookMenus() {
+  const project = useCurrentProject();
+  const d = project.display;
+  const set = (patch: Partial<NonNullable<typeof d>>) => { useDiagram.getState().snapshot(); useDiagram.getState().setDisplay(patch); };
+  const frame = d?.frame ?? 'none';
+  return (
+    <>
+      <div className="flex items-start pt-1">
+        <Drop width={196} trigger={(open, isOpen) => <Big icon="page" label="Page Color" onClick={open} active={isOpen || !!(d?.pageColor && d.pageColor !== '#ffffff')} title="Background colour of the drawing page (prints and pictures too)" />}>
+          {(close) => (
+            <div className="grid grid-cols-5 gap-1 p-2">
+              {PAGE_COLORS.map((c) => (
+                <button key={c} className={`h-7 rounded border ${(d?.pageColor ?? '#ffffff') === c ? 'border-blue-500 ring-1 ring-blue-400' : 'border-gray-300'}`} style={{ background: c }} title={c === '#ffffff' ? 'White (none)' : c} aria-label={c}
+                  onClick={() => { set({ pageColor: c === '#ffffff' ? undefined : c }); close(); }} />
+              ))}
+            </div>
+          )}
+        </Drop>
+      </div>
+      <div className="flex items-start pt-1">
+        <Drop width={236} trigger={(open, isOpen) => <Big icon="titleBlock" label="Borders & Titles" onClick={open} active={isOpen || frame !== 'none'} title="A frame round the page, or a title banner with the page name and client (like Visio's Borders & Titles)" />}>
+          {(close) => (
+            <div className="p-2 text-xs">
+              {([['none', 'None'], ['simple', 'Simple frame'], ['banner', 'Title banner']] as const).map(([v, label]) => (
+                <button key={v} className={`mb-1 flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-blue-50 ${frame === v ? 'bg-blue-50' : ''}`} onClick={() => { set({ frame: v === 'none' ? undefined : v }); close(); }}>
+                  <span className="relative h-7 w-10 shrink-0 rounded-sm border border-gray-300 bg-white">
+                    {v === 'simple' && <span className="absolute inset-[3px] border" style={{ borderColor: d?.frameColor ?? '#1e3a8a' }} />}
+                    {v === 'banner' && <span className="absolute inset-x-0 top-0 h-2" style={{ background: d?.frameColor ?? '#1e3a8a' }} />}
+                  </span>
+                  {label}
+                </button>
+              ))}
+              <div className="mt-1 border-t border-gray-100 pt-1.5 text-[10px] uppercase tracking-wide text-gray-400">Colour</div>
+              <div className="mt-1 flex gap-1">
+                {FRAME_COLORS.map((c) => (
+                  <button key={c} className={`h-5 w-5 rounded-sm border ${(d?.frameColor ?? '#1e3a8a') === c ? 'ring-2 ring-blue-400' : 'border-gray-300'}`} style={{ background: c }} aria-label={c} onClick={() => set({ frameColor: c === '#1e3a8a' ? undefined : c })} />
+                ))}
+              </div>
+            </div>
+          )}
+        </Drop>
+      </div>
+    </>
+  );
+}
+
 /** Design → Fonts (Visio's theme fonts): one font for all the client's text that has no font of its own. */
 function FontsMenu() {
   const project = useCurrentProject();
@@ -1396,6 +1446,9 @@ function DesignTab() {
       <Group label="Themes">
         <ThemeGallery />
         <FontsMenu />
+      </Group>
+      <Group label="Backgrounds">
+        <PageLookMenus />
       </Group>
       <Group label="Connectors">
         <Column>

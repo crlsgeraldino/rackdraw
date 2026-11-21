@@ -11,7 +11,7 @@ import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices, migrateProject } from './project';
 import { rackLabel } from './rack';
-import { isDocumented, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
+import { FRAME_COLOR, isDocumented, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
 
@@ -205,8 +205,10 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect, only?: Only) {
   const vp = getViewportForBounds(bounds, width, height, 0.2, 2, `${pad}px`);
   const el = document.querySelector<HTMLElement>('.react-flow__viewport');
   if (!el) throw new Error('Canvas not found');
+  // The page colour (Design → Backgrounds), as drawn on the sheet.
+  const sheetBg = document.querySelector<HTMLElement>('.nc-page-sheet')?.style.backgroundColor || '#ffffff';
   const opts = {
-    backgroundColor: '#ffffff',
+    backgroundColor: sheetBg,
     width,
     height,
     pixelRatio: 2,
@@ -279,15 +281,24 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     if (pages++) doc.addPage();
   };
 
+  const look = p.display;
+  const frame = look?.frame ?? 'none';
+  const fc = look?.frameColor ?? FRAME_COLOR;
   const header = (title: string) => {
     sheetTitles[doc.getNumberOfPages() - 1] = title;
+    // Design → Backgrounds / Borders & Titles.
+    if (look?.pageColor && look.pageColor.toLowerCase() !== '#ffffff') { doc.setFillColor(look.pageColor); doc.rect(0, 0, W, H, 'F'); }
+    if (frame === 'simple') { doc.setDrawColor(fc); doc.setLineWidth(1.5); doc.rect(m / 2, m / 2, W - m, H - m); doc.setLineWidth(0.5); doc.rect(m / 2 - 3, m / 2 - 3, W - m + 6, H - m + 6); doc.setDrawColor(0); }
+    const banner = frame === 'banner';
+    if (banner) { doc.setFillColor(fc); doc.rect(0, 0, W, m + 22, 'F'); }
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(p.name, m, m);
+    if (banner) doc.setTextColor(255);
+    doc.text(banner ? title : p.name, m, m);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.setTextColor(100);
-    const sub = [p.site, p.address, title, new Date().toLocaleDateString()].filter(Boolean).join('  ·  ');
+    doc.setTextColor(banner ? 230 : 100);
+    const sub = [banner ? p.name : '', p.site, p.address, banner ? '' : title, new Date().toLocaleDateString()].filter(Boolean).join('  ·  ');
     doc.text(sub, m, m + 14);
     doc.setTextColor(0);
   };

@@ -101,6 +101,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Page color, borders and titles (Design → Backgrounds)
+
+- **Page Color**: a soft background for the drawing page (white, greys, ivory, light blue, green, pink, lilac).
+- **Borders & Titles** (like Visio's): a **simple frame** round the page, or a **title banner** across the top with the
+  page name and the client / site, in a colour you pick.
+- Both are set per client and show on the canvas, in prints, PDFs (page fill, frame, banner header) and pictures.
+
 ## Connector look (Design → Connectors)
 
 - **Jump Style ▾**: where cables cross, the hop is an **arc**, a **gap** or a **square**, in small, medium or large

@@ -6,8 +6,8 @@ import { DEFAULT_SETUP, pageBounds, rulerTicks, sheetSize } from '@/lib/pageSetu
 import { pxPerUnit, useUnits } from '@/lib/measure';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { usePref } from '@/lib/prefs';
-import type { DeviceData } from '@/lib/types';
-import { useCurrentPage } from '@/store/useDiagramStore';
+import { FRAME_COLOR, type DeviceData } from '@/lib/types';
+import { useCurrentPage, useCurrentProject } from '@/store/useDiagramStore';
 
 export const RULER = 18;
 const GRID = 20;
@@ -44,6 +44,10 @@ function contentKey(s: NodesStore) {
  */
 export function PageSheet() {
   const page = useCurrentPage();
+  const project = useCurrentProject();
+  const look = project.display;
+  const frame = look?.frame ?? 'none';
+  const fc = look?.frameColor ?? FRAME_COLOR;
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
   useOverlayVersion(); // grow when an info box or label changes size
@@ -59,11 +63,20 @@ export function PageSheet() {
         style={{
           left: b.x, top: b.y, width: b.w, height: b.h, zIndex: -30,
           boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
+          backgroundColor: look?.pageColor ?? '#ffffff',
           backgroundImage: grid ? 'linear-gradient(#eef0f3 1px, transparent 1px), linear-gradient(90deg, #eef0f3 1px, transparent 1px)' : undefined,
           backgroundSize: `${GRID}px ${GRID}px`,
           backgroundPosition: `${-mod(b.x)}px ${-mod(b.y)}px`,
         }}
       >
+        {/* Borders & Titles: drawn on the page itself, under the diagram. */}
+        {frame === 'simple' && <div className="absolute" style={{ inset: 10, border: `2px solid ${fc}`, outline: `1px solid ${fc}`, outlineOffset: 3 }} />}
+        {frame === 'banner' && (
+          <div className="absolute inset-x-0 top-0 flex items-end justify-between px-5 pb-2 text-white" style={{ height: 52, background: fc }}>
+            <span className="text-[20px] font-semibold leading-none">{page.name}</span>
+            <span className="text-right text-[12px] leading-tight opacity-90">{project.name}{project.site ? <><br />{project.site}</> : null}</span>
+          </div>
+        )}
         {breaks && (
           <svg className="absolute inset-0 overflow-visible" width={b.w} height={b.h} aria-hidden>
             {Array.from({ length: b.cols - 1 }, (_, i) => <line key={`c${i}`} x1={(i + 1) * sheet.w} y1={0} x2={(i + 1) * sheet.w} y2={b.h} stroke="#9ca3af" strokeDasharray="6 4" />)}
