@@ -156,6 +156,8 @@ interface DiagramState {
   /** Select by Type (Home → Editing → Select): what to select on the active page. */
   /** Adds a picture shape (Insert → Picture, paste or drop an image) centred on `position`, at most 360px wide/high. */
   addPicture: (position: { x: number; y: number }, src: string, width: number, height: number) => void;
+  /** Center Drawing: moves everything on the active page (locked items too) by dx, dy in one undo step. */
+  moveDrawing: (dx: number, dy: number) => void;
   /** Picture → Crop: sets how much of each side is cut off; the box shrinks or grows so the picture keeps its scale. */
   cropPicture: (id: string, crop: { l: number; t: number; r: number; b: number } | null) => void;
   /** Lasso Select: selects these items (and the cables between selected items); `add` keeps the current selection. */
@@ -1010,6 +1012,11 @@ export const useDiagram = create<DiagramState>()(
           } as AppNode;
           const pg = page();
           commit({ nodes: [...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), node], edges: pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)) });
+        },
+        moveDrawing: (dx, dy) => {
+          if (!dx && !dy) return;
+          get().snapshot();
+          commit({ nodes: page().nodes.map((n) => (n.type === 'backdrop' ? n : { ...n, position: { x: Math.round(n.position.x + dx), y: Math.round(n.position.y + dy) } })) });
         },
         cropPicture: (id, crop) => {
           const n = page().nodes.find((x) => x.id === id);

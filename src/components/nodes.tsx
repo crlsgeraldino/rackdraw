@@ -9,6 +9,7 @@ import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/sto
 import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
 import { setActiveCell, setCell } from '@/lib/table';
+import { rememberCaret } from '@/lib/symbols';
 import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
@@ -428,7 +429,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   const w = width ?? 160, h = height ?? 80;
   const textStyle: React.CSSProperties = {
     color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2, fontFamily: data.fontFamily,
-    fontWeight: data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textDecoration: data.underline ? 'underline' : undefined,
+    fontWeight: data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textDecoration: [data.underline && 'underline', data.strike && 'line-through'].filter(Boolean).join(' ') || undefined,
     textAlign: data.align ?? 'center',
   };
   const justify = data.align === 'left' ? 'justify-start' : data.align === 'right' ? 'justify-end' : 'justify-center';
@@ -475,7 +476,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
           className="nodrag absolute inset-1 resize-none bg-white/80 outline-none"
           style={textStyle}
           defaultValue={data.text}
-          onBlur={(e) => { update(id, { text: e.target.value }); setEditing(false); }}
+          onBlur={(e) => { rememberCaret(id, e.target.selectionStart ?? e.target.value.length); update(id, { text: e.target.value }); setEditing(false); }}
           onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
         />
       ) : (

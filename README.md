@@ -101,6 +101,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Symbols, strikethrough and Center Drawing
+
+- **Insert → Symbol**: °, ±, ×, ≈, ≤, µ, Ω, arrows, ✓/✗, ⚠, ©/®/™, currency and Greek letters, into the selected text
+  box or shape, where the cursor was when you last edited its text (or at the end).
+- **Home → Font → Strikethrough** (next to Underline); Visio exports keep it.
+- **Design → Center Drawing** moves the whole drawing to the middle of its page (the sheets it needs), with equal
+  space on each side, then fits the view. One Ctrl+Z puts it back.
+
 ## Bullets, numbering and picture crop
 
 - **Home → Paragraph → Bullets / Numbering** turn the lines of a shape's text into a bulleted or numbered list (empty

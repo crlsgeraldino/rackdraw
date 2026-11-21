@@ -46,6 +46,8 @@ const P: Record<string, React.ReactNode> = {
   connector: <><rect x="2" y="2" width="5" height="5" /><rect x="13" y="13" width="5" height="5" /><path d="M7 4.5h4.5v11H13" /></>,
   fullscreen: <><path d="M2 7V2h5M13 2h5v5M18 13v5h-5M7 18H2v-5" /><rect x="6" y="6" width="8" height="8" fill="#93c5fd" /></>,
   defineData: <><rect x="2" y="3" width="16" height="14" rx="1" /><path d="M2 7.5h16M7 3v14" /><path d="M10 11h5M10 14h3" stroke="#2563eb" /></>,
+  center: <><rect x="2" y="2" width="16" height="16" rx="1" /><rect x="6.5" y="7" width="7" height="6" fill="#bfdbfe" /><path d="M10 2v3M10 15v3M2 10h3M15 10h3" /></>,
+  symbol: <><path d="M5 16h3.5v-1.6A5.5 5.5 0 1 1 11.5 14.4V16H15" /></>,
   crop: <><path d="M5 1v14h14" /><path d="M1 5h14v14" /></>,
   lasso: <><path d="M10 3c4.5 0 7.5 2 7.5 4.5S14.5 12 10 12 2.5 10 2.5 7.5 5.5 3 10 3z" strokeDasharray="2.5 2" /><path d="M5 11c-1 2 0 3.5 1.5 3.5S8 16 7 18" /></>,
   table: <><rect x="2" y="3" width="16" height="14" rx="1" /><path d="M2 3h16v4H2z" fill="#bfdbfe" /><path d="M2 7h16M2 12h16M7.5 3v14M12.5 3v14" /></>,

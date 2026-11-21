@@ -240,6 +240,7 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  strike?: boolean;
   align?: 'left' | 'center' | 'right';
   valign?: 'top' | 'middle' | 'bottom';
   /** Callout: the item its leader line points to (moves with it). */
@@ -300,6 +301,7 @@ export interface TextFormat {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  strike?: boolean;
   align?: 'left' | 'center' | 'right';
   valign?: 'top' | 'middle' | 'bottom';
   /** Change the font size by this many px. */

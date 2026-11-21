@@ -3,7 +3,7 @@
 import { useReactFlow } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
-import { DEFAULT_SETUP, PAPER, type PaperSize } from '@/lib/pageSetup';
+import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openFind, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
@@ -17,6 +17,7 @@ import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { HF_CODES } from '@/lib/headerFooter';
 import { TABLE_PRESETS, activeCell, deleteCol, deleteRow, insertCol, insertRow, makeTable } from '@/lib/table';
 import { openNumberShapes } from '../NumberShapesDialog';
+import { SYMBOLS, insertSymbol } from '@/lib/symbols';
 import { DefineShapeDataDialog } from '../DefineShapeDataDialog';
 import { openChangeShape } from '../ChangeShapeDialog';
 import { openVersions } from '../VersionsDialog';
@@ -57,6 +58,43 @@ const TABS: { id: Tab; label: string }[] = [
 /* Document commands (File tab, Quick Access Toolbar, Ctrl+P)          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * What to capture: the nodes (by id, so React Flow uses its live measurements rather than sizes saved in the
+ * diagram), widened to take in device labels, info boxes and dimension lines that sit outside their node box.
+ */
+function contentBoundsOf(rf: ReturnType<typeof useReactFlow<AppNode>>, ids: string[], onlyTheirs = false) {
+  const b = rf.getNodesBounds(ids);
+  let [x0, y0, x1, y1] = [b.x, b.y, b.x + b.width, b.y + b.height];
+  // For a selection, only the labels / info boxes of the selected items count.
+  const scope = onlyTheirs ? ids.map((id) => `.react-flow__node[data-id="${CSS.escape(id)}"]`) : ['.react-flow__viewport'];
+  document.querySelectorAll(scope.flatMap((s) => [`${s} .nc-infobox`, `${s} .nc-device-label`, `${s}.nc-measure, ${s} .nc-measure *`]).join(', ')).forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    const a = rf.screenToFlowPosition({ x: r.left, y: r.top }, { snapToGrid: false });
+    const z = rf.screenToFlowPosition({ x: r.right, y: r.bottom }, { snapToGrid: false });
+    [x0, y0, x1, y1] = [Math.min(x0, a.x), Math.min(y0, a.y), Math.max(x1, z.x), Math.max(y1, z.y)];
+  });
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+/**
+ * Design → Center Drawing (Visio): moves the whole drawing so it sits in the middle of the sheets it needs, with
+ * equal space left and right, top and bottom.
+ */
+function centerDrawing(rf: ReturnType<typeof useReactFlow<AppNode>>) {
+  const st = useDiagram.getState();
+  const pg = activePage(st.projects[st.currentId]);
+  const ids = pg.nodes.filter((n) => n.type !== 'backdrop').map((n) => n.id);
+  if (!ids.length) return;
+  const b = contentBoundsOf(rf, ids);
+  const sheet = sheetSize(pg.setup ?? DEFAULT_SETUP);
+  const cols = Math.max(1, Math.ceil((b.width + 48) / sheet.w)), rows = Math.max(1, Math.ceil((b.height + 48) / sheet.h));
+  const dx = (cols * sheet.w - b.width) / 2 - b.x, dy = (rows * sheet.h - b.height) / 2 - b.y;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  st.moveDrawing(dx, dy);
+  setTimeout(() => rf.fitView({ padding: 0.08, duration: 200 }), 50);
+}
+
 function useDocument() {
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
@@ -67,20 +105,7 @@ function useDocument() {
    * What to capture: the nodes (by id, so React Flow uses its live measurements rather than sizes saved in the
    * diagram), widened to take in device labels, info boxes and dimension lines that sit outside their node box.
    */
-  const contentBounds = (ids: string[], onlyTheirs = false) => {
-    const b = rf.getNodesBounds(ids);
-    let [x0, y0, x1, y1] = [b.x, b.y, b.x + b.width, b.y + b.height];
-    // For a selection, only the labels / info boxes of the selected items count.
-    const scope = onlyTheirs ? ids.map((id) => `.react-flow__node[data-id="${CSS.escape(id)}"]`) : ['.react-flow__viewport'];
-    document.querySelectorAll(scope.flatMap((s) => [`${s} .nc-infobox`, `${s} .nc-device-label`, `${s}.nc-measure, ${s} .nc-measure *`]).join(', ')).forEach((el) => {
-      const r = el.getBoundingClientRect();
-      if (!r.width) return;
-      const a = rf.screenToFlowPosition({ x: r.left, y: r.top }, { snapToGrid: false });
-      const z = rf.screenToFlowPosition({ x: r.right, y: r.bottom }, { snapToGrid: false });
-      [x0, y0, x1, y1] = [Math.min(x0, a.x), Math.min(y0, a.y), Math.max(x1, z.x), Math.max(y1, z.y)];
-    });
-    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-  };
+  const contentBounds = (ids: string[], onlyTheirs = false) => contentBoundsOf(rf, ids, onlyTheirs);
 
   /** For the PDF and printing: show each page in turn and capture it. */
   // Background pages print behind the pages that use them, not on their own (as in Visio).
@@ -461,7 +486,7 @@ function HomeTab() {
   const anyEdge = page.edges.some((e) => e.selected);
   const fmt = s.formatKind();
   const shapeSel = page.nodes.filter((n): n is ShapeNode => !!n.selected && n.type === 'shape');
-  const fmtOn = (k: 'bold' | 'italic' | 'underline') => shapeSel.length > 0 && shapeSel.every((n) => !!n.data[k]);
+  const fmtOn = (k: 'bold' | 'italic' | 'underline' | 'strike') => shapeSel.length > 0 && shapeSel.every((n) => !!n.data[k]);
   const shadowOn = shapeSel.length > 0 && shapeSel.every((n) => !!n.data.shadow);
   return (
     <>
@@ -520,6 +545,7 @@ function HomeTab() {
           <FmtBtn label="Bold" active={fmtOn('bold')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { bold: !fmtOn('bold') } })}><b>B</b></FmtBtn>
           <FmtBtn label="Italic" active={fmtOn('italic')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { italic: !fmtOn('italic') } })}><i className="font-serif">I</i></FmtBtn>
           <FmtBtn label="Underline" active={fmtOn('underline')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { underline: !fmtOn('underline') } })}><u>U</u></FmtBtn>
+          <FmtBtn label="Strikethrough" active={fmtOn('strike')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { strike: !fmtOn('strike') } })}><s>ab</s></FmtBtn>
           <FmtBtn label="Larger text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: 2 } })}>A<sup>+</sup></FmtBtn>
           <FmtBtn label="Smaller text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: -2 } })}>A<sup>−</sup></FmtBtn>
         </div>
@@ -741,6 +767,26 @@ function InsertTab() {
                   </button>
                 ))}
                 <p className="px-3 pt-1 text-[10px] text-gray-400">Shows the current value; double-click the text to see the codes.</p>
+              </div>
+            )}
+          </Drop>
+        </div>
+        <div className="flex items-start pt-1">
+          <Drop width={268} trigger={(open) => <Big icon="symbol" label="Symbol" onClick={open} title="Insert a symbol (°, ±, Ω, µ, arrows, ✓…) into the selected text box or shape" />}>
+            {(close) => (
+              <div className="p-2">
+                {SYMBOLS.map((g) => (
+                  <div key={g.group} className="mb-1.5">
+                    <div className="mb-0.5 text-[10px] uppercase tracking-wide text-gray-400">{g.group}</div>
+                    <div className="grid grid-cols-10 gap-0.5">
+                      {g.chars.map((c) => (
+                        <button key={c} className="h-6 rounded border border-gray-200 text-sm hover:border-blue-400 hover:bg-blue-50" title={`U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`}
+                          onClick={() => { if (!insertSymbol(c)) alert('Select a text box or drawing shape first.'); else close(); }}>{c}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[10px] text-gray-400">Goes where the cursor was when you last edited the text, or at the end.</p>
               </div>
             )}
           </Drop>
@@ -1108,6 +1154,7 @@ function ThemeGallery() {
 }
 
 function DesignTab() {
+  const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
   const s = useDiagram.getState();
   const d = project.display ?? DEFAULT_DISPLAY;
@@ -1137,6 +1184,7 @@ function DesignTab() {
             </select>
           </label>
         </Column>
+        <Big icon="center" label="Center Drawing" onClick={() => centerDrawing(rf)} title="Move the whole drawing to the middle of its page" />
         <Big icon="scale" label="Set Scale" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))} title={page.scale ? 'Set the drawing scale again' : 'Set the drawing scale from two points on a floor plan'} active={!!page.scale} />
         <Big icon="titleBlock" label="Title Block" active={!!tb?.show} onClick={() => s.updateTitleBlock({ show: !tb?.show })} title="Title block on every printed / PDF sheet (edit it in the panel with nothing selected)" />
       </Group>
