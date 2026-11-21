@@ -295,17 +295,26 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
 }
 
 function ZoneNodeView({ data, selected }: NodeProps<ZoneNode>) {
+  const zs = data.style ?? 'dashed';
   return (
     <>
       <NodeResizer isVisible={selected && !data.locked} minWidth={160} minHeight={100} color={data.color} />
       <div
-        className="relative h-full w-full rounded-lg border-2 border-dashed"
-        style={{ borderColor: data.color, background: `${data.color}12` }}
+        className={`relative h-full w-full ${zs === 'band' ? 'flex' : ''} ${zs === 'header' || zs === 'band' ? 'rounded-md' : 'rounded-lg'} border-2 ${zs === 'dashed' ? 'border-dashed' : ''}`}
+        style={{ borderColor: data.color, background: `${data.color}${zs === 'filled' ? '30' : '12'}` }}
       >
         <NodeBadges data={data} selected={selected} />
-        <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color, ...lookStyle(data) }}>
-          {data.title}
-        </div>
+        {zs === 'header' ? (
+          // Heading band across the top, like Visio's container headings.
+          <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white" style={{ background: data.color, ...lookStyle(data) }}>{data.title}</div>
+        ) : zs === 'band' ? (
+          // Side band with the title reading up.
+          <div className="flex w-7 shrink-0 items-center justify-center text-xs font-semibold uppercase tracking-wide text-white" style={{ background: data.color, writingMode: 'vertical-rl', transform: 'rotate(180deg)', ...lookStyle(data) }}>{data.title}</div>
+        ) : (
+          <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color, ...lookStyle(data) }}>
+            {data.title}
+          </div>
+        )}
       </div>
     </>
   );
@@ -377,7 +386,13 @@ function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
     }
     case 'image': return d.stroke === 'transparent' ? null : <rect x={0.5} y={0.5} width={w - 1} height={h - 1} {...common} fill="none" />;
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={d.rounding ? Math.min(d.rounding, w / 2, h / 2) : undefined} {...common} />;
-    case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
+    case 'callout': {
+      const cs = d.calloutStyle ?? 'box';
+      if (cs === 'oval') return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
+      // A line callout: the text sits on a rule, with no box round it.
+      if (cs === 'line') return <line x1={0} y1={h - 1} x2={w} y2={h - 1} {...common} fill="none" />;
+      return <rect x={1} y={1} width={w - 2} height={h - 2} rx={cs === 'rounded' ? Math.min(h / 2, 24) : 6} {...common} />;
+    }
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
     case 'freeform': return <polyline points={(d.points ?? []).map(([px, py]) => `${px * w},${py * h}`).join(' ')} {...common} fill={d.fill === 'transparent' ? 'none' : d.fill} strokeLinecap="round" strokeLinejoin="round" />;

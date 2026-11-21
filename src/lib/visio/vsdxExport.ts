@@ -174,10 +174,18 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           back.push({ kind: 'image', name: 'Floor plan', box: ibox(b), media: await addMedia(`bd:${n.id}`, n.data.image, n.data.naturalWidth, n.data.naturalHeight) });
           break;
         case 'zone':
-          zones.push({
-            kind: 'rect', name: n.data.title, container: true, box: ibox(b), line: n.data.color, dashed: true, lineWeightPt: 1.5, fill: n.data.color, fillTransparency: 0.93, rounding: inch(8),
-            text: { text: n.data.title.toUpperCase(), color: n.data.color, ...vLook(n.data, 7, true), align: 'left', valign: 'top' },
-          });
+          {
+            const zs = n.data.style ?? 'dashed';
+            const zb = ibox(b);
+            const head = zs === 'header' || zs === 'band';
+            zones.push({
+              kind: 'rect', name: n.data.title, container: true, box: zb, line: n.data.color, dashed: zs === 'dashed', lineWeightPt: 1.5, fill: n.data.color, fillTransparency: zs === 'filled' ? 0.8 : 0.93, rounding: head ? inch(4) : inch(8),
+              text: head ? undefined : { text: n.data.title.toUpperCase(), color: n.data.color, ...vLook(n.data, 7, true), align: 'left', valign: 'top' },
+            });
+            // Heading band (top) or side band (left), with the title in white.
+            if (zs === 'header') zones.push({ kind: 'rect', name: `${n.data.title} heading`, box: { x: zb.x, y: zb.y, w: zb.w, h: inch(22) }, fill: n.data.color, line: null, text: { text: n.data.title.toUpperCase(), color: '#FFFFFF', ...vLook(n.data, 7, true), align: 'left', valign: 'middle' } });
+            if (zs === 'band') zones.push({ kind: 'rect', name: `${n.data.title} heading`, box: { x: zb.x, y: zb.y, w: inch(28), h: zb.h }, fill: n.data.color, line: null, text: { text: n.data.title.toUpperCase(), color: '#FFFFFF', ...vLook(n.data, 7, true), dir: 'up' } });
+          }
           break;
         case 'note':
           front.push({ kind: 'rect', name: 'Note', box: ibox(b), fill: '#FEF3C7', line: '#E5C76B', lineWeightPt: 0.5, text: { text: n.data.text, ...vLook(n.data, 7.5), align: 'left', valign: 'top' } });
@@ -254,7 +262,12 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1 });
             front.push({ kind: 'line', points: [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75 });
           } else if (d.kind === 'callout') {
-            front.push({ kind: 'rect', name: 'Callout', box: bb, ...style, rounding: inch(6), text });
+            const cs = d.calloutStyle ?? 'box';
+            if (cs === 'oval') front.push({ kind: 'ellipse', name: 'Callout', box: bb, ...style, text });
+            else if (cs === 'line') {
+              front.push({ kind: 'rect', name: 'Callout', box: bb, fill: null, line: null, text });
+              front.push({ kind: 'line', points: [{ x: bb.x, y: bb.y + bb.h }, { x: bb.x + bb.w, y: bb.y + bb.h }], line: style.line ?? '#D97706', lineWeightPt: style.lineWeightPt });
+            } else front.push({ kind: 'rect', name: 'Callout', box: bb, ...style, rounding: cs === 'rounded' ? Math.min(bb.h / 2, inch(24)) : inch(6), text });
             const t = d.target ? box(d.target) : null;
             if (t) {
               // Leader from the callout box edge to the middle of the item it points to.

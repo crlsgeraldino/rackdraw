@@ -232,7 +232,11 @@ export function lookStyle(l: TextLook): { color?: string; fontFamily?: string; f
 export interface ZoneData extends Record<string, unknown>, NodeExtras, TextLook {
   title: string;
   color: string;
+  /** Container style (Visio's container gallery); missing = dashed outline. */
+  style?: ZoneStyle;
 }
+
+export type ZoneStyle = 'dashed' | 'solid' | 'header' | 'band' | 'filled';
 
 export interface NoteData extends Record<string, unknown>, NodeExtras, TextLook {
   text: string;
@@ -305,12 +309,15 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   crop?: Crop;
   /** Off-page reference: the matching shape on the other page (its `link` is that page). */
   pair?: string;
+  /** Callout style; missing = box. */
+  calloutStyle?: CalloutStyle;
   /** Picture flipped left-right / upside down (Arrange → Flip). */
   flipX?: boolean;
   flipY?: boolean;
 }
 
 export type TextList = 'bullet' | 'number';
+export type CalloutStyle = 'box' | 'rounded' | 'oval' | 'line';
 export type TextDir = 'across' | 'down' | 'up';
 
 /** CSS for vertical text: written top-to-bottom ('down'), or turned to read bottom-to-top ('up'). */

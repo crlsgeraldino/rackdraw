@@ -500,6 +500,10 @@ The **View** menu works like Visio's layers and data graphics:
 - A **zone** works like a Visio container: drag it and everything inside it moves along (what's inside is decided
   when the drag starts, so it doesn't pick up items it passes over). **Fit to contents** (right-click the zone, or
   the right panel) resizes it around what it holds.
+- Select a zone and use the **Shape** tab's **Container** group: **Container Style** (dashed outline, solid outline,
+  heading band, side band or filled, like Visio's container gallery), **Fit to Contents** and **Select Contents**.
+- Select a callout and use **Callout Style**: box, rounded, oval or a plain underline (the leader still points at its
+  item). Visio exports keep both.
 
 ## Define Shape Data (Data tab)
 

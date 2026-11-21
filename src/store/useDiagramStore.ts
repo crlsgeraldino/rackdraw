@@ -224,6 +224,8 @@ interface DiagramState {
   setActiveLayer: (id: string | null) => void;
   /** Resizes a zone (container) around the items inside it. */
   fitZoneToContents: (id: string) => void;
+  /** Select Contents (Visio): selects what a zone holds. */
+  selectZoneContents: (id: string) => void;
   /** Puts the selected devices/cables on the active page onto a layer (null = no layer). Returns how many moved. */
   assignSelectionToLayer: (layerId: string | null) => number;
   setDisplay: (patch: Partial<DisplaySettings>) => void;
@@ -1491,6 +1493,12 @@ export const useDiagram = create<DiagramState>()(
         setActiveLayer: (id) => {
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => ({ ...l, active: l.id === id ? true : undefined })) } } });
+        },
+        selectZoneContents: (id) => {
+          const pg = page();
+          const z = pg.nodes.find((n) => n.id === id);
+          if (!z) return;
+          get().selectIds(zoneMembers(z, pg.nodes).map((m) => m.id));
         },
         fitZoneToContents: (id) => {
           const pg = page();

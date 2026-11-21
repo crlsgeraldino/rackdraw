@@ -31,7 +31,7 @@ import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
 import { SET_SCALE_EVENT } from '@/lib/units';
-import type { AppNode, CableColorBy, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode } from '@/lib/types';
+import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
 import { dashFor } from '@/lib/types';
 import { getStencil, TEXT_DEFAULT_SIZE, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
@@ -1036,6 +1036,77 @@ function PictureGroup({ node }: { node: ShapeNode }) {
   );
 }
 
+const ZONE_STYLES: { value: ZoneStyle; label: string }[] = [
+  { value: 'dashed', label: 'Dashed outline' }, { value: 'solid', label: 'Solid outline' }, { value: 'header', label: 'Heading band' },
+  { value: 'band', label: 'Side band' }, { value: 'filled', label: 'Filled' },
+];
+
+/** Contextual Container group for a zone (Visio's Container tab): style gallery, Fit to Contents, Select Contents. */
+function ContainerGroup({ node }: { node: ZoneNode }) {
+  const s = useDiagram.getState();
+  const cur = node.data.style ?? 'dashed';
+  const c = node.data.color;
+  return (
+    <Group label="Container">
+      <div className="flex items-start pt-1">
+        <Drop width={230} trigger={(open, isOpen) => <Big icon="zone" label="Container Style" onClick={open} active={isOpen} title="How the zone is drawn (like Visio's container styles)" />}>
+          {(close) => (
+            <div className="grid grid-cols-2 gap-1.5 p-2 text-[11px]">
+              {ZONE_STYLES.map((z) => (
+                <button key={z.value} className={`rounded border p-1 text-left hover:border-blue-400 ${cur === z.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+                  onClick={() => { s.snapshot(); s.updateNodeData(node.id, { style: z.value === 'dashed' ? undefined : z.value }); close(); }}>
+                  <span className={`mb-1 flex h-9 overflow-hidden rounded-sm border-2 ${z.value === 'dashed' ? 'border-dashed' : ''}`} style={{ borderColor: c, background: `${c}${z.value === 'filled' ? '30' : '12'}` }}>
+                    {z.value === 'header' && <span className="h-2.5 w-full" style={{ background: c }} />}
+                    {z.value === 'band' && <span className="h-full w-2.5" style={{ background: c }} />}
+                  </span>
+                  {z.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </Drop>
+      </div>
+      <Column>
+        <Small icon="zone" label="Fit to Contents" onClick={() => s.fitZoneToContents(node.id)} title="Resize the zone round what it holds" />
+        <Small icon="selectAll" label="Select Contents" onClick={() => s.selectZoneContents(node.id)} title="Select everything inside the zone" />
+      </Column>
+    </Group>
+  );
+}
+
+const CALLOUT_STYLES: { value: CalloutStyle; label: string }[] = [
+  { value: 'box', label: 'Box' }, { value: 'rounded', label: 'Rounded' }, { value: 'oval', label: 'Oval' }, { value: 'line', label: 'Line (underline)' },
+];
+
+/** Contextual Callout group: the callout's look. */
+function CalloutGroup({ node }: { node: ShapeNode }) {
+  const s = useDiagram.getState();
+  const cur = node.data.calloutStyle ?? 'box';
+  return (
+    <Group label="Callout">
+      <div className="flex items-start pt-1">
+        <Drop width={190} trigger={(open, isOpen) => <Big icon="info" label="Callout Style" onClick={open} active={isOpen} title="Box, rounded, oval or a plain underline (like Visio's callout styles)" />}>
+          {(close) => (
+            <div className="py-1 text-xs">
+              {CALLOUT_STYLES.map((c) => (
+                <button key={c.value} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-blue-50 ${cur === c.value ? 'bg-blue-50' : ''}`}
+                  onClick={() => { s.snapshot(); s.updateNodeData(node.id, { calloutStyle: c.value === 'box' ? undefined : c.value }); close(); }}>
+                  <svg width="34" height="18" className="shrink-0">
+                    {c.value === 'oval' ? <ellipse cx="17" cy="9" rx="15" ry="7.5" fill="#fef3c7" stroke="#d97706" />
+                      : c.value === 'line' ? <line x1="2" y1="16" x2="32" y2="16" stroke="#d97706" strokeWidth="1.5" />
+                      : <rect x="2" y="2" width="30" height="14" rx={c.value === 'rounded' ? 7 : 2} fill="#fef3c7" stroke="#d97706" />}
+                  </svg>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </Drop>
+      </div>
+    </Group>
+  );
+}
+
 /** Contextual Table group: rows and columns at the cell last clicked. */
 function TableGroup({ node }: { node: ShapeNode }) {
   const s = useDiagram.getState();
@@ -1649,6 +1720,8 @@ function ShapeTab() {
       )}
       {node?.type === 'shape' && node.data.kind === 'table' && <TableGroup node={node} />}
       {node?.type === 'shape' && node.data.kind === 'image' && <PictureGroup node={node} />}
+      {node?.type === 'zone' && <ContainerGroup node={node} />}
+      {node?.type === 'shape' && node.data.kind === 'callout' && <CalloutGroup node={node} />}
       {!device && node?.type === 'shape' && node.data.kind !== 'table' && (
         <Group label="Shape">
           <div className="flex items-start pt-1">
