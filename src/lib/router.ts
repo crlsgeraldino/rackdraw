@@ -223,7 +223,7 @@ export function routeOrthogonal(
 const sgn = (v: number) => (Math.abs(v) < 0.5 ? 0 : Math.sign(v));
 
 /** SVG path through the points with rounded corners, and the point halfway along it (for the label). */
-export function roundedPath(points: Pt[], radius = 8, jumps?: Map<number, number[]>, jumpR = 5): { d: string; mid: Pt } {
+export function roundedPath(points: Pt[], radius = 8, jumps?: Map<number, number[]>, jumpR = 5, jumpStyle: 'arc' | 'gap' | 'square' = 'arc'): { d: string; mid: Pt } {
   let d = `M ${points[0].x} ${points[0].y}`;
   for (let k = 1; k < points.length; k++) {
     const p = points[k];
@@ -232,7 +232,13 @@ export function roundedPath(points: Pt[], radius = 8, jumps?: Map<number, number
     const hops = jumps?.get(k);
     if (hops?.length) {
       const dir = sgn(p.x - points[k - 1].x) || 1;
-      for (const x of hops) d += ` L ${x - dir * jumpR} ${p.y} A ${jumpR} ${jumpR} 0 0 ${dir > 0 ? 1 : 0} ${x + dir * jumpR} ${p.y}`;
+      for (const x of hops) {
+        const a = x - dir * jumpR, b = x + dir * jumpR;
+        // Arc: a half-circle hop. Gap: the line breaks. Square: a little box-shaped hop.
+        if (jumpStyle === 'gap') d += ` L ${a} ${p.y} M ${b} ${p.y}`;
+        else if (jumpStyle === 'square') d += ` L ${a} ${p.y} L ${a} ${p.y - jumpR} L ${b} ${p.y - jumpR} L ${b} ${p.y}`;
+        else d += ` L ${a} ${p.y} A ${jumpR} ${jumpR} 0 0 ${dir > 0 ? 1 : 0} ${b} ${p.y}`;
+      }
     }
     if (!next) {
       d += ` L ${p.x} ${p.y}`;

@@ -1400,6 +1400,34 @@ function DesignTab() {
       <Group label="Connectors">
         <Column>
           <Check label="Line jumps" checked={d.lineJumps !== false} onChange={(v) => s.setDisplay({ lineJumps: v })} title="Cables hop where they cross" />
+          <Drop width={200} trigger={(open) => <Small icon="connector" label="Jump Style ▾" onClick={open} disabled={d.lineJumps === false} title="How cables hop where they cross (like Visio's line jump style)" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                {(['arc', 'gap', 'square'] as const).map((j) => (
+                  <button key={j} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-blue-50 ${(d.jumpStyle ?? 'arc') === j ? 'bg-blue-50' : ''}`} onClick={() => { s.setDisplay({ jumpStyle: j }); close(); }}>
+                    <svg width="44" height="14" className="shrink-0"><path d={j === 'gap' ? 'M2 9 H16 M28 9 H42' : j === 'square' ? 'M2 9 H16 V3 H28 V9 H42' : 'M2 9 H16 A6 6 0 0 1 28 9 H42'} fill="none" stroke="#1f2937" strokeWidth="1.5" /><path d="M22 1 V13" stroke="#9ca3af" strokeWidth="1.5" /></svg>
+                    <span className="capitalize">{j}</span>
+                  </button>
+                ))}
+                <div className="mt-1 border-t border-gray-100 px-3 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-gray-400">Size</div>
+                {([['Small', 3.5], ['Medium', 5], ['Large', 8]] as const).map(([label, v]) => (
+                  <button key={label} className={`block w-full px-3 py-1 text-left hover:bg-blue-50 ${(d.jumpSize ?? 5) === v ? 'bg-blue-50' : ''}`} onClick={() => { s.setDisplay({ jumpSize: v }); close(); }}>{label}</button>
+                ))}
+              </div>
+            )}
+          </Drop>
+          <Drop width={190} trigger={(open) => <Small icon="lineTool" label="Corners ▾" onClick={open} title="Corners of right-angle cables: square or rounded" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                {([['Square', 0], ['Rounded', 8], ['Very rounded', 18]] as const).map(([label, v]) => (
+                  <button key={label} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-blue-50 ${(d.cableCorners ?? 8) === v ? 'bg-blue-50' : ''}`} onClick={() => { s.setDisplay({ cableCorners: v }); close(); }}>
+                    <svg width="22" height="16" className="shrink-0"><path d={v ? `M2 14 V${2 + v / 2} Q2 2 ${2 + v / 2} 2 H20` : 'M2 14 V2 H20'} fill="none" stroke="#1f2937" strokeWidth="1.5" /></svg>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Drop>
         </Column>
       </Group>
       <Group label="Data Graphics">

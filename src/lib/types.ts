@@ -446,7 +446,15 @@ export interface DisplaySettings {
   dataGraphics?: DataGraphic[];
   /** Design → Fonts: the client's font for all text that has no font of its own; missing = the app font. */
   font?: string;
+  /** Design → Connectors: how cables hop where they cross; missing = arc. */
+  jumpStyle?: JumpStyle;
+  /** Line jump size (radius, px); missing = 5. */
+  jumpSize?: number;
+  /** Corner radius of right-angle cables (px); 0 = square corners; missing = 8. */
+  cableCorners?: number;
 }
+
+export type JumpStyle = 'arc' | 'gap' | 'square';
 
 export interface DataGraphic {
   /** Field key, as in Reports: 'ip', 'model', 'status', … or 'x:<field name>'. */

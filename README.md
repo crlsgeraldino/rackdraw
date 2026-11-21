@@ -101,6 +101,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Connector look (Design → Connectors)
+
+- **Jump Style ▾**: where cables cross, the hop is an **arc**, a **gap** or a **square**, in small, medium or large
+  (like Visio's line jump style). Untick **Line jumps** to turn hops off.
+- **Corners ▾**: right-angle cables turn with **square**, **rounded** or **very rounded** corners.
+- These are set per client and show in prints, PDFs, pictures and Visio exports.
+
 ## Vertical text and line spacing (Home → Paragraph)
 
 - **Text direction** (A↕) turns a shape's or text box's text to read **up** (bottom to top), **down** (top to

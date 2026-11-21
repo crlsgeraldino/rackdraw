@@ -77,7 +77,9 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   }, [route, key, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   // Line jumps: share this route with the other cables and hop over the ones crossing it.
-  const jumpsOn = useCurrentProject().display?.lineJumps !== false;
+  const display = useCurrentProject().display;
+  const jumpsOn = display?.lineJumps !== false;
+  const jumpStyle = display?.jumpStyle ?? 'arc', jumpR = display?.jumpSize ?? JUMP_R, corners = display?.cableCorners ?? 8;
   // Every right-angle route is shared: for line jumps and for spacing parallel cables apart.
   useEffect(() => {
     publishRoute(id, pts);
@@ -100,14 +102,14 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
     if (route === 'straight') return getStraightPath(pos).slice(0, 3) as [string, number, number];
     if (route === 'curved') return getBezierPath(pos).slice(0, 3) as [string, number, number];
     if (laned) {
-      const { d, mid } = roundedPath(laned, 8, jumpsOn ? findJumps(laned, otherDrawnRoutes(id)) : undefined, JUMP_R);
+      const { d, mid } = roundedPath(laned, corners, jumpsOn ? findJumps(laned, otherDrawnRoutes(id)) : undefined, jumpR, jumpStyle);
       return [d, mid.x, mid.y];
     }
     // No clear path (e.g. devices overlapping): fall back to a plain right-angle line.
     return getSmoothStepPath({ ...pos, borderRadius: 8, offset: 16 }).slice(0, 3) as [string, number, number];
     // routesVersion: recompute hops when another cable moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, laned, jumpsOn, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+  }, [route, laned, jumpsOn, jumpStyle, jumpR, corners, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   // Text position along the cable (Visio lets you drag connector text); the middle unless moved.
   const at = data?.labelAt;
