@@ -311,6 +311,14 @@ function Canvas() {
       }
       if (e.key === 'F1') { e.preventDefault(); window.dispatchEvent(new Event(SHORTCUTS_EVENT)); return; }
       if (!mod) return;
+      // Ctrl+Page Down / Page Up: next / previous page (Visio).
+      if (e.key === 'PageDown' || e.key === 'PageUp') {
+        const proj = s.projects[s.currentId];
+        const i = proj.pages.findIndex((x) => x.id === proj.activePageId);
+        const j = i + (e.key === 'PageDown' ? 1 : -1);
+        if (proj.pages[j]) { e.preventDefault(); s.setActivePage(proj.pages[j].id); }
+        return;
+      }
       const tools: Record<string, DrawTool | null> = { '1': null, '3': 'connector', '4': 'pencil', '6': 'line', '8': 'rect', '9': 'ellipse' };
       if (!e.shiftKey && key in tools) { e.preventDefault(); setTool(tools[key]); return; }
       if (!e.shiftKey && key === '2') { e.preventDefault(); const c = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); s.addShape('text', c); return; }

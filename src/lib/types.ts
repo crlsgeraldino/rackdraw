@@ -237,7 +237,7 @@ export interface BackdropData extends Record<string, unknown> {
   locked: boolean;
 }
 
-export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform' | 'table' | 'image';
+export type ShapeKind = 'text' | 'rect' | 'rounded' | 'ellipse' | 'diamond' | 'arrow' | 'door' | 'window' | 'callout' | 'freeform' | 'table' | 'image' | 'offpage';
 
 /** A drawing shape for annotations (boxes, callouts, arrows, free text). */
 export interface ShapeData extends Record<string, unknown>, NodeExtras {
@@ -288,6 +288,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   list?: TextList | null;
   /** Picture crop: how much is cut off each side, as fractions (0–1) of the whole picture. */
   crop?: Crop;
+  /** Off-page reference: the matching shape on the other page (its `link` is that page). */
+  pair?: string;
 }
 
 export type TextList = 'bullet' | 'number';

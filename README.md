@@ -101,6 +101,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Off-page references
+
+- **Insert → Off-page Ref** (Visio's Off-page Reference): pick the page a cable or path continues on (or **New page…**);
+  an arrow shape appears here and its partner in the same spot on that page. Each shows the other page's name and
+  follows page renames (type your own text with F2 if you prefer). Cable devices to it like any shape.
+- **Double-click** one to jump to the other page with its partner selected and in view.
+- **Ctrl+Page Down / Ctrl+Page Up** move to the next / previous page.
+
 ## Font and size for everything
 
 - **Home → Font** now works on whatever is selected: drawing shapes and text boxes, **device labels**, **cable

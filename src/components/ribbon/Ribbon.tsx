@@ -750,6 +750,7 @@ function InsertTab() {
       <Group label="Diagram Parts">
         <Big icon="zone" label="Zone" onClick={() => s.addZone(center())} title="A room, rack or area outline" />
         <Big icon="note" label="Note" onClick={() => s.addNote(center())} />
+        <OffPageMenu at={center} />
         <Big icon="info" label="Callout" onClick={() => insertCallout()} title="A callout pointing at the selected item (or a free one)" />
         <Big icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Dimension line (uses the page scale)" />
       </Group>
@@ -883,6 +884,32 @@ function LineOptions({ close }: { close: () => void }) {
           <svg className="flex-1" height="6"><line x1="2" y1="3" x2="200" y2="3" stroke="#1f2937" strokeWidth="2" {...dashFor(p.value, 2)} /></svg>
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Insert → Off-page Reference: pick the page it leads to (or a new one); its partner appears there. */
+function OffPageMenu({ at }: { at: () => { x: number; y: number } }) {
+  const project = useCurrentProject();
+  const others = project.pages.filter((p) => p.id !== project.activePageId && !p.background);
+  const add = (target: { pageId: string } | { newName: string }) => useDiagram.getState().addOffPageRef(at(), target);
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={220} trigger={(open) => <Big icon="offpage" label="Off-page Ref" onClick={open} title="A pair of shapes linking this page and another, like Visio's Off-page Reference (double-click one to jump to the other)" />}>
+        {(close) => (
+          <div className="py-1 text-xs">
+            <div className="px-3 pb-1 text-[11px] text-gray-500">Leads to</div>
+            {others.map((p) => (
+              <button key={p.id} className="block w-full truncate px-3 py-1 text-left hover:bg-blue-50" onClick={() => { add({ pageId: p.id }); close(); }}>{p.name}</button>
+            ))}
+            <button className="mt-1 block w-full border-t border-gray-100 px-3 py-1.5 text-left text-blue-700 hover:bg-blue-50" onClick={async () => {
+              close();
+              const name = await askText('New page\nThe off-page reference leads to a new page with this name.', `Page ${project.pages.length + 1}`);
+              if (name !== null) add({ newName: name });
+            }}>New page…</button>
+          </div>
+        )}
+      </Drop>
     </div>
   );
 }

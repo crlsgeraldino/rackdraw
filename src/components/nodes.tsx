@@ -10,6 +10,7 @@ import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
 import { setActiveCell, setCell } from '@/lib/table';
 import { rememberCaret } from '@/lib/symbols';
+import { resolveLink } from '@/lib/links';
 import { DeviceInfoBox } from './DeviceInfoBox';
 import { DeviceQuickInfo, useQuickInfoHover } from './DeviceQuickInfo';
 import { useOverlaySize } from '@/lib/overlays';
@@ -369,6 +370,11 @@ type OutlineProps = { fill: string; fillOpacity?: number; stroke: string; stroke
 function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
   switch (d.kind) {
     case 'table': return null;
+    case 'offpage': {
+      // Visio's off-page reference: a box with a pointed end.
+      const tip = Math.min(h / 2, w / 3);
+      return <polygon points={`1,1 ${w - tip},1 ${w - 1},${h / 2} ${w - tip},${h - 1} 1,${h - 1}`} {...common} strokeLinejoin="round" />;
+    }
     case 'image': return d.stroke === 'transparent' ? null : <rect x={0.5} y={0.5} width={w - 1} height={h - 1} {...common} fill="none" />;
     case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={d.rounding ? Math.min(d.rounding, w / 2, h / 2) : undefined} {...common} />;
     case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
@@ -445,7 +451,29 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
     const p = s.projects[s.currentId];
     return expandFields(data.text, p, p.activePageId);
   });
-  const listed = listLines(fieldText ?? '', data.list);
+  // Off-page reference: shows the other page's name (and follows renames) unless given its own text.
+  const offName = useDiagram((s) => {
+    if (data.kind !== 'offpage') return null;
+    const t = resolveLink(data.link);
+    return t?.kind === 'page' ? s.projects[s.currentId].pages.find((p) => p.id === t.pageId)?.name ?? '(deleted page)' : null;
+  });
+  const shownText = data.kind === 'offpage' && !data.text ? offName ?? '' : fieldText;
+  const rfi = useReactFlow();
+  const goToPair = () => {
+    const t = resolveLink(data.link);
+    if (t?.kind !== 'page') return;
+    const st = useDiagram.getState();
+    if (!st.projects[st.currentId].pages.some((p) => p.id === t.pageId)) return alert('The page this reference points to no longer exists.');
+    st.setActivePage(t.pageId);
+    // Select the partner and bring it into view once the other page is drawn.
+    setTimeout(() => {
+      const pair = data.pair;
+      if (!pair || !activePage(useDiagram.getState().projects[st.currentId]).nodes.some((n) => n.id === pair)) return;
+      useDiagram.getState().selectIds([pair]);
+      void rfi.fitView({ nodes: [{ id: pair }], maxZoom: 1.2, padding: 2, duration: 250 });
+    }, 150);
+  };
+  const listed = listLines(shownText ?? '', data.list);
   useEffect(() => {
     const on = (e: Event) => { if ((e as CustomEvent).detail === id && !data.locked && !isTable) { snapshot(); setEditing(true); } };
     window.addEventListener(EDIT_TEXT_EVENT, on);
@@ -454,7 +482,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   // A turned shape gets its own resize handles, turned with it (React Flow's only work square to the page).
   const turned = rotatable && ((data.rotation ?? 0) % 360) !== 0;
   return (
-    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { if (!isTable) { snapshot(); setEditing(true); } }}>
+    <div ref={outer} className="relative" style={{ width: w, height: h }} onDoubleClick={() => { if (data.kind === 'offpage') goToPair(); else if (!isTable) { snapshot(); setEditing(true); } }}>
       <NodeResizer isVisible={selected && !data.locked && !turned} keepAspectRatio={data.kind === 'image'} minWidth={20} minHeight={14} color="#3b82f6" handleStyle={{ width: 9, height: 9, borderRadius: 2 }} onResizeStart={snapshot} />
       <NodeBadges data={data} selected={selected} />
       {data.kind === 'callout' && data.target && <CalloutLeader target={data.target} x={positionAbsoluteX} y={positionAbsoluteY} w={w} h={h} color={data.stroke === 'transparent' ? '#d97706' : data.stroke} />}
@@ -491,7 +519,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
                 </div>
               ))}
             </div>
-          ) : fieldText}
+          ) : shownText}
         </div>
       )}
       {rotatable && selected && !data.locked && !editing && <RotateHandle id={id} center={outer} />}

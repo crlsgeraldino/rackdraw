@@ -16,6 +16,7 @@ import { themeById } from '@/lib/themes';
 import { projectFromTemplate, templateFromProject, type Template } from '@/lib/templates';
 import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
+import { PAGE_LINK } from '@/lib/links';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeFormat, ShapeKind, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
@@ -156,6 +157,11 @@ interface DiagramState {
   /** Select by Type (Home → Editing → Select): what to select on the active page. */
   /** Adds a picture shape (Insert → Picture, paste or drop an image) centred on `position`, at most 360px wide/high. */
   addPicture: (position: { x: number; y: number }, src: string, width: number, height: number) => void;
+  /**
+   * Off-page Reference (Visio): a pair of arrow shapes, one here and one on the target page (or a new page called
+   * `newName`), each linking to the other's page. Returns the new shape's id.
+   */
+  addOffPageRef: (position: { x: number; y: number }, target: { pageId: string } | { newName: string }) => string | null;
   /** Center Drawing: moves everything on the active page (locked items too) by dx, dy in one undo step. */
   moveDrawing: (dx: number, dy: number) => void;
   /** Picture → Crop: sets how much of each side is cut off; the box shrinks or grows so the picture keeps its scale. */
@@ -1025,6 +1031,34 @@ export const useDiagram = create<DiagramState>()(
           } as AppNode;
           const pg = page();
           commit({ nodes: [...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), node], edges: pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)) });
+        },
+        addOffPageRef: (position, target) => {
+          const p = cur();
+          const here = activePage(p);
+          let pages = p.pages;
+          let targetId: string;
+          if ('newName' in target) {
+            const np = newPage(target.newName.trim() || `Page ${pages.length + 1}`, here.kind);
+            pages = [...pages, np];
+            targetId = np.id;
+          } else {
+            if (!pages.some((x) => x.id === target.pageId) || target.pageId === here.id) return null;
+            targetId = target.pageId;
+          }
+          get().snapshot();
+          const aId = `s-${uid()}`, bId = `s-${uid()}`;
+          const w = 140, h = 44;
+          const make = (id: string, pos: { x: number; y: number }, toPage: string, pair: string): AppNode => ({
+            id, type: 'shape', position: { x: Math.round(pos.x - w / 2), y: Math.round(pos.y - h / 2) }, width: w, height: h,
+            data: { kind: 'offpage', text: '', link: `${PAGE_LINK}${toPage}`, pair, fill: theme()?.fill ?? '#eff6ff', stroke: theme()?.line ?? '#2563eb', textColor: theme()?.text ?? '#111827', fontSize: 12, lineWidth: 1.5, rotation: 0 },
+          } as AppNode);
+          const a = { ...make(aId, position, targetId, bId), selected: true };
+          // The partner goes in the same spot on the other page, so the two line up when you flip between pages.
+          const b = make(bId, position, here.id, aId);
+          commit({
+            pages: pages.map((pg) => (pg.id === here.id ? { ...pg, nodes: [...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), a] } : pg.id === targetId ? { ...pg, nodes: [...pg.nodes, b] } : pg)),
+          });
+          return aId;
         },
         moveDrawing: (dx, dy) => {
           if (!dx && !dy) return;

@@ -182,15 +182,20 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'shape': {
           const d = n.data;
           const style = { fill: d.fill === 'transparent' ? null : d.fill, fillTransparency: d.fillTransparency ? d.fillTransparency / 100 : undefined, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, pattern: patternOf(d), lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
-          const listed = listLines(d.text ?? '', d.list);
-          const shown = listed ? listed.map((l) => (l.mark ? `${l.mark} ${l.text}` : l.text)).join('\n') : d.text;
-          const text = d.text ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, strike: d.strike, align: d.align, valign: d.valign, font: d.fontFamily ?? clientFont } : undefined;
+          // Off-page reference: the other page's name when it has no text of its own.
+          const off = d.kind === 'offpage' && !d.text ? project.pages.find((x) => `page:${x.id}` === d.link)?.name ?? '' : null;
+          const listed = listLines(off ?? d.text ?? '', d.list);
+          const shown = listed ? listed.map((l) => (l.mark ? `${l.mark} ${l.text}` : l.text)).join('\n') : off ?? d.text;
+          const text = shown ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, strike: d.strike, align: d.align, valign: d.valign, font: d.fontFamily ?? clientFont } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
           const angle = rot && d.kind !== 'door' && (d.kind !== 'arrow' || rot % 90 !== 0) ? (-rot * Math.PI) / 180 : undefined;
           const f0s = front.length;
-          if (d.kind === 'image') {
+          if (d.kind === 'offpage') {
+            const k = Math.min(bb.h / 2, bb.w / 3) / bb.w;
+            front.push({ kind: 'polygon', name: 'Off-page reference', box: bb, points: [{ x: 0, y: 0 }, { x: 1 - k, y: 0 }, { x: 1, y: 0.5 }, { x: 1 - k, y: 1 }, { x: 0, y: 1 }], ...style, text });
+          } else if (d.kind === 'image') {
             if (d.src) {
               const img = await loadPicture(d.src);
               const c = d.crop;
