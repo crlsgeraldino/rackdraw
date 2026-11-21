@@ -129,6 +129,15 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## CAD floor plans (Insert → CAD Drawing)
+
+- Like Visio's Insert CAD Drawing: pick an AutoCAD **.dxf** file and it goes behind the page as a crisp vector
+  picture: walls, doors (blocks), arcs, circles, polylines and room text.
+- When the file says its units (inches, feet, mm, cm or m), the **page scale is set automatically**, so dimension
+  lines, walls and cable lengths measure in real feet or metres straight away. Otherwise use Design → Set Scale on a
+  known length.
+- **.dwg** isn't read directly: save it as DXF from AutoCAD, or with the free DWG TrueView / ODA File Converter.
+
 ## Stacking order and protection (Home → Arrange)
 
 - **Bring ▾** / **Send ▾**: Bring to Front / Send to Back (Ctrl+Shift+F / Ctrl+Shift+B), or **Bring Forward** /

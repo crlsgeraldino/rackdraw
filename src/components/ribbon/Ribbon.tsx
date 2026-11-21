@@ -27,6 +27,7 @@ import { SAVE_SELECTION_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
 import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { insertPictureFile } from '@/lib/pictures';
+import { parseDxf } from '@/lib/dxf';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
@@ -752,6 +753,7 @@ function InsertTab() {
   const center = useCanvasCenter();
   const pictureRef = useRef<HTMLInputElement>(null);
   const shapePicRef = useRef<HTMLInputElement>(null);
+  const cadRef = useRef<HTMLInputElement>(null);
   const project = useCurrentProject();
   const n = project.pages.length + 1;
   const shape = (kind: ShapeKind) => s.addShape(kind, center());
@@ -774,10 +776,30 @@ function InsertTab() {
         <Big icon="picture" label="Picture" onClick={() => shapePicRef.current?.click()} title="A picture on the page: a logo, a photo of the rack, a screenshot (you can also paste with Ctrl+V or drag a file in)" />
         <Column>
           <Small icon="picture" label="Background Picture" onClick={() => pictureRef.current?.click()} title="Put a floor plan or site photo behind this page" />
+          <Small icon="dimension" label="CAD Drawing" onClick={() => cadRef.current?.click()} title="A floor plan from AutoCAD (.dxf) behind this page, with its real-world scale (like Visio's Insert CAD Drawing)" />
           <Small icon="device" label="Image as Device" onClick={() => paletteAction('import-image')} title="Import a picture and mark its ports" />
           <Small icon="visio" label="Visio Stencil" onClick={() => paletteAction('import-visio')} title="Import shapes from a Visio stencil (.vssx)" />
           <Small icon="library" label="Stencil Library" onClick={() => paletteAction('import-library')} title="Import a .netcraft-stencils.json library" />
         </Column>
+        <input ref={cadRef} type="file" hidden accept=".dxf,.dwg" onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          if (/\.dwg$/i.test(f.name)) return alert('DWG files cannot be read directly. In AutoCAD (or the free DWG TrueView / ODA File Converter), save the drawing as DXF and insert that.');
+          try {
+            const r = parseDxf(await f.text());
+            const st = useDiagram.getState();
+            st.setBackdrop(r.dataUrl, r.width, r.height);
+            // The picture was sized to fit the page: carry its real-world scale over to the page (Visio's drawing scale).
+            const bd = activePage(useDiagram.getState().projects[st.currentId]).nodes.find((n) => n.type === 'backdrop');
+            if (r.scale && bd?.width) st.setPageScale({ perPx: (r.scale.perPx * r.width) / bd.width, unit: r.scale.unit });
+            alert(r.scale
+              ? `Inserted "${f.name}" (${r.entities} items, drawn in ${r.units}). The page scale is set from it, so dimension lines and cable lengths measure in ${r.scale.unit === 'ft' ? 'feet' : 'metres'}.`
+              : `Inserted "${f.name}" (${r.entities} items). The file doesn't say what units it uses: use Design → Set Scale on a known length (a door is about 3 ft / 0.9 m).`);
+          } catch (err) {
+            alert((err as Error).message);
+          }
+        }} />
         <input ref={shapePicRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/*" onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
