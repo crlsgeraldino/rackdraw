@@ -101,6 +101,15 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Font and size for everything
+
+- **Home → Font** now works on whatever is selected: drawing shapes and text boxes, **device labels**, **cable
+  labels**, **zone titles** and **notes**, several kinds at once.
+- **Font**: pick from the list (common fonts plus the fonts installed on this computer, when Windows allows it) or
+  type a font name and press Enter. **Size**: pick, or type any size from 6 to 144 and press Enter.
+- Shortcuts like Office: **Ctrl+B / Ctrl+I / Ctrl+U**, and **Ctrl+Shift+>** / **Ctrl+Shift+<** for larger / smaller.
+- Visio exports keep each item's font, size and style.
+
 ## Symbols, strikethrough and Center Drawing
 
 - **Insert → Symbol**: °, ±, ×, ≈, ≤, µ, Ω, arrows, ✓/✗, ⚠, ©/®/™, currency and Greek letters, into the selected text

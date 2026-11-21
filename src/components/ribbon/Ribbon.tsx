@@ -33,7 +33,7 @@ import { activePage, allNodes } from '@/lib/project';
 import { SET_SCALE_EVENT } from '@/lib/units';
 import type { AppNode, CableColorBy, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode } from '@/lib/types';
 import { dashFor } from '@/lib/types';
-import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { getStencil, TEXT_DEFAULT_SIZE, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
 import { openComments } from '../CommentsPanel';
@@ -486,7 +486,10 @@ function HomeTab() {
   const anyEdge = page.edges.some((e) => e.selected);
   const fmt = s.formatKind();
   const shapeSel = page.nodes.filter((n): n is ShapeNode => !!n.selected && n.type === 'shape');
-  const fmtOn = (k: 'bold' | 'italic' | 'underline' | 'strike') => shapeSel.length > 0 && shapeSel.every((n) => !!n.data[k]);
+  // Everything with text of its own: drawing shapes, device labels, zone titles, notes and cable labels.
+  const looks = textLooks(page);
+  const fmtOn = (k: 'bold' | 'italic' | 'underline' | 'strike') => looks.length > 0 && looks.every((l) => !!l[k]);
+  const anyText = looks.length > 0;
   const shadowOn = shapeSel.length > 0 && shapeSel.every((n) => !!n.data.shadow);
   return (
     <>
@@ -523,31 +526,18 @@ function HomeTab() {
       <Group label="Font">
         <div className="flex flex-col gap-0.5 py-0.5">
         <div className="flex gap-0.5">
-          <select
-            className="h-[22px] w-28 rounded border border-gray-300 bg-white px-0.5 text-[11px] disabled:opacity-40" disabled={!shapeSel.length} title="Font"
-            value={shapeSel.length && shapeSel.every((n) => (n.data.fontFamily ?? '') === (shapeSel[0].data.fontFamily ?? '')) ? shapeSel[0].data.fontFamily ?? '' : '*'}
-            onChange={(e) => s.styleSelection({ text: { fontFamily: e.target.value || undefined } })}
-          >
-            <option value="*" disabled hidden>—</option>
-            <option value="">(Default)</option>
-            {FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
-          </select>
-          <select
-            className="h-[22px] w-12 rounded border border-gray-300 bg-white px-0.5 text-[11px] disabled:opacity-40" disabled={!shapeSel.length} title="Font size"
-            value={shapeSel.length && shapeSel.every((n) => n.data.fontSize === shapeSel[0].data.fontSize) ? String(shapeSel[0].data.fontSize) : '*'}
-            onChange={(e) => s.styleSelection({ text: { fontSize: Number(e.target.value) } })}
-          >
-            <option value="*" disabled hidden>—</option>
-            {[...new Set([8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72, ...shapeSel.map((n) => n.data.fontSize)])].sort((a, b) => a - b).map((z) => <option key={z} value={z}>{z}</option>)}
-          </select>
+          <FontBox disabled={!anyText} value={looks.length && looks.every((l) => (l.fontFamily ?? '') === (looks[0].fontFamily ?? '')) ? looks[0].fontFamily ?? '' : null}
+            onPick={(f) => s.styleSelection({ text: { fontFamily: f || undefined } })} />
+          <SizeBox disabled={!anyText} value={looks.length && looks.every((l) => l.size === looks[0].size) ? looks[0].size : null}
+            onPick={(z) => s.styleSelection({ text: { fontSize: z } })} />
         </div>
         <div className="flex gap-px">
-          <FmtBtn label="Bold" active={fmtOn('bold')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { bold: !fmtOn('bold') } })}><b>B</b></FmtBtn>
-          <FmtBtn label="Italic" active={fmtOn('italic')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { italic: !fmtOn('italic') } })}><i className="font-serif">I</i></FmtBtn>
-          <FmtBtn label="Underline" active={fmtOn('underline')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { underline: !fmtOn('underline') } })}><u>U</u></FmtBtn>
-          <FmtBtn label="Strikethrough" active={fmtOn('strike')} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { strike: !fmtOn('strike') } })}><s>ab</s></FmtBtn>
-          <FmtBtn label="Larger text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: 2 } })}>A<sup>+</sup></FmtBtn>
-          <FmtBtn label="Smaller text" disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { sizeDelta: -2 } })}>A<sup>−</sup></FmtBtn>
+          <FmtBtn label="Bold (Ctrl+B)" active={fmtOn('bold')} disabled={!anyText} onClick={() => s.styleSelection({ text: { bold: !fmtOn('bold') } })}><b>B</b></FmtBtn>
+          <FmtBtn label="Italic (Ctrl+I)" active={fmtOn('italic')} disabled={!anyText} onClick={() => s.styleSelection({ text: { italic: !fmtOn('italic') } })}><i className="font-serif">I</i></FmtBtn>
+          <FmtBtn label="Underline (Ctrl+U)" active={fmtOn('underline')} disabled={!anyText} onClick={() => s.styleSelection({ text: { underline: !fmtOn('underline') } })}><u>U</u></FmtBtn>
+          <FmtBtn label="Strikethrough" active={fmtOn('strike')} disabled={!anyText} onClick={() => s.styleSelection({ text: { strike: !fmtOn('strike') } })}><s>ab</s></FmtBtn>
+          <FmtBtn label="Larger text (Ctrl+Shift+>)" disabled={!anyText} onClick={() => s.styleSelection({ text: { sizeDelta: 2 } })}>A<sup>+</sup></FmtBtn>
+          <FmtBtn label="Smaller text (Ctrl+Shift+<)" disabled={!anyText} onClick={() => s.styleSelection({ text: { sizeDelta: -2 } })}>A<sup>−</sup></FmtBtn>
         </div>
         </div>
       </Group>
@@ -1067,6 +1057,90 @@ function QuickStyles({ disabled }: { disabled: boolean }) {
         </div>
       )}
     </Drop>
+  );
+}
+
+/** The font settings of everything selected that has text (for showing the current font, size and B/I/U). */
+function textLooks(page: Page) {
+  const out: { fontFamily?: string; size: number; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean }[] = [];
+  for (const n of page.nodes) {
+    if (!n.selected) continue;
+    if (n.type === 'shape') out.push({ ...n.data, size: n.data.fontSize });
+    else if (n.type === 'device' || n.type === 'zone' || n.type === 'note') out.push({ ...n.data, size: n.data.fontSize ?? TEXT_DEFAULT_SIZE[n.type] });
+  }
+  for (const e of page.edges) if (e.selected) out.push({ ...(e.data ?? {}), size: e.data?.fontSize ?? TEXT_DEFAULT_SIZE.cable });
+  return out;
+}
+
+const SIZES = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
+
+/** Font size box: pick from the list or type any size (6–144) and press Enter, like Office. */
+function SizeBox({ value, disabled, onPick }: { value: number | null; disabled: boolean; onPick: (z: number) => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const commit = (v: string) => {
+    const z = Math.round(Number(v));
+    if (z >= 6 && z <= 144 && z !== value) onPick(z);
+    setText(null);
+  };
+  return (
+    <>
+      <input list="nc-font-sizes" className="h-[22px] w-12 rounded border border-gray-300 bg-white px-1 text-[11px] disabled:opacity-40" disabled={disabled} title="Font size (type a size and press Enter)" aria-label="Font size"
+        value={text ?? (value ?? '')} placeholder={disabled ? '' : '—'}
+        onChange={(e) => {
+          const v = e.target.value;
+          // Picked from the list: apply at once. Typed: wait for Enter / leaving the box.
+          if ((e.nativeEvent as InputEvent).inputType === undefined || (e.nativeEvent as InputEvent).inputType === 'insertReplacementText') commit(v);
+          else setText(v);
+        }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); } if (e.key === 'Escape') setText(null); }}
+        onBlur={(e) => { if (text !== null) commit(e.target.value); }} />
+      <datalist id="nc-font-sizes">{SIZES.map((z) => <option key={z} value={z} />)}</datalist>
+    </>
+  );
+}
+
+/** The fonts installed on this computer (Chromium's Local Font Access), loaded once when the font box is first used. */
+let localFonts: string[] | null = null;
+async function loadLocalFonts(): Promise<string[]> {
+  if (localFonts) return localFonts;
+  try {
+    const q = (window as unknown as { queryLocalFonts?: () => Promise<{ family: string }[]> }).queryLocalFonts;
+    localFonts = q ? [...new Set((await q()).map((f) => f.family))].sort((a, b) => a.localeCompare(b)) : [];
+  } catch {
+    localFonts = [];
+  }
+  return localFonts;
+}
+
+/** Font box: the common fonts, plus every font installed on this computer; type a name and press Enter for others. */
+function FontBox({ value, disabled, onPick }: { value: string | null; disabled: boolean; onPick: (f: string) => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const [installed, setInstalled] = useState<string[]>([]);
+  const all = [...new Set([...FONTS, ...installed])];
+  const commit = (v: string) => {
+    const f = v.trim();
+    const match = f === '' || f === '(Default)' ? '' : all.find((x) => x.toLowerCase() === f.toLowerCase()) ?? f;
+    if (match !== (value ?? '')) onPick(match);
+    setText(null);
+  };
+  return (
+    <>
+      <input list="nc-fonts" className="h-[22px] w-32 rounded border border-gray-300 bg-white px-1 text-[11px] disabled:opacity-40" disabled={disabled} title="Font (pick one, or type a font name and press Enter)" aria-label="Font"
+        value={text ?? (value === null ? '' : value || '(Default)')} placeholder={disabled ? '' : '—'}
+        style={{ fontFamily: value || undefined }}
+        onFocus={() => { void loadLocalFonts().then((f) => { if (f.length) setInstalled(f); }); }}
+        onChange={(e) => {
+          const v = e.target.value;
+          if ((e.nativeEvent as InputEvent).inputType === undefined || (e.nativeEvent as InputEvent).inputType === 'insertReplacementText') commit(v);
+          else setText(v);
+        }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); } if (e.key === 'Escape') setText(null); }}
+        onBlur={(e) => { if (text !== null) commit(e.target.value); }} />
+      <datalist id="nc-fonts">
+        <option value="(Default)" />
+        {all.map((f) => <option key={f} value={f} />)}
+      </datalist>
+    </>
   );
 }
 

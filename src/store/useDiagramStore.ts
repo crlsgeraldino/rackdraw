@@ -18,7 +18,7 @@ import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeFormat, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeFormat, ShapeKind, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -366,6 +366,19 @@ function turnDevice(n: AppNode, rotation: number, stencil?: StencilDef): AppNode
 export function portTaken(pg: Page, nodeId: string, handle?: string | null) {
   if (!handle || pg.nodes.find((n) => n.id === nodeId)?.type !== 'device') return false;
   return pg.edges.some((e) => (e.source === nodeId && e.sourceHandle === handle) || (e.target === nodeId && e.targetHandle === handle));
+}
+
+/** Usual text size (px) of each kind of item, for A+ / A− on items that have none set. */
+export const TEXT_DEFAULT_SIZE = { device: 11, zone: 12, note: 12, cable: 10 } as const;
+
+/** The font part of a Home → Font change, for items with a TextLook (device, zone, note, cable). */
+function lookPatch(t: TextFormat, current: number): TextLook {
+  const out: TextLook = {};
+  if ('fontFamily' in t) out.fontFamily = t.fontFamily || undefined;
+  if (t.fontSize) out.fontSize = t.fontSize;
+  if (t.sizeDelta) out.fontSize = Math.max(6, Math.min(72, current + t.sizeDelta));
+  for (const k of ['bold', 'italic', 'underline', 'strike'] as const) if (t[k] !== undefined) out[k] = t[k] || undefined;
+  return out;
 }
 
 /** A saved copy of a client (File → Version History). */
@@ -1198,13 +1211,20 @@ export const useDiagram = create<DiagramState>()(
                   },
                 };
               }
+              if ((n.type === 'device' || n.type === 'zone' || n.type === 'note') && text) {
+                const look = lookPatch(text, n.data.fontSize ?? TEXT_DEFAULT_SIZE[n.type]);
+                n = { ...n, data: { ...n.data, ...look } } as AppNode;
+              }
               if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
               if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line || format?.linePattern)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}), ...(format?.linePattern ? { linePattern: format.linePattern, dashed: format.linePattern !== 'solid' || undefined } : {}) } };
               return n;
             }),
-            edges: line === undefined && weight === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? {
+            edges: line === undefined && weight === undefined && !text ? pg.edges : pg.edges.map((e) => (e.selected ? {
               ...e,
-              data: { ...(e.data as CableData), ...(line !== undefined ? { color: line ?? undefined } : {}), ...(weight !== undefined ? { weight: weight ?? undefined } : {}) },
+              data: {
+                ...(e.data as CableData), ...(line !== undefined ? { color: line ?? undefined } : {}), ...(weight !== undefined ? { weight: weight ?? undefined } : {}),
+                ...(text ? lookPatch(text, (e.data as CableData | undefined)?.fontSize ?? TEXT_DEFAULT_SIZE.cable) : {}),
+              },
             } : e)),
           });
         },

@@ -99,7 +99,7 @@ export interface ItemComment {
   replies?: { id: string; author?: string; text: string; at: number }[];
 }
 
-export interface DeviceData extends Record<string, unknown>, NodeExtras {
+export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLook {
   stencilId: string;
   name: string;
   model?: string;
@@ -193,12 +193,34 @@ export const DEVICE_LABEL_FIELDS: { value: DeviceLabelField; label: string }[] =
 ];
 export const DEFAULT_LABEL_FIELDS: DeviceLabelField[] = ['name', 'ip'];
 
-export interface ZoneData extends Record<string, unknown>, NodeExtras {
+/** Font of an item's own text (device label, zone title, note, cable label); missing = the usual look. */
+export interface TextLook {
+  fontFamily?: string;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+}
+
+/** CSS for a TextLook (only what is set). */
+export function lookStyle(l: TextLook): { fontFamily?: string; fontSize?: number; fontWeight?: number; fontStyle?: string; textDecoration?: string } {
+  const deco = [l.underline && 'underline', l.strike && 'line-through'].filter(Boolean).join(' ');
+  return {
+    ...(l.fontFamily ? { fontFamily: l.fontFamily } : {}),
+    ...(l.fontSize ? { fontSize: l.fontSize } : {}),
+    ...(l.bold !== undefined ? { fontWeight: l.bold ? 700 : 400 } : {}),
+    ...(l.italic ? { fontStyle: 'italic' } : {}),
+    ...(deco ? { textDecoration: deco } : {}),
+  };
+}
+
+export interface ZoneData extends Record<string, unknown>, NodeExtras, TextLook {
   title: string;
   color: string;
 }
 
-export interface NoteData extends Record<string, unknown>, NodeExtras {
+export interface NoteData extends Record<string, unknown>, NodeExtras, TextLook {
   text: string;
 }
 
@@ -352,7 +374,7 @@ export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' |
 export type CableRoute = 'step' | 'straight' | 'curved';
 export type CableArrows = 'none' | 'end' | 'start' | 'both';
 
-export interface CableData extends Record<string, unknown> {
+export interface CableData extends Record<string, unknown>, TextLook {
   cable: CableType;
   label?: string;
   vlan?: string;

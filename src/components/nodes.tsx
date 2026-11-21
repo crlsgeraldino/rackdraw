@@ -4,7 +4,7 @@ import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type Node
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, patternOf, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
@@ -99,7 +99,7 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
       className={`nc-device-label nodrag nopan absolute cursor-move select-none text-[11px] leading-tight text-gray-800 ${
         variant === 'icon' && data.labelBeside ? 'right-full top-1/2 mr-2 flex -translate-y-1/2 flex-col items-end whitespace-nowrap text-right'
           : variant === 'icon' ? 'top-full mt-1 flex w-40 flex-col items-center text-center' : 'left-0 top-full mt-1 flex gap-2 whitespace-nowrap'}`}
-      style={{ translate: `${off.x}px ${off.y}px` }}
+      style={{ translate: `${off.x}px ${off.y}px`, ...lookStyle(data) }}
       {...(editing ? {} : drag)}
       onDoubleClick={(e) => { if (data.locked || id.startsWith('bg:')) return; e.stopPropagation(); setEditing(true); }}
       title={data.locked ? undefined : 'Drag to move the label · double-click to rename'}
@@ -302,7 +302,7 @@ function ZoneNodeView({ data, selected }: NodeProps<ZoneNode>) {
         style={{ borderColor: data.color, background: `${data.color}12` }}
       >
         <NodeBadges data={data} selected={selected} />
-        <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color }}>
+        <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color, ...lookStyle(data) }}>
           {data.title}
         </div>
       </div>
@@ -316,6 +316,7 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
     <div className={`min-w-[140px] rounded bg-yellow-100 p-2 text-xs shadow ${selected ? 'ring-2 ring-blue-500' : ''}`}>
       <textarea
         className="nodrag w-full resize bg-transparent outline-none"
+        style={lookStyle(data)}
         rows={Math.max(2, data.text.split('\n').length)}
         value={data.text}
         onChange={(e) => update(id, { text: e.target.value })}

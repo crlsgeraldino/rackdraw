@@ -4,7 +4,7 @@ import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStrai
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/router';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
-import type { CableEdge, DeviceData } from '@/lib/types';
+import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
@@ -137,7 +137,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
           <div
             data-edge-label={id}
             className="nodrag nopan pointer-events-auto absolute cursor-move whitespace-nowrap rounded border bg-white px-1.5 py-0.5 text-[10px] shadow-sm"
-            style={{ transform: `translate(-50%, -50%) translate(${labelPt.x}px, ${labelPt.y}px)`, borderColor: style.color, color: style.color }}
+            style={{ transform: `translate(-50%, -50%) translate(${labelPt.x}px, ${labelPt.y}px)`, borderColor: style.color, color: style.color, ...lookStyle(data ?? {}) }}
             title="Drag along the cable to move the text · double-click to centre it"
             onPointerDown={(e) => {
               if (e.button !== 0 || id.startsWith('bg:')) return;

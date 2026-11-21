@@ -7,7 +7,7 @@ import { editableCopy } from '../shapeCopy';
 import { realLength } from '../units';
 import { turnedBox } from '../rotation';
 import { expandFields } from '../headerFooter';
-import { listLines, patternOf, type Crop } from '../types';
+import { listLines, patternOf, type Crop, type TextLook } from '../types';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -64,6 +64,11 @@ function loadPicture(src: string): Promise<{ w: number; h: number }> {
     img.onerror = () => resolve({ w: 300, h: 300 });
     img.src = src;
   });
+}
+
+/** Visio text settings for an item's own font (Home → Font), falling back to the usual size / weight. */
+function vLook(l: TextLook, defPt: number, defBold = false) {
+  return { sizePt: l.fontSize ? pt(l.fontSize) : defPt, bold: l.bold ?? defBold, italic: l.italic, underline: l.underline, strike: l.strike, font: l.fontFamily };
 }
 
 /** The kept part of a cropped picture, as a PNG data URL. */
@@ -164,11 +169,11 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'zone':
           zones.push({
             kind: 'rect', name: n.data.title, container: true, box: ibox(b), line: n.data.color, dashed: true, lineWeightPt: 1.5, fill: n.data.color, fillTransparency: 0.93, rounding: inch(8),
-            text: { text: n.data.title.toUpperCase(), color: n.data.color, sizePt: 7, bold: true, align: 'left', valign: 'top' },
+            text: { text: n.data.title.toUpperCase(), color: n.data.color, ...vLook(n.data, 7, true), align: 'left', valign: 'top' },
           });
           break;
         case 'note':
-          front.push({ kind: 'rect', name: 'Note', box: ibox(b), fill: '#FEF3C7', line: '#E5C76B', lineWeightPt: 0.5, text: { text: n.data.text, sizePt: 7.5, align: 'left', valign: 'top' } });
+          front.push({ kind: 'rect', name: 'Note', box: ibox(b), fill: '#FEF3C7', line: '#E5C76B', lineWeightPt: 0.5, text: { text: n.data.text, ...vLook(n.data, 7.5), align: 'left', valign: 'top' } });
           break;
         case 'shape': {
           const d = n.data;
@@ -305,7 +310,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const lab = el?.querySelector('.nc-device-label');
           if (lab) {
             const lines = [...lab.children].map((c) => c.textContent ?? '').filter(Boolean);
-            texts.push({ kind: 'rect', name: `${d.name} label`, box: ibox(domBox(lab)), fill: null, line: null, text: { text: lines.join('\n'), sizePt: 8, bold: true, align: s.style === 'icon' ? 'center' : 'left' } });
+            texts.push({ kind: 'rect', name: `${d.name} label`, box: ibox(domBox(lab)), fill: null, line: null, text: { text: lines.join('\n'), ...vLook(d, 8, true), align: s.style === 'icon' ? 'center' : 'left' } });
           }
           const info = el?.querySelector('.nc-infobox');
           if (info) {
@@ -343,7 +348,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       if (text) {
         const mid = path.getPointAtLength(total * (d.labelAt ?? 0.5));
         const w = Math.max(0.4, text.length * 0.055);
-        texts.push({ kind: 'rect', box: { x: X(mid.x) - w / 2, y: Y(mid.y) - 0.08, w, h: 0.16 }, fill: '#FFFFFF', line: st.color, lineWeightPt: 0.5, text: { text, sizePt: 6.5, color: st.color } });
+        texts.push({ kind: 'rect', box: { x: X(mid.x) - w / 2, y: Y(mid.y) - 0.08, w, h: 0.16 }, fill: '#FFFFFF', line: st.color, lineWeightPt: 0.5, text: { text, ...vLook(d, 6.5), color: st.color } });
       }
     }
 

@@ -320,6 +320,18 @@ function Canvas() {
       else if (key === 'a' && !e.shiftKey) { e.preventDefault(); s.selectAll(); }
       else if (key === 'f' && e.shiftKey) { e.preventDefault(); s.orderSelected('front'); }
       else if (key === 'b' && e.shiftKey) { e.preventDefault(); s.orderSelected('back'); }
+      else if (!e.shiftKey && (key === 'b' || key === 'i' || key === 'u')) {
+        // Bold / italic / underline the selection's text (shapes, device labels, zones, notes, cable labels).
+        const k = key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline';
+        const pg = activePage(s.projects[s.currentId]);
+        const items = [...pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && n.type !== 'measure').map((n) => n.data as Record<string, unknown>), ...pg.edges.filter((x) => x.selected).map((x) => (x.data ?? {}) as Record<string, unknown>)];
+        if (!items.length) return;
+        e.preventDefault();
+        s.styleSelection({ text: { [k]: !items.every((d) => !!d[k]) } });
+      } else if (e.shiftKey && (e.key === '>' || e.key === '<' || e.code === 'Period' || e.code === 'Comma')) {
+        e.preventDefault();
+        s.styleSelection({ text: { sizeDelta: e.key === '>' || e.code === 'Period' ? 2 : -2 } });
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
