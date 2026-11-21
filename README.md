@@ -140,6 +140,9 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 ## Stacking order and protection (Home → Arrange)
 
+- **Space Shapes** (|↔|, beside the align buttons): an exact gap (px) between the selected items, side by side or
+  stacked; the first stays put and the others line up after it.
+
 - **Bring ▾** / **Send ▾**: Bring to Front / Send to Back (Ctrl+Shift+F / Ctrl+Shift+B), or **Bring Forward** /
   **Send Backward** one step, past the next item it overlaps (like Visio).
 - **Protection ▾** (like Visio's shape protection): **Lock text** stops the text being edited on the drawing;
@@ -517,6 +520,8 @@ The **View** menu works like Visio's layers and data graphics:
 - A **zone** works like a Visio container: drag it and everything inside it moves along (what's inside is decided
   when the drag starts, so it doesn't pick up items it passes over). **Fit to contents** (right-click the zone, or
   the right panel) resizes it around what it holds.
+- **Zone with items selected** (Home → Tools or Insert → Diagram Parts) puts the zone round them, with room for its
+  title, like Visio's container from selection.
 - Select a zone and use the **Shape** tab's **Container** group: **Container Style** (dashed outline, solid outline,
   heading band, side band or filled, like Visio's container gallery), **Fit to Contents** and **Select Contents**.
 - Select a callout and use **Callout Style**: box, rounded, oval or a plain underline (the leader still points at its

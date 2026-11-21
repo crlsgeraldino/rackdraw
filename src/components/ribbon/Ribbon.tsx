@@ -523,7 +523,7 @@ function HomeTab() {
         <Column>
           <Small icon="text" label="Text" onClick={() => s.addShape('text', center())} title="Add a text box in the middle of the view" />
           <Small icon="dimension" label="Dimension" onClick={() => { const c = center(); s.addMeasure({ x: c.x - 100, y: c.y }); }} title="Add a dimension line" />
-          <Small icon="zone" label="Zone" onClick={() => s.addZone(center())} title="Add a zone / room" />
+          <Small icon="zone" label="Zone" onClick={() => (st.count ? s.wrapInZone() : s.addZone(center()))} title="Add a zone / room; with items selected, the zone goes round them" />
         </Column>
       </Group>
       <Group label="Font">
@@ -628,6 +628,7 @@ function HomeTab() {
           {ALIGN.slice(3).map((a) => <AlignBtn key={a.mode} label={a.label} mode={a.mode} disabled={st.movable < 2} onClick={() => s.alignSelected(a.mode)} />)}
           <AlignBtn label="Distribute vertically" mode="dist-v" disabled={st.movable < 3} onClick={() => s.distributeSelected('v')} />
         </div>
+        <SpaceMenu disabled={st.movable < 2} />
         <Column>
           <Drop width={190} trigger={(open) => <Small icon="front" label="Bring ▾" onClick={open} disabled={!st.count} title="Bring to Front (Ctrl+Shift+F) or Bring Forward one step" />}>
             {(close) => (
@@ -835,7 +836,7 @@ function InsertTab() {
         <TablePicker at={center} />
       </Group>
       <Group label="Diagram Parts">
-        <Big icon="zone" label="Zone" onClick={() => s.addZone(center())} title="A room, rack or area outline" />
+        <Big icon="zone" label="Zone" onClick={() => { const sel = activePage(useDiagram.getState().projects[useDiagram.getState().currentId]).nodes.some((n) => n.selected && n.type !== 'backdrop'); if (sel) s.wrapInZone(); else s.addZone(center()); }} title="A room, rack or area outline; with items selected, it goes round them (like Visio's container from selection)" />
         <Big icon="note" label="Note" onClick={() => s.addNote(center())} />
         <OffPageMenu at={center} />
         <Big icon="info" label="Callout" onClick={() => insertCallout()} title="A callout pointing at the selected item (or a free one)" />
@@ -1318,6 +1319,30 @@ function PageLookMenus() {
         </Drop>
       </div>
     </>
+  );
+}
+
+/** Arrange → Space Shapes (Visio): an exact gap between neighbouring selected items. */
+function SpaceMenu({ disabled }: { disabled: boolean }) {
+  const [gap, setGap] = useState(40);
+  const s = useDiagram.getState();
+  return (
+    <div className="flex items-start pt-0.5">
+      <Drop width={210} trigger={(open) => <FmtBtn label="Space Shapes: an exact gap between the selected items" disabled={disabled} onClick={open}><span className="text-[11px] leading-none">|↔|</span></FmtBtn>}>
+        {(close) => (
+          <div className="space-y-2 p-2 text-xs">
+            <label className="flex items-center gap-2">Gap
+              <input type="number" min={0} className="w-16 rounded border border-gray-300 px-1.5 py-0.5" value={gap} onChange={(e) => setGap(Math.max(0, Number(e.target.value) || 0))} /> px
+            </label>
+            <div className="flex gap-1">
+              <button className="flex-1 rounded border border-gray-300 px-2 py-1 hover:bg-blue-50" onClick={() => { s.spaceSelected('h', gap); close(); }}>Side by side</button>
+              <button className="flex-1 rounded border border-gray-300 px-2 py-1 hover:bg-blue-50" onClick={() => { s.spaceSelected('v', gap); close(); }}>Stacked</button>
+            </div>
+            <p className="text-[10px] text-gray-400">The first item stays put; the others line up after it with this gap.</p>
+          </div>
+        )}
+      </Drop>
+    </div>
   );
 }
 

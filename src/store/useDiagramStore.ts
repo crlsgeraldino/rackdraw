@@ -86,6 +86,10 @@ interface DiagramState {
   // elements
   addStencil: (stencilId: string, position: { x: number; y: number }) => void;
   addZone: (position: { x: number; y: number }) => void;
+  /** Insert a zone round the selection (Visio's container from selection), with room for its title. Returns its id. */
+  wrapInZone: (title?: string) => string | null;
+  /** Space Shapes (Visio): puts exactly `gap` px between neighbouring selected items, left to right or top to bottom. */
+  spaceSelected: (axis: 'h' | 'v', gap: number) => void;
   addNote: (position: { x: number; y: number }) => void;
   addShape: (kind: ShapeKind, position: { x: number; y: number }) => void;
   /** Adds a dimension line (or a floor-plan wall) starting at `position`. */
@@ -696,6 +700,47 @@ export const useDiagram = create<DiagramState>()(
             data: { title: 'Server room', color: theme()?.zones[0] ?? '#3b82f6' },
           };
           commit({ nodes: [node, ...page().nodes] });
+        },
+        wrapInZone: (title) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
+          if (!sel.length) return null;
+          const pts = sel.flatMap((n) => {
+            if (n.type === 'measure') return [n.position, { x: n.position.x + n.data.dx, y: n.position.y + n.data.dy }];
+            const m = nodeSize(n);
+            return [n.position, { x: n.position.x + m.w, y: n.position.y + m.h }];
+          });
+          const x0 = Math.min(...pts.map((p) => p.x)), y0 = Math.min(...pts.map((p) => p.y));
+          const x1 = Math.max(...pts.map((p) => p.x)), y1 = Math.max(...pts.map((p) => p.y));
+          // Room round the items, more at the top for the zone's title (and below for device labels).
+          const m = 24, top = 36, bottom = 36;
+          get().snapshot();
+          const id = `z-${uid()}`;
+          const z = Math.min(-1, ...sel.map((n) => (n.zIndex ?? 0) - 1));
+          const node: AppNode = {
+            id, type: 'zone', position: { x: Math.round(x0 - m), y: Math.round(y0 - top) }, zIndex: z, selected: true,
+            width: Math.round(x1 - x0 + m * 2), height: Math.round(y1 - y0 + top + bottom),
+            style: { width: Math.round(x1 - x0 + m * 2), height: Math.round(y1 - y0 + top + bottom) },
+            data: { title: title?.trim() || 'Zone', color: theme()?.zones[0] ?? '#3b82f6' },
+          };
+          commit({ nodes: [node, ...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n))], edges: pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)) });
+          return id;
+        },
+        spaceSelected: (axis, gap) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && n.type !== 'measure' && !extras(n).locked);
+          if (sel.length < 2) return;
+          const key = (n: AppNode) => (axis === 'h' ? n.position.x : n.position.y);
+          const sorted = [...sel].sort((a, b) => key(a) - key(b));
+          const pos = new Map<string, { x: number; y: number }>();
+          let edge = key(sorted[0]) + (axis === 'h' ? nodeSize(sorted[0]).w : nodeSize(sorted[0]).h);
+          for (const n of sorted.slice(1)) {
+            const at = Math.round(edge + gap);
+            pos.set(n.id, axis === 'h' ? { x: at, y: n.position.y } : { x: n.position.x, y: at });
+            edge = at + (axis === 'h' ? nodeSize(n).w : nodeSize(n).h);
+          }
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)) });
         },
         addMeasure: (position, variant = 'dimension') => {
           get().snapshot();
