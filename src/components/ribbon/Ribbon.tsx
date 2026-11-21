@@ -491,6 +491,8 @@ function HomeTab() {
   const fmtOn = (k: 'bold' | 'italic' | 'underline' | 'strike') => looks.length > 0 && looks.every((l) => !!l[k]);
   const anyText = looks.length > 0;
   const shadowOn = shapeSel.length > 0 && shapeSel.every((n) => !!n.data.shadow);
+  const dirOf = shapeSel[0]?.data.textDir ?? 'across';
+  const spacingOf = shapeSel[0]?.data.lineSpacing ?? 1.2;
   return (
     <>
       <Group label="Clipboard">
@@ -549,7 +551,8 @@ function HomeTab() {
         </div>
       </Group>
       <Group label="Paragraph">
-        <div className="grid grid-cols-3 content-start gap-px py-0.5">
+        <div className="flex gap-1.5 py-0.5">
+        <div className="grid grid-cols-3 content-start gap-px">
           {(['left', 'center', 'right'] as const).map((a) => (
             <FmtBtn key={a} label={`Align ${a}`} active={shapeSel.length > 0 && shapeSel.every((n) => (n.data.align ?? 'center') === a)} disabled={!shapeSel.length} onClick={() => s.styleSelection({ text: { align: a } })}>
               <AlignGlyph h={a} />
@@ -560,6 +563,8 @@ function HomeTab() {
               <AlignGlyph v={v} />
             </FmtBtn>
           ))}
+        </div>
+        <div className="grid grid-cols-2 content-start gap-px">
           {(['bullet', 'number'] as const).map((l) => {
             const on = shapeSel.length > 0 && shapeSel.every((n) => n.data.list === l);
             return (
@@ -568,6 +573,24 @@ function HomeTab() {
               </FmtBtn>
             );
           })}
+          <FmtBtn label={`Text direction: ${dirOf === 'down' ? 'reads down' : dirOf === 'up' ? 'reads up' : 'across'} (click to change)`} active={dirOf !== 'across'} disabled={!shapeSel.length}
+            onClick={() => s.styleSelection({ text: { textDir: dirOf === 'across' ? 'up' : dirOf === 'up' ? 'down' : 'across' } })}>
+            <span className="text-[10px] font-semibold leading-none" style={{ writingMode: dirOf === 'across' ? undefined : 'vertical-rl', transform: dirOf === 'up' ? 'rotate(180deg)' : undefined }}>A↕</span>
+          </FmtBtn>
+          <Drop width={150} trigger={(open) => (
+            <FmtBtn label="Line spacing" disabled={!shapeSel.length} onClick={open}><span className="text-[11px] leading-none">≡↕</span></FmtBtn>
+          )}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                {[1, 1.15, 1.5, 2].map((v) => (
+                  <button key={v} className={`flex w-full items-center justify-between px-3 py-1 text-left hover:bg-blue-50 ${spacingOf === v ? 'bg-blue-50' : ''}`} onClick={() => { s.styleSelection({ text: { lineSpacing: v } }); close(); }}>
+                    <span>{v.toFixed(v === 1.15 ? 2 : 1)}</span>{spacingOf === v && <span className="text-blue-600">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Drop>
+        </div>
         </div>
       </Group>
       <Group label="Shape Style">

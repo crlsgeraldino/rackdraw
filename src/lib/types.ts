@@ -286,6 +286,10 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   rounding?: number;
   /** Bulleted or numbered lines (Home → Paragraph). */
   list?: TextList | null;
+  /** Text direction: across (default), or vertical reading down / up (Home → Paragraph). */
+  textDir?: TextDir;
+  /** Line spacing (1 = single); missing = 1.2. */
+  lineSpacing?: number;
   /** Picture crop: how much is cut off each side, as fractions (0–1) of the whole picture. */
   crop?: Crop;
   /** Off-page reference: the matching shape on the other page (its `link` is that page). */
@@ -296,6 +300,11 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
 }
 
 export type TextList = 'bullet' | 'number';
+export type TextDir = 'across' | 'down' | 'up';
+
+/** CSS for vertical text: written top-to-bottom ('down'), or turned to read bottom-to-top ('up'). */
+export const textDirStyle = (dir?: TextDir): { writingMode?: 'vertical-rl'; transform?: string } =>
+  dir === 'down' ? { writingMode: 'vertical-rl' } : dir === 'up' ? { writingMode: 'vertical-rl', transform: 'rotate(180deg)' } : {};
 export interface Crop { l: number; t: number; r: number; b: number }
 
 /** Shape text as list lines: each non-empty line gets a bullet or its number. */
@@ -341,6 +350,8 @@ export interface TextFormat {
   fontFamily?: string;
   /** Bullets / numbering; null = none. */
   list?: TextList | null;
+  textDir?: TextDir;
+  lineSpacing?: number;
 }
 
 /** Print / PDF header and footer (Visio's Page Setup → Header/Footer): left, centre and right text, with codes. */

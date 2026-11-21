@@ -39,6 +39,10 @@ export interface VText {
   align?: 'left' | 'center' | 'right';
   valign?: 'top' | 'middle' | 'bottom';
   font?: string;
+  /** Vertical text: 'down' reads top-to-bottom, 'up' bottom-to-top. */
+  dir?: 'across' | 'down' | 'up';
+  /** Line spacing, 1 = single. */
+  lineSpacing?: number;
 }
 
 export type VShape = {
@@ -126,14 +130,19 @@ function styleCells(s: VStyle) {
   return out.join('');
 }
 
-function textXml(t: VText | undefined) {
+function textXml(t: VText | undefined, box?: { w: number; h: number }) {
   if (!t?.text) return '';
   const color = hex(t.color) ?? '#000000';
+  // Vertical text: the text block is turned a quarter about the shape's centre, so its width is the shape's height.
+  const turn = box && (t.dir === 'down' || t.dir === 'up')
+    ? cell('TxtPinX', box.w / 2) + cell('TxtPinY', box.h / 2) + cell('TxtWidth', box.h) + cell('TxtHeight', box.w) + cell('TxtLocPinX', box.h / 2) + cell('TxtLocPinY', box.w / 2) + cell('TxtAngle', t.dir === 'down' ? -Math.PI / 2 : Math.PI / 2)
+    : '';
   return (
+    turn +
     cell('VerticalAlign', t.valign === 'top' ? 0 : t.valign === 'bottom' ? 2 : 1) +
     cell('LeftMargin', 0.04) + cell('RightMargin', 0.04) + cell('TopMargin', 0.03) + cell('BottomMargin', 0.03) +
     `<Section N="Character"><Row IX="0">${t.font ? cell('Font', t.font) : ''}${cell('Color', color)}${cell('Size', (t.sizePt ?? 8) / 72, ' U="PT"')}${cell('Style', (t.bold ? 1 : 0) + (t.italic ? 2 : 0) + (t.underline ? 4 : 0))}${t.strike ? cell('Strikethru', 1) : ''}</Row></Section>` +
-    `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', t.align === 'left' ? 0 : t.align === 'right' ? 2 : 1)}</Row></Section>`
+    `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', t.align === 'left' ? 0 : t.align === 'right' ? 2 : 1)}${t.lineSpacing ? cell('SpLine', -t.lineSpacing) : ''}</Row></Section>`
   );
 }
 
@@ -201,7 +210,7 @@ function pageXml(page: VPage): PageOut {
         } else {
           geo = closedGeometry([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }], !s.fill);
         }
-        body = styleCells(s) + textXml(s.text) + dataXml(s.data) + geo;
+        body = styleCells(s) + textXml(s.text, box) + dataXml(s.data) + geo;
       }
     }
     const pin = cell('PinX', box.x + box.w / 2) + cell('PinY', H - (box.y + box.h / 2)) + cell('Width', box.w) + cell('Height', box.h) +

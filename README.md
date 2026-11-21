@@ -101,6 +101,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Vertical text and line spacing (Home → Paragraph)
+
+- **Text direction** (A↕) turns a shape's or text box's text to read **up** (bottom to top), **down** (top to
+  bottom), or back **across**; handy for labels on tall racks, risers and vertical cable runs.
+- **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
+- Visio exports keep both (turned text block, paragraph spacing).
+
 ## Flip and Same Size (Home → Arrange)
 
 - **Flip ▾ → Flip Horizontal / Flip Vertical** mirrors the selection as a group: items swap sides around its centre.

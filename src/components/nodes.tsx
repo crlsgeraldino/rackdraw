@@ -4,7 +4,7 @@ import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type Node
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, textDirStyle, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
@@ -435,7 +435,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
   const [editing, setEditing] = useState(false);
   const w = width ?? 160, h = height ?? 80;
   const textStyle: React.CSSProperties = {
-    color: data.textColor, fontSize: data.fontSize, lineHeight: 1.2, fontFamily: data.fontFamily,
+    color: data.textColor, fontSize: data.fontSize, lineHeight: data.lineSpacing ?? 1.2, fontFamily: data.fontFamily,
     fontWeight: data.bold ? 700 : undefined, fontStyle: data.italic ? 'italic' : undefined, textDecoration: [data.underline && 'underline', data.strike && 'line-through'].filter(Boolean).join(' ') || undefined,
     textAlign: data.align ?? 'center',
   };
@@ -509,7 +509,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
           onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
         />
       ) : (
-        <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={textStyle}>
+        <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={{ ...textStyle, ...textDirStyle(data.textDir) }}>
           {listed ? (
             <div className="w-full">
               {listed.map((l, i) => (
