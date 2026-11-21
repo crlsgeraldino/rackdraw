@@ -75,14 +75,16 @@ function vLook(l: TextLook, defPt: number, defBold = false) {
 let clientFont: string | undefined;
 
 /** The kept part of a cropped picture, as a PNG data URL. */
-function cropPicture(src: string, size: { w: number; h: number }, c: Crop): Promise<string> {
+function cropPicture(src: string, size: { w: number; h: number }, c: Crop, flipX?: boolean, flipY?: boolean): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const sx = size.w * c.l, sy = size.h * c.t, sw = Math.max(1, size.w * (1 - c.l - c.r)), sh = Math.max(1, size.h * (1 - c.t - c.b));
       const cv = document.createElement('canvas');
       cv.width = Math.round(sw); cv.height = Math.round(sh);
-      cv.getContext('2d')?.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+      const g = cv.getContext('2d');
+      if (g && (flipX || flipY)) { g.translate(flipX ? cv.width : 0, flipY ? cv.height : 0); g.scale(flipX ? -1 : 1, flipY ? -1 : 1); }
+      g?.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
       resolve(cv.toDataURL('image/png'));
     };
     img.onerror = () => resolve(src);
@@ -199,9 +201,9 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             if (d.src) {
               const img = await loadPicture(d.src);
               const c = d.crop;
-              const src = c ? await cropPicture(d.src, img, c) : d.src;
+              const src = c || d.flipX || d.flipY ? await cropPicture(d.src, img, c ?? { l: 0, t: 0, r: 0, b: 0 }, d.flipX, d.flipY) : d.src;
               const w = Math.max(1, Math.round(img.w * (c ? 1 - c.l - c.r : 1))), h = Math.max(1, Math.round(img.h * (c ? 1 - c.t - c.b : 1)));
-              front.push({ kind: 'image', name: 'Picture', box: bb, media: await addMedia(`img:${n.id}:${c ? [c.l, c.t, c.r, c.b].join(',') : ''}`, src, w, h) });
+              front.push({ kind: 'image', name: 'Picture', box: bb, media: await addMedia(`img:${n.id}:${c ? [c.l, c.t, c.r, c.b].join(',') : ''}:${d.flipX ? 1 : 0}${d.flipY ? 1 : 0}`, src, w, h) });
             }
             if (d.stroke !== 'transparent' || d.text) front.push({ kind: 'rect', box: bb, fill: null, line: d.stroke === 'transparent' ? null : d.stroke, lineWeightPt: pt(d.lineWidth ?? 2), text });
           } else if (d.kind === 'table') {

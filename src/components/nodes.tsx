@@ -493,7 +493,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       </svg>
       {data.kind === 'image' && data.src && (
         // Pictures stretch with their box (resizing keeps the proportions); the border, if any, is drawn over them.
-        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined, transform: data.flipX || data.flipY ? `scale(${data.flipX ? -1 : 1}, ${data.flipY ? -1 : 1})` : undefined }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={data.src} alt={data.text || 'Picture'} draggable={false} className="absolute max-w-none select-none" style={cropStyle(data.crop)} />
         </div>

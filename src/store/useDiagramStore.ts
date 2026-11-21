@@ -19,7 +19,7 @@ import { getPref } from '@/lib/prefs';
 import { PAGE_LINK } from '@/lib/links';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeFormat, ShapeKind, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -162,6 +162,10 @@ interface DiagramState {
    * `newName`), each linking to the other's page. Returns the new shape's id.
    */
   addOffPageRef: (position: { x: number; y: number }, target: { pageId: string } | { newName: string }) => string | null;
+  /** Flip Horizontal / Vertical (Visio): mirrors the selection as a group about its centre. */
+  flipSelection: (axis: 'h' | 'v') => void;
+  /** Same Width / Height / Size: makes the selected items match the largest (or smallest) of them. */
+  sameSize: (what: 'width' | 'height' | 'both', like: 'largest' | 'smallest') => void;
   /** Center Drawing: moves everything on the active page (locked items too) by dx, dy in one undo step. */
   moveDrawing: (dx: number, dy: number) => void;
   /** Picture → Crop: sets how much of each side is cut off; the box shrinks or grows so the picture keeps its scale. */
@@ -1079,6 +1083,72 @@ export const useDiagram = create<DiagramState>()(
             pages: pages.map((pg) => (pg.id === here.id ? { ...pg, nodes: [...pg.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), a] } : pg.id === targetId ? { ...pg, nodes: [...pg.nodes, b] } : pg)),
           });
           return aId;
+        },
+        flipSelection: (axis) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && !extras(n).locked);
+          if (!sel.length) return;
+          // The selection's box (dimension lines and walls by their two ends).
+          const ends = (n: AppNode) => {
+            if (n.type === 'measure') return [n.position, { x: n.position.x + n.data.dx, y: n.position.y + n.data.dy }];
+            const m = nodeSize(n);
+            return [n.position, { x: n.position.x + m.w, y: n.position.y + m.h }];
+          };
+          const pts = sel.flatMap(ends);
+          const c = axis === 'h' ? (Math.min(...pts.map((p) => p.x)) + Math.max(...pts.map((p) => p.x))) / 2 : (Math.min(...pts.map((p) => p.y)) + Math.max(...pts.map((p) => p.y))) / 2;
+          const mirror = (v: number) => 2 * c - v;
+          const norm = (r: number) => ((Math.round(r) % 360) + 360) % 360;
+          get().snapshot();
+          const ids = new Set(sel.map((n) => n.id));
+          commit({
+            nodes: pg.nodes.map((n) => {
+              if (!ids.has(n.id)) return n;
+              if (n.type === 'measure') {
+                const [a] = ends(n);
+                return axis === 'h'
+                  ? { ...n, position: { x: Math.round(mirror(a.x)), y: a.y }, data: { ...n.data, dx: -n.data.dx } }
+                  : { ...n, position: { x: a.x, y: Math.round(mirror(a.y)) }, data: { ...n.data, dy: -n.data.dy } };
+              }
+              const m = nodeSize(n);
+              const position = axis === 'h' ? { x: Math.round(mirror(n.position.x + m.w)), y: n.position.y } : { x: n.position.x, y: Math.round(mirror(n.position.y + m.h)) };
+              if (n.type !== 'shape') return { ...n, position }; // devices, zones, notes: they swap sides but stay readable
+              const d = n.data;
+              const r = d.rotation ?? 0;
+              let data: ShapeData;
+              if (d.kind === 'freeform') data = { ...d, points: (d.points ?? []).map(([x, y]) => (axis === 'h' ? [1 - x, y] : [x, 1 - y]) as [number, number]) };
+              else if (d.kind === 'arrow' || d.kind === 'offpage') data = { ...d, rotation: norm(axis === 'h' ? 180 - r : -r) };
+              else if (d.kind === 'door') data = { ...d, flip: !d.flip || undefined, rotation: norm(axis === 'h' ? -r : 180 - r) };
+              else if (d.kind === 'image') data = { ...d, ...(axis === 'h' ? { flipX: !d.flipX || undefined } : { flipY: !d.flipY || undefined }), rotation: norm(-r) };
+              else data = { ...d, rotation: norm(-r) };
+              return { ...n, position, data };
+            }),
+          });
+        },
+        sameSize: (what, like) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && !extras(n).locked && (n.type === 'device' || n.type === 'shape' || n.type === 'zone'));
+          if (sel.length < 2) return;
+          // The size saved on the item first (it is what gets changed); the drawn size for items that have none saved.
+          const sizes = sel.map((n) => {
+            const st = n.style as { width?: number; height?: number } | undefined, m = nodeSize(n);
+            return { w: n.width ?? st?.width ?? m.w, h: n.height ?? st?.height ?? m.h };
+          });
+          const pick = (k: 'w' | 'h') => (like === 'largest' ? Math.max : Math.min)(...sizes.map((z) => z[k]));
+          const W = pick('w'), H = pick('h');
+          get().snapshot();
+          const ids = new Map(sel.map((n, i) => [n.id, sizes[i]]));
+          commit({
+            nodes: pg.nodes.map((n) => {
+              const z = ids.get(n.id);
+              if (!z || !z.w || !z.h) return n;
+              // Devices and pictures keep their proportions: they match the width or height, or fit inside the size.
+              const keep = n.type === 'device' || (n.type === 'shape' && n.data.kind === 'image');
+              let w = what === 'height' ? z.w : W, h = what === 'width' ? z.h : H;
+              if (keep) { const k = what === 'height' ? H / z.h : what === 'width' ? W / z.w : Math.min(W / z.w, H / z.h); w = z.w * k; h = z.h * k; }
+              w = Math.round(w); h = Math.round(h);
+              return { ...n, width: w, height: h, style: { ...n.style, width: w, height: h } } as AppNode;
+            }),
+          });
         },
         moveDrawing: (dx, dy) => {
           if (!dx && !dy) return;

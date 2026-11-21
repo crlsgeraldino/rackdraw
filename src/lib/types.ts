@@ -290,6 +290,9 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   crop?: Crop;
   /** Off-page reference: the matching shape on the other page (its `link` is that page). */
   pair?: string;
+  /** Picture flipped left-right / upside down (Arrange → Flip). */
+  flipX?: boolean;
+  flipY?: boolean;
 }
 
 export type TextList = 'bullet' | 'number';

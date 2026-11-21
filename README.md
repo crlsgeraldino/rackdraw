@@ -101,6 +101,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Flip and Same Size (Home → Arrange)
+
+- **Flip ▾ → Flip Horizontal / Flip Vertical** mirrors the selection as a group: items swap sides around its centre.
+  Devices, zones and notes stay readable; arrows, freehand drawings, dimension lines, doors and pictures mirror.
+  Flipping twice puts everything back exactly.
+- **Size ▾ → Same Width / Same Height / Same Size**, like the largest or the smallest selected item. Devices and
+  pictures keep their proportions (for Same Size they fit inside the size).
+
 ## Format Painter and Smart Duplicate
 
 - **Home → Format Painter** works like Office / Visio: select an item, click Format Painter, then click the item to

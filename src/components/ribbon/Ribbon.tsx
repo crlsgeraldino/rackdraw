@@ -619,6 +619,33 @@ function HomeTab() {
         <Column>
           <Small icon="rotateRight" label="Rotate Right" onClick={() => s.rotateSelection(90)} disabled={!st.count} title="Rotate the selection right 90°" />
           <Small icon="rotateLeft" label="Rotate Left" onClick={() => s.rotateSelection(-90)} disabled={!st.count} title="Rotate the selection left 90°" />
+          <Drop width={210} trigger={(open) => <Small icon="flipH" label="Flip ▾" onClick={open} disabled={!st.count} title="Flip the selection (mirror it)" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                <button className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.flipSelection('h'); close(); }}>Flip Horizontal</button>
+                <button className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.flipSelection('v'); close(); }}>Flip Vertical</button>
+              </div>
+            )}
+          </Drop>
+        </Column>
+        <Column>
+          <Drop width={230} trigger={(open) => <Small icon="sameSize" label="Size ▾" onClick={open} disabled={st.count < 2} title="Make the selected items the same width, height or size" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                {(['largest', 'smallest'] as const).map((like) => (
+                  <div key={like}>
+                    <div className="px-3 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-gray-400">Like the {like}</div>
+                    {(['width', 'height', 'both'] as const).map((w) => (
+                      <button key={w} className="block w-full px-3 py-1 text-left hover:bg-blue-50" onClick={() => { s.sameSize(w, like); close(); }}>
+                        {w === 'both' ? 'Same Size' : w === 'width' ? 'Same Width' : 'Same Height'}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+                <p className="px-3 pt-1 text-[10px] text-gray-400">Devices and pictures keep their proportions.</p>
+              </div>
+            )}
+          </Drop>
         </Column>
       </Group>
       <Group label="Editing">

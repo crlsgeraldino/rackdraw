@@ -46,6 +46,8 @@ const P: Record<string, React.ReactNode> = {
   connector: <><rect x="2" y="2" width="5" height="5" /><rect x="13" y="13" width="5" height="5" /><path d="M7 4.5h4.5v11H13" /></>,
   fullscreen: <><path d="M2 7V2h5M13 2h5v5M18 13v5h-5M7 18H2v-5" /><rect x="6" y="6" width="8" height="8" fill="#93c5fd" /></>,
   defineData: <><rect x="2" y="3" width="16" height="14" rx="1" /><path d="M2 7.5h16M7 3v14" /><path d="M10 11h5M10 14h3" stroke="#2563eb" /></>,
+  flipH: <><path d="M10 2v16" strokeDasharray="2 2" /><path d="M8 5L3 15h5z" fill="#bfdbfe" /><path d="M12 5l5 10h-5z" /></>,
+  sameSize: <><rect x="2" y="4" width="7" height="12" /><rect x="11" y="4" width="7" height="12" fill="#bfdbfe" /><path d="M2 2h16" /></>,
   offpage: <><path d="M2 5h11l5 5-5 5H2z" fill="#dbeafe" /><path d="M5 10h6M9 8l2 2-2 2" /></>,
   center: <><rect x="2" y="2" width="16" height="16" rx="1" /><rect x="6.5" y="7" width="7" height="6" fill="#bfdbfe" /><path d="M10 2v3M10 15v3M2 10h3M15 10h3" /></>,
   symbol: <><path d="M5 16h3.5v-1.6A5.5 5.5 0 1 1 11.5 14.4V16H15" /></>,
