@@ -8,7 +8,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode } from '@/lib/types';
+import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode, patternOf, type LinePattern } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
@@ -677,8 +677,26 @@ function ShapeProps({ node }: { node: ShapeNode }) {
       {d.kind !== 'text' && swatchRow('Fill', 'fill')}
       {d.kind !== 'text' && swatchRow('Border', 'stroke')}
       {swatchRow('Text color', 'textColor')}
-      {d.kind !== 'text' && (
-        <label className="mb-2 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.dashed} onChange={(e) => set({ dashed: e.target.checked })} /> Dashed border</label>
+      {d.kind !== 'text' && d.kind !== 'table' && (
+        <>
+          <label className="mb-2 block">
+            <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Fill transparency: {d.fillTransparency ?? 0}%</span>
+            <input type="range" min={0} max={100} step={5} className="w-full" value={d.fillTransparency ?? 0} onPointerDown={snapshot} onChange={(e) => update(node.id, { fillTransparency: Number(e.target.value) || undefined })} />
+          </label>
+          <label className="mb-2 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.gradient} onChange={(e) => set({ gradient: e.target.checked || undefined })} /> Gradient fill</label>
+          <label className="mb-2 block">
+            <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Line pattern</span>
+            <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={patternOf(d)} onChange={(e) => set({ linePattern: e.target.value as LinePattern, dashed: undefined })}>
+              {LINE_PATTERNS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </label>
+          {d.kind === 'rect' && (
+            <label className="mb-2 block">
+              <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Rounded corners: {d.rounding ?? 0}px</span>
+              <input type="range" min={0} max={40} className="w-full" value={d.rounding ?? 0} onPointerDown={snapshot} onChange={(e) => update(node.id, { rounding: Number(e.target.value) || undefined })} />
+            </label>
+          )}
+        </>
       )}
       {d.kind === 'callout' && (
         <label className="mb-2 block">
@@ -881,6 +899,10 @@ function TitleBlockProps() {
     </>
   );
 }
+
+const LINE_PATTERNS: { value: LinePattern; label: string }[] = [
+  { value: 'solid', label: 'Solid' }, { value: 'dash', label: 'Dash' }, { value: 'dot', label: 'Dot' }, { value: 'dashdot', label: 'Dash-dot' },
+];
 
 export function PropertiesPanel() {
   const p = useCurrentPage();

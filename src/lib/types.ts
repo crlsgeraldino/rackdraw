@@ -250,6 +250,36 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   headerRow?: boolean;
   /** Picture (Insert → Picture / paste): the image as a data URL. */
   src?: string;
+  /** Fill transparency in percent (0 = solid, 100 = invisible). */
+  fillTransparency?: number;
+  /** Gradient fill: lighter at the top, the fill colour at the bottom (like Visio's linear gradient). */
+  gradient?: boolean;
+  /** Line pattern; missing = solid (or dashed when `dashed` is set, from older files). */
+  linePattern?: LinePattern;
+  /** Rounded corners of a rectangle, in px. */
+  rounding?: number;
+}
+
+export type LinePattern = 'solid' | 'dash' | 'dot' | 'dashdot';
+
+/** The line pattern of a drawing shape (older files only had "dashed"). */
+export const patternOf = (d: { linePattern?: LinePattern; dashed?: boolean }): LinePattern => d.linePattern ?? (d.dashed ? 'dash' : 'solid');
+
+/** SVG dash pattern for a line pattern at a line weight; round caps make the dots round. */
+export function dashFor(p: LinePattern, w: number): { strokeDasharray?: string; strokeLinecap?: 'round' } {
+  const k = Math.max(1, w);
+  if (p === 'dash') return { strokeDasharray: `${3 * k} ${2 * k}` };
+  if (p === 'dot') return { strokeDasharray: `0.01 ${2 * k}`, strokeLinecap: 'round' };
+  if (p === 'dashdot') return { strokeDasharray: `${4 * k} ${1.8 * k} 0.01 ${1.8 * k}`, strokeLinecap: 'round' };
+  return {};
+}
+
+/** Shape-only format options (Home → Shape Style → Fill / Line options). */
+export interface ShapeFormat {
+  fillTransparency?: number;
+  gradient?: boolean;
+  linePattern?: LinePattern;
+  rounding?: number;
 }
 
 export interface TextFormat {

@@ -20,6 +20,8 @@ export interface VStyle {
   line?: string | null;
   lineWeightPt?: number;
   dashed?: boolean;
+  /** Dash / dot / dash-dot (wins over `dashed`). */
+  pattern?: 'solid' | 'dash' | 'dot' | 'dashdot';
   /** Corner radius in inches. */
   rounding?: number;
   /** Drop shadow. */
@@ -111,7 +113,9 @@ const rowName = (label: string, used: Set<string>) => {
 function styleCells(s: VStyle) {
   const out: string[] = [];
   const line = s.line === undefined ? '#000000' : hex(s.line);
-  out.push(cell('LinePattern', line ? (s.dashed ? 2 : 1) : 0));
+  // Visio line patterns: 1 solid, 2 dash, 3 dot, 4 dash-dot.
+  const pat = s.pattern ?? (s.dashed ? 'dash' : 'solid');
+  out.push(cell('LinePattern', line ? { solid: 1, dash: 2, dot: 3, dashdot: 4 }[pat] : 0));
   if (line) out.push(cell('LineColor', line), cell('LineWeight', (s.lineWeightPt ?? 0.75) / 72, ' U="PT"'));
   const fill = hex(s.fill ?? null);
   out.push(cell('FillPattern', fill ? 1 : 0));

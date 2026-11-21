@@ -4,7 +4,7 @@ import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type Node
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
+import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, patternOf, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
 import { expandFields } from '@/lib/headerFooter';
@@ -323,12 +323,45 @@ function NoteNodeView({ id, data, selected }: NodeProps<NoteNode>) {
   );
 }
 
-function ShapeOutline({ d, w, h }: { d: ShapeData; w: number; h: number }) {
-  const common = { fill: d.fill, stroke: d.stroke, strokeWidth: d.lineWidth ?? 2, strokeDasharray: d.dashed ? '6 4' : undefined, vectorEffect: 'non-scaling-stroke' as const };
+function ShapeOutline({ d, w, h, id }: { d: ShapeData; w: number; h: number; id?: string }) {
+  const lw = d.lineWidth ?? 2;
+  const grad = d.gradient && d.fill !== 'transparent' && id ? `nc-grad-${id.replace(/[^\w-]/g, '_')}` : null;
+  const common = {
+    fill: grad ? `url(#${grad})` : d.fill, fillOpacity: d.fillTransparency ? 1 - d.fillTransparency / 100 : undefined,
+    stroke: d.stroke, strokeWidth: lw, ...dashFor(patternOf(d), lw), vectorEffect: 'non-scaling-stroke' as const,
+  };
+  const out = outline(d, w, h, common);
+  if (!grad || !out) return out;
+  return (
+    <>
+      <defs>
+        <linearGradient id={grad} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={mixWhite(d.fill, 0.8)} />
+          <stop offset="1" stopColor={d.fill} />
+        </linearGradient>
+      </defs>
+      {out}
+    </>
+  );
+}
+
+/** Mixes a #rrggbb colour with white (amount 0 = the colour, 1 = white). */
+function mixWhite(hex: string, amount: number) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const ch = (v: number) => Math.round(v + (255 - v) * amount).toString(16).padStart(2, '0');
+  return `#${ch(n >> 16)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+}
+
+/** The props every outline shares (fill, line, dashes). */
+type OutlineProps = { fill: string; fillOpacity?: number; stroke: string; strokeWidth: number; strokeDasharray?: string; strokeLinecap?: 'round'; vectorEffect: 'non-scaling-stroke' };
+
+function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
   switch (d.kind) {
     case 'table': return null;
     case 'image': return d.stroke === 'transparent' ? null : <rect x={0.5} y={0.5} width={w - 1} height={h - 1} {...common} fill="none" />;
-    case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} {...common} />;
+    case 'rect': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={d.rounding ? Math.min(d.rounding, w / 2, h / 2) : undefined} {...common} />;
     case 'callout': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={6} {...common} />;
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
@@ -418,7 +451,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       {isTable ? <TableBody id={id} data={data} /> : (
       <div className="absolute inset-0" style={{ transform: rotatable && data.rotation ? `rotate(${data.rotation}deg)` : undefined }}>
       <svg className="absolute inset-0 overflow-visible" width={w} height={h} style={{ zIndex: data.kind === 'image' ? 1 : undefined, transform: data.kind === 'door' && data.rotation ? `rotate(${data.rotation}deg)` : undefined, filter: data.shadow ? 'drop-shadow(3px 4px 3px rgba(0,0,0,0.35))' : undefined }}>
-        <ShapeOutline d={data} w={w} h={h} />
+        <ShapeOutline d={data} w={w} h={h} id={id} />
       </svg>
       {data.kind === 'image' && data.src && (
         // Pictures stretch with their box (resizing keeps the proportions); the border, if any, is drawn over them.

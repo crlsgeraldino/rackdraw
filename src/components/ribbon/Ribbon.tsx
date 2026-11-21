@@ -30,7 +30,8 @@ import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
 import { SET_SCALE_EVENT } from '@/lib/units';
-import type { AppNode, CableColorBy, DeviceColorBy, Page, ShapeKind, ShapeNode } from '@/lib/types';
+import type { AppNode, CableColorBy, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode } from '@/lib/types';
+import { dashFor } from '@/lib/types';
 import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
@@ -541,10 +542,10 @@ function HomeTab() {
       <Group label="Shape Style">
         <Column>
           <Drop trigger={(open) => <Small icon="fill" label="Fill ▾" onClick={open} disabled={!st.count} title="Fill colour of the selected shapes" />}>
-            {(close) => <Swatches none onPick={(c) => { s.styleSelection({ fill: c ?? 'transparent' }); close(); }} />}
+            {(close) => <><Swatches none onPick={(c) => { s.styleSelection({ fill: c ?? 'transparent' }); close(); }} /><FillOptions close={close} /></>}
           </Drop>
           <Drop trigger={(open) => <Small icon="line" label="Line ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line colour of the selected cables, shapes and zones" />}>
-            {(close) => <Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} />}
+            {(close) => <><Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} /><LineOptions close={close} /></>}
           </Drop>
           <Drop width={170} trigger={(open) => <Small icon="weight" label="Weight ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line weight of the selected cables, shapes and lines" />}>
             {(close) => (
@@ -796,6 +797,43 @@ async function saveTemplate() {
   const description = (await askText('Description (optional)', '')) ?? '';
   st.saveAsTemplate(name, description.trim());
   alert(`Saved. Choose "${name}" under File → New client.`);
+}
+
+/** Fill ▾: transparency and gradient for the selected drawing shapes (Visio's Format Shape → Fill). */
+function FillOptions({ close }: { close: () => void }) {
+  const s = useDiagram.getState();
+  const sel = useCurrentPage().nodes.find((n) => n.selected && n.type === 'shape');
+  const d = sel?.type === 'shape' ? sel.data : undefined;
+  return (
+    <div className="mt-2 border-t border-gray-100 pt-1 text-xs">
+      <div className="px-1 pb-1 text-[11px] text-gray-500">Transparency</div>
+      <div className="flex gap-1 px-1">
+        {[0, 25, 50, 75].map((t) => (
+          <button key={t} className={`flex-1 rounded border px-1 py-0.5 ${(d?.fillTransparency ?? 0) === t ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}
+            onClick={() => { s.styleSelection({ format: { fillTransparency: t || undefined } }); close(); }}>{t}%</button>
+        ))}
+      </div>
+      <button className="mt-1 w-full rounded px-1 py-1 text-left hover:bg-blue-50" onClick={() => { s.styleSelection({ format: { gradient: !d?.gradient || undefined } }); close(); }}>
+        {d?.gradient ? '✓ ' : ''}Gradient fill
+      </button>
+    </div>
+  );
+}
+
+/** Line ▾: dash patterns for the selected shapes and lines. */
+function LineOptions({ close }: { close: () => void }) {
+  const s = useDiagram.getState();
+  const pats: { value: LinePattern; label: string }[] = [{ value: 'solid', label: 'Solid' }, { value: 'dash', label: 'Dash' }, { value: 'dot', label: 'Dot' }, { value: 'dashdot', label: 'Dash-dot' }];
+  return (
+    <div className="mt-2 border-t border-gray-100 pt-1 text-xs">
+      {pats.map((p) => (
+        <button key={p.value} className="flex w-full items-center gap-2 rounded px-1 py-1 hover:bg-blue-50" onClick={() => { s.styleSelection({ format: { linePattern: p.value } }); close(); }}>
+          <span className="w-14 text-left text-gray-600">{p.label}</span>
+          <svg className="flex-1" height="6"><line x1="2" y1="3" x2="200" y2="3" stroke="#1f2937" strokeWidth="2" {...dashFor(p.value, 2)} /></svg>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** Insert → Table: pick the size on a grid (like Office), or a ready-made network table. */
@@ -1249,10 +1287,10 @@ function ShapeTab() {
       <Group label="Style">
         <Column>
           <Drop trigger={(open) => <Small icon="fill" label="Fill ▾" onClick={open} disabled={!st.count} />}>
-            {(close) => <Swatches none onPick={(c) => { s.styleSelection({ fill: c ?? 'transparent' }); close(); }} />}
+            {(close) => <><Swatches none onPick={(c) => { s.styleSelection({ fill: c ?? 'transparent' }); close(); }} /><FillOptions close={close} /></>}
           </Drop>
           <Drop trigger={(open) => <Small icon="line" label="Line ▾" onClick={open} />}>
-            {(close) => <Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} />}
+            {(close) => <><Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} /><LineOptions close={close} /></>}
           </Drop>
         </Column>
       </Group>

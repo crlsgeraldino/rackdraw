@@ -101,6 +101,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 [MIT](LICENSE)
 
+## Fill and line options (like Visio's Format Shape)
+
+- **Fill ▾** (Home and Shape tabs) also sets **transparency** (0 / 25 / 50 / 75 %) and a **gradient fill** (lighter at
+  the top). **Line ▾** sets the **line pattern**: solid, dash, dot or dash-dot (also for lines drawn with the Line tool).
+- The Shape Data pane has the same options with a transparency slider, plus **rounded corners** for rectangles.
+- Format Painter copies them; Visio exports keep transparency, line patterns and rounding (gradients export as the
+  solid colour).
+
 ## Pictures and Lasso Select
 
 - **Insert → Picture** puts a logo, a photo of the rack or a screenshot on the page as a shape you can move, resize

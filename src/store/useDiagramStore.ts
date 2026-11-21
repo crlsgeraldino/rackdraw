@@ -18,7 +18,7 @@ import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeFormat, ShapeKind, StencilDef, TextFormat, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -169,7 +169,7 @@ interface DiagramState {
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
    */
-  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean; textColor?: string }) => void;
+  styleSelection: (style: { fill?: string; line?: string | null; text?: TextFormat; weight?: number | null; shadow?: boolean; textColor?: string; format?: ShapeFormat }) => void;
   /** Adds a callout; with `target` its leader line points at that item and it moves with it. */
   addCallout: (position: { x: number; y: number }, target?: string) => void;
   /** Moves nodes on the active page to new positions (one undo step). */
@@ -958,7 +958,7 @@ export const useDiagram = create<DiagramState>()(
             formatClip = { kind: 'cable', patch: { cable: d.cable, color: d.color, route: d.route, arrows: d.arrows } };
           } else if (n?.type === 'shape') {
             const d = n.data;
-            formatClip = { kind: 'shape', patch: { fill: d.fill, stroke: d.stroke, textColor: d.textColor, fontSize: d.fontSize, dashed: d.dashed } };
+            formatClip = { kind: 'shape', patch: { fill: d.fill, stroke: d.stroke, textColor: d.textColor, fontSize: d.fontSize, dashed: d.dashed, linePattern: d.linePattern, fillTransparency: d.fillTransparency, gradient: d.gradient, lineWidth: d.lineWidth, shadow: d.shadow } };
           } else if (n?.type === 'device') {
             const d = n.data;
             const infoBox = d.infoBox ? { ...d.infoBox, offset: undefined } : undefined;
@@ -1155,7 +1155,7 @@ export const useDiagram = create<DiagramState>()(
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
-        styleSelection: ({ fill, line, text, weight, shadow, textColor }) => {
+        styleSelection: ({ fill, line, text, weight, shadow, textColor, format }) => {
           const pg = page();
           if (!pg.nodes.some((n) => n.selected) && !pg.edges.some((e) => e.selected)) return;
           get().snapshot();
@@ -1170,12 +1170,13 @@ export const useDiagram = create<DiagramState>()(
                     ...n.data, ...(fill !== undefined ? { fill } : {}), ...(line ? { stroke: line } : {}), ...fmt,
                     ...(weight !== undefined ? { lineWidth: weight ?? undefined } : {}), ...(shadow !== undefined ? { shadow: shadow || undefined } : {}),
                     ...(textColor ? { textColor } : {}),
+                    ...(format ? { ...format, ...(format.linePattern ? { dashed: undefined } : {}) } : {}),
                     ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
                   },
                 };
               }
               if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
-              if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}) } };
+              if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line || format?.linePattern)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}), ...(format?.linePattern ? { dashed: format.linePattern !== 'solid' || undefined } : {}) } };
               return n;
             }),
             edges: line === undefined && weight === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? {

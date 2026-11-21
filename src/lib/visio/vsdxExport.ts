@@ -7,6 +7,7 @@ import { editableCopy } from '../shapeCopy';
 import { realLength } from '../units';
 import { turnedBox } from '../rotation';
 import { expandFields } from '../headerFooter';
+import { patternOf } from '../types';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -155,7 +156,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           break;
         case 'shape': {
           const d = n.data;
-          const style = { fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
+          const style = { fill: d.fill === 'transparent' ? null : d.fill, fillTransparency: d.fillTransparency ? d.fillTransparency / 100 : undefined, line: d.stroke === 'transparent' ? null : d.stroke, dashed: d.dashed, pattern: patternOf(d), lineWeightPt: pt(d.lineWidth ?? 2), shadow: d.shadow };
           const text = d.text ? { text: expandFields(d.text, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, align: d.align, valign: d.valign, font: d.fontFamily } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.
@@ -225,7 +226,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
               cables.push({ kind: 'line', name: 'Callout leader', points: [{ x: X(cx + dx * k), y: Y(cy + dy * k) }, { x: X(tx), y: Y(ty) }], line: style.line ?? '#D97706', lineWeightPt: 1 });
             }
           } else if (d.kind === 'text') front.push({ kind: 'rect', box: bb, fill: null, line: null, text });
-          else front.push({ kind: 'rect', box: bb, ...style, rounding: d.kind === 'rounded' ? Math.min(inch(16), bb.h / 3) : undefined, text });
+          else front.push({ kind: 'rect', box: bb, ...style, rounding: d.kind === 'rounded' ? Math.min(inch(16), bb.h / 3) : d.rounding ? inch(d.rounding) : undefined, text });
           if (angle) front.slice(f0s).forEach((v) => { if (v.kind !== 'line') v.angle = angle; });
           break;
         }
