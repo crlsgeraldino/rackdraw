@@ -17,6 +17,7 @@ import { projectFromTemplate, templateFromProject, type Template } from '@/lib/t
 import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
 import { PAGE_LINK } from '@/lib/links';
+import { isWall, snapIntoWall, wallsAround } from '@/lib/floorplan';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
@@ -93,6 +94,10 @@ interface DiagramState {
   splitCable: (edgeId: string, nodeId: string, inHandle: string, outHandle: string) => void;
   /** Reverse Ends (Visio): swaps the ends of the given cables (and their arrows). */
   reverseCables: (ids: string[]) => void;
+  /** Snaps a door or window into the wall it was dropped near (no undo step: the drag or drop took one). */
+  snapDoorWindow: (id: string) => boolean;
+  /** Convert to Walls (Visio): walls round the selected zones and rectangles; rectangles are replaced, zones kept. */
+  convertToWalls: (thickness?: number) => number;
   /** Insert a zone round the selection (Visio's container from selection), with room for its title. Returns its id. */
   wrapInZone: (title?: string) => string | null;
   /** Space Shapes (Visio): puts exactly `gap` px between neighbouring selected items, left to right or top to bottom. */
@@ -730,6 +735,36 @@ export const useDiagram = create<DiagramState>()(
             const arrows = d.arrows === 'start' || d.arrows === 'end' ? flip[d.arrows] : d.arrows;
             return { ...e, source: e.target, target: e.source, sourceHandle: e.targetHandle, targetHandle: e.sourceHandle, data: { ...d, arrows, labelAt: d.labelAt !== undefined ? 1 - d.labelAt : undefined } };
           }) });
+        },
+        snapDoorWindow: (id) => {
+          const pg = page();
+          const n = pg.nodes.find((x) => x.id === id);
+          if (n?.type !== 'shape' || (n.data.kind !== 'door' && n.data.kind !== 'window') || n.data.locked) return false;
+          const m = nodeSize(n);
+          const hit = snapIntoWall(n.data.kind, { x: n.position.x, y: n.position.y, w: n.width ?? m.w, h: n.height ?? m.h }, pg.nodes.filter(isWall));
+          if (!hit) return false;
+          const { box, rotation } = hit;
+          commit({ nodes: pg.nodes.map((x) => (x.id === id && x.type === 'shape' ? { ...x, position: { x: box.x, y: box.y }, width: box.w, height: box.h, style: { ...x.style, width: box.w, height: box.h }, data: { ...x.data, rotation } } : x)) });
+          return true;
+        },
+        convertToWalls: (thickness = 8) => {
+          const pg = page();
+          const sel = pg.nodes.filter((n) => n.selected && !extras(n).locked && (n.type === 'zone' || (n.type === 'shape' && (n.data.kind === 'rect' || n.data.kind === 'rounded'))));
+          if (!sel.length) return 0;
+          get().snapshot();
+          const walls: AppNode[] = sel.flatMap((n) => {
+            const m = nodeSize(n);
+            return wallsAround({ x: n.position.x, y: n.position.y, w: n.width ?? m.w, h: n.height ?? m.h }).map((w) => ({
+              id: `m-${uid()}`, type: 'measure', position: { x: Math.round(w.x), y: Math.round(w.y) },
+              data: { dx: Math.round(w.dx), dy: Math.round(w.dy), variant: 'wall', thickness, layer: activeLayer(cur()) },
+            }) as AppNode);
+          });
+          const gone = new Set(sel.filter((n) => n.type === 'shape').map((n) => n.id));
+          commit({
+            nodes: [...pg.nodes.filter((n) => !gone.has(n.id)).map((n) => (n.selected ? { ...n, selected: false } : n)), ...walls],
+            edges: pg.edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)),
+          });
+          return sel.length;
         },
         wrapInZone: (title) => {
           const pg = page();

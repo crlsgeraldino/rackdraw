@@ -878,6 +878,9 @@ function InsertTab() {
           <Small icon="page" label="Door" onClick={() => shape('door')} />
           <Small icon="grid" label="Window" onClick={() => shape('window')} />
         </Column>
+        <Column>
+          <Small icon="zone" label="Convert to Walls" onClick={() => { if (!s.convertToWalls()) alert('Select the rooms (zones) or rectangles to turn into walls first.'); }} title="Walls round the selected zones and rectangles (rectangles are replaced; zones stay as rooms), like Visio's Convert to Walls" />
+        </Column>
       </Group>
       <Group label="Tables">
         <TablePicker at={center} />

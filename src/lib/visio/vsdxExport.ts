@@ -262,7 +262,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             front.push({ kind: 'line', name: 'Door', points: local.map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h })), line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5 });
           } else if (d.kind === 'window') {
             front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1 });
-            front.push({ kind: 'line', points: [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75 });
+            front.push({ kind: 'line', points: bb.h > bb.w ? [{ x: bb.x + bb.w / 2, y: bb.y }, { x: bb.x + bb.w / 2, y: bb.y + bb.h }] : [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75 });
           } else if (d.kind === 'callout') {
             const cs = d.calloutStyle ?? 'box';
             if (cs === 'oval') front.push({ kind: 'ellipse', name: 'Callout', box: bb, ...style, text });

@@ -419,7 +419,9 @@ function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
       return (
         <g>
           <rect x={1} y={1} width={w - 2} height={h - 2} fill={d.fill} stroke={d.stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-          <line x1={1} y1={h / 2} x2={w - 1} y2={h / 2} stroke={d.stroke} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          {h > w
+            ? <line x1={w / 2} y1={1} x2={w / 2} y2={h - 1} stroke={d.stroke} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            : <line x1={1} y1={h / 2} x2={w - 1} y2={h / 2} stroke={d.stroke} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
         </g>
       );
     case 'arrow': {

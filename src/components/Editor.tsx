@@ -300,7 +300,12 @@ function Canvas() {
     if (id === '__note') return addNote(pos);
     if (id === '__measure') return useDiagram.getState().addMeasure({ x: pos.x - 100, y: pos.y });
     if (id === '__wall') return useDiagram.getState().addMeasure({ x: pos.x - 150, y: pos.y }, 'wall');
-    if (id.startsWith('__shape:')) return addShape(id.slice(8) as ShapeKind, pos);
+    if (id.startsWith('__shape:')) {
+      addShape(id.slice(8) as ShapeKind, pos);
+      const made = activePage(useDiagram.getState().projects[useDiagram.getState().currentId]).nodes.at(-1);
+      if (made) useDiagram.getState().snapDoorWindow(made.id);
+      return;
+    }
     const s = getStencil(id);
     if (!s) return;
     const routes = captureCableRoutes();
@@ -397,7 +402,13 @@ function Canvas() {
         nodesConnectable={!presenting}
         elementsSelectable={!presenting}
         onNodeDragStart={(_, n, dragged) => { snapshot(); routesAtDrag.current = dragged.length === 1 && n.type !== 'backdrop' ? captureCableRoutes() : null; }}
-        onNodeDragStop={(_, n, dragged) => { if (dragged.length === 1 && routesAtDrag.current && !n.id.startsWith('bg:')) splitCableAtDrop(rf, n.id, routesAtDrag.current); routesAtDrag.current = null; }}
+        onNodeDragStop={(_, n, dragged) => {
+          if (dragged.length === 1 && !n.id.startsWith('bg:')) {
+            // Doors and windows snap into walls; devices dropped on a cable split it.
+            if (!useDiagram.getState().snapDoorWindow(n.id) && routesAtDrag.current) splitCableAtDrop(rf, n.id, routesAtDrag.current);
+          }
+          routesAtDrag.current = null;
+        }}
         onNodeClick={(_, n) => {
           if (presenting && n.type !== 'backdrop' && n.data.link) follow(n.data.link);
           else if (usePainter.getState().on && n.type !== 'backdrop') paintOnto('node', n.id);

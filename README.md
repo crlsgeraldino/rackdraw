@@ -129,6 +129,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Walls, doors and windows
+
+- **Insert → Floor Plan → Convert to Walls** (Visio's Office Layout): walls round the selected zones and rectangles.
+  Rectangles are replaced by the walls; zones stay as the rooms (with their names and areas).
+- **Doors and windows snap into walls**: drop or move one onto (or just beside) a straight wall. A window lies along
+  the wall, as thick as it is, horizontal or vertical; a door turns so its opening sits on the wall line and swings
+  into the side you dropped it on.
+
 ## Drawing scale presets, room areas, zoom to selection
 
 - **Design → Drawing Scale**: measure the scale from two points on a floor plan, or pick a standard one: architectural
