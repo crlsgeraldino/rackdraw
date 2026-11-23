@@ -1791,6 +1791,7 @@ function DesignTab() {
 
 function DataTab() {
   const propsPane = usePref('propsPane');
+  const table = usePref('deviceTable');
   const quick = usePref('quickInfo');
   const [reports, setReports] = useState(false);
   const [defining, setDefining] = useState(false);
@@ -1804,6 +1805,9 @@ function DataTab() {
         <Column>
           <Check label="Quick info on hover" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
         </Column>
+      </Group>
+      <Group label="Device Table">
+        <Big icon="table" label="Device Table" active={table} onClick={() => setPref('deviceTable', !table)} title="Every device as an editable spreadsheet under the drawing: type in cells, sort, filter, go to a device" />
       </Group>
       <Group label="External Data">
         <div className="flex items-start pt-1"><DataMenu /></div>
@@ -1851,6 +1855,7 @@ function ViewTab() {
   const project = useCurrentProject();
   const minimap = usePref('minimap');
   const shapes = usePref('shapesPane');
+  const table = usePref('deviceTable');
   const props = usePref('propsPane');
   const quick = usePref('quickInfo');
   const rulers = usePref('rulers');
@@ -1905,6 +1910,7 @@ function ViewTab() {
         <Column>
           <Check label="Shapes" checked={shapes} onChange={(v) => setPref('shapesPane', v)} />
           <Check label="Shape Data" checked={props} onChange={(v) => setPref('propsPane', v)} />
+          <Check label="Device Table" checked={table} onChange={(v) => setPref('deviceTable', v)} title="Every device as an editable spreadsheet under the drawing (like Visio's External Data window)" />
         </Column>
       </Group>
     </>

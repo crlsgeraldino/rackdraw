@@ -19,6 +19,7 @@ import { ShortcutsDialog } from './ShortcutsDialog';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
 import { NumberShapesDialog } from './NumberShapesDialog';
+import { DeviceTable } from './DeviceTable';
 import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, captureCableRoutes, DrawOverlay, GuidesLayer, PresentBar, splitCableAtDrop } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
@@ -490,6 +491,7 @@ export default function Editor() {
   }, [hydrated]);
   const presenting = usePresenting((s) => s.on);
   const shapesPane = usePref('shapesPane');
+  const deviceTable = usePref('deviceTable');
   const propsPane = usePref('propsPane');
 
   // Undo/redo work in both views (outside of text fields, which have their own undo).
@@ -543,6 +545,7 @@ export default function Editor() {
             {shapesPane && !presenting && <Palette />}
             <div className="flex min-w-0 flex-1 flex-col">
               <Canvas />
+              {deviceTable && !presenting && <DeviceTable />}
               {!presenting && <PageTabs />}
             </div>
             {propsPane && !presenting && <PropertiesPanel />}

@@ -220,6 +220,8 @@ interface DiagramState {
   formatKind: () => FormatKind | null;
   /** Shows a page and selects one node or cable on it (used by Find). */
   selectItem: (pageId: string, kind: 'node' | 'edge', id: string) => void;
+  /** Changes one device on any page of the client (Device Table), one undo step. */
+  updateDeviceOnPage: (pageId: string, id: string, patch: Partial<DeviceData>) => void;
   /** Replaces `term` in the given Find hits (undoable). Returns how many fields changed. */
   replaceInHits: (hits: FindHit[], term: string, replacement: string, matchCase: boolean) => number;
   updateTitleBlock: (patch: Partial<TitleBlock>) => void;
@@ -1544,6 +1546,10 @@ export const useDiagram = create<DiagramState>()(
           commit({
             nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, ...lockFlags(locked), data: { ...n.data, locked: locked || undefined } } as AppNode) : n)),
           });
+        },
+        updateDeviceOnPage: (pageId, id, patch) => {
+          get().snapshot();
+          commit({ pages: cur().pages.map((pg) => (pg.id !== pageId ? pg : { ...pg, nodes: pg.nodes.map((n) => (n.id === id && n.type === 'device' ? { ...n, data: { ...n.data, ...patch } } : n)) })) });
         },
         selectItem: (pageId, kind, id) => {
           const p = cur();

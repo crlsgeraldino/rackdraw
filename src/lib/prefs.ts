@@ -29,6 +29,8 @@ export interface Prefs {
   units: 'auto' | 'in' | 'cm' | 'px';
   /** Navigation pane (pages and their items). */
   navPane: boolean;
+  /** Device Table under the drawing (View → Device Table). */
+  deviceTable: boolean;
   /** Snap moved items to the grid (half a grid square). */
   snapToGrid: boolean;
   /** Grid square size in px (View → Grid spacing): 10 fine, 20 normal, 40 coarse. */
@@ -38,7 +40,7 @@ export interface Prefs {
   /** Your name on comments. */
   author: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, units: 'auto', favorites: [], author: '' };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

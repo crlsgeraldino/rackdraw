@@ -129,6 +129,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Device Table (Data → Device Table)
+
+- Like Visio's External Data window: every device as a spreadsheet row under the drawing, with Name, Model, IP, MAC,
+  Serial, Location, Status, Asset tag and your own fields. **Type in a cell** to change it (Enter or leaving the cell
+  saves, one Ctrl+Z each), click a column heading to sort, filter, and show **this page** or **all pages**. The ➜
+  button goes to the device and selects it. Drag the top edge to resize; also under View → Task Panes.
+
 ## Web page export (File → Export → Web page)
 
 - Like Visio's Save as Web Page: one **.html** file that anyone can open in a browser, no NetCraft needed. Every
