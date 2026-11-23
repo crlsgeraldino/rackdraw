@@ -1513,7 +1513,7 @@ export const useDiagram = create<DiagramState>()(
             nodes: pg.nodes.map((n) => {
               if (!n.selected) return n;
               if (n.type === 'shape') {
-                const { sizeDelta, list, ...fmt } = text ?? {};
+                const { sizeDelta, list, textMargin, ...fmt } = text ?? {};
                 return {
                   ...n,
                   data: {
@@ -1522,6 +1522,7 @@ export const useDiagram = create<DiagramState>()(
                     ...(textColor !== undefined ? { textColor: textColor ?? theme()?.text ?? '#111827' } : {}),
                     ...(format ? { ...format, ...(format.linePattern ? { dashed: undefined } : {}) } : {}),
                     ...(list !== undefined ? { list: list ?? undefined } : {}),
+                    ...(textMargin !== undefined ? { textMargin: textMargin ?? undefined } : {}),
                     ...(sizeDelta ? { fontSize: Math.max(6, Math.min(72, n.data.fontSize + sizeDelta)) } : {}),
                   },
                 };

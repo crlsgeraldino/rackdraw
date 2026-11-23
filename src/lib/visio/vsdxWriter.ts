@@ -43,6 +43,8 @@ export interface VText {
   dir?: 'across' | 'down' | 'up';
   /** Line spacing, 1 = single. */
   lineSpacing?: number;
+  /** Text-block margin in inches (all four sides). */
+  margin?: number;
 }
 
 export type VShape = {
@@ -142,7 +144,9 @@ function textXml(t: VText | undefined, box?: { w: number; h: number }) {
   return (
     turn +
     cell('VerticalAlign', t.valign === 'top' ? 0 : t.valign === 'bottom' ? 2 : 1) +
-    cell('LeftMargin', 0.04) + cell('RightMargin', 0.04) + cell('TopMargin', 0.03) + cell('BottomMargin', 0.03) +
+    (t.margin !== undefined
+      ? cell('LeftMargin', t.margin) + cell('RightMargin', t.margin) + cell('TopMargin', t.margin) + cell('BottomMargin', t.margin)
+      : cell('LeftMargin', 0.04) + cell('RightMargin', 0.04) + cell('TopMargin', 0.03) + cell('BottomMargin', 0.03)) +
     `<Section N="Character"><Row IX="0">${t.font ? cell('Font', t.font) : ''}${cell('Color', color)}${cell('Size', (t.sizePt ?? 8) / 72, ' U="PT"')}${cell('Style', (t.bold ? 1 : 0) + (t.italic ? 2 : 0) + (t.underline ? 4 : 0))}${t.strike ? cell('Strikethru', 1) : ''}</Row></Section>` +
     `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', t.align === 'left' ? 0 : t.align === 'right' ? 2 : 1)}${t.lineSpacing ? cell('SpLine', -t.lineSpacing) : ''}</Row></Section>`
   );

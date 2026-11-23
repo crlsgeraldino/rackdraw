@@ -34,7 +34,7 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,
     backgroundColor: '#f9fafb',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true },
   });
 
   // Links to other sites open in the default browser, not inside the app.
@@ -47,6 +47,25 @@ function createWindow() {
       e.preventDefault();
       shell.openExternal(url);
     }
+  });
+
+  // Right-click in a text box: spelling suggestions for a misspelt word, then Cut / Copy / Paste. (The drawing has
+  // its own right-click menu; this one only appears in places where text is typed.)
+  win.webContents.on('context-menu', (_e, params) => {
+    if (!params.isEditable && !params.misspelledWord) return;
+    const items = [];
+    if (params.misspelledWord) {
+      for (const word of params.dictionarySuggestions.slice(0, 6)) items.push({ label: word, click: () => win.webContents.replaceMisspelling(word) });
+      if (!params.dictionarySuggestions.length) items.push({ label: 'No suggestions', enabled: false });
+      items.push({ label: 'Add to dictionary', click: () => win.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) });
+      items.push({ type: 'separator' });
+    }
+    const f = params.editFlags;
+    items.push(
+      { role: 'cut', enabled: f.canCut }, { role: 'copy', enabled: f.canCopy }, { role: 'paste', enabled: f.canPaste },
+      { type: 'separator' }, { role: 'selectAll', enabled: f.canSelectAll },
+    );
+    Menu.buildFromTemplate(items).popup({ window: win });
   });
 
   win.loadURL(`${ORIGIN}/`);

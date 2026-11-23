@@ -311,6 +311,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   textDir?: TextDir;
   /** Line spacing (1 = single); missing = 1.2. */
   lineSpacing?: number;
+  /** Space (px) between the shape's edge and its text (Visio's text-block margins); missing = normal. */
+  textMargin?: number;
   /** Picture crop: how much is cut off each side, as fractions (0–1) of the whole picture. */
   crop?: Crop;
   /** Off-page reference: the matching shape on the other page (its `link` is that page). */
@@ -378,6 +380,8 @@ export interface TextFormat {
   list?: TextList | null;
   textDir?: TextDir;
   lineSpacing?: number;
+  /** Text margin in px; null = back to normal. */
+  textMargin?: number | null;
 }
 
 /** Print / PDF header and footer (Visio's Page Setup → Header/Footer): left, centre and right text, with codes. */

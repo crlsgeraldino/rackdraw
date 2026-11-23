@@ -133,6 +133,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Spelling and text margins
+
+- **Spelling** (desktop app): misspelt words in any text box are underlined; right-click one for suggestions or
+  **Add to dictionary**. Right-clicking in a text box also gives Cut / Copy / Paste / Select all.
+- **Text margins** (Home → Paragraph → ≡↕): None, Narrow, Normal or Wide space between a shape's edge and its text,
+  like Visio's text-block margins. Visio exports keep it.
+
 ## Device Table (Data → Device Table)
 
 - Like Visio's External Data window: every device as a spreadsheet row under the drawing, with Name, Model, IP, MAC,

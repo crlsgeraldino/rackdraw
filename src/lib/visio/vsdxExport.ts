@@ -199,7 +199,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const off = d.kind === 'offpage' && !d.text ? project.pages.find((x) => `page:${x.id}` === d.link)?.name ?? '' : null;
           const listed = listLines(off ?? d.text ?? '', d.list);
           const shown = listed ? listed.map((l) => (l.mark ? `${l.mark} ${l.text}` : l.text)).join('\n') : off ?? d.text;
-          const text = shown ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, strike: d.strike, dir: d.textDir, lineSpacing: d.lineSpacing, align: d.align, valign: d.valign, font: d.fontFamily ?? clientFont } : undefined;
+          const text = shown ? { text: expandFields(shown, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: d.bold, italic: d.italic, underline: d.underline, strike: d.strike, dir: d.textDir, lineSpacing: d.lineSpacing, margin: d.textMargin !== undefined ? inch(d.textMargin) : undefined, align: d.align, valign: d.valign, font: d.fontFamily ?? clientFont } : undefined;
           const bb = ibox(b);
           // Free rotation: Visio turns counter-clockwise, the screen clockwise.
           const rot = ((d.rotation ?? 0) % 360 + 360) % 360;

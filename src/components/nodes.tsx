@@ -526,6 +526,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       {editing ? (
         <textarea
           autoFocus
+          spellCheck
           className="nodrag absolute inset-1 resize-none bg-white/80 outline-none"
           style={textStyle}
           defaultValue={data.text}
@@ -533,7 +534,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
           onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
         />
       ) : (
-        <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap px-2 py-1 ${items} ${justify}`} style={{ ...textStyle, ...textDirStyle(data.textDir) }}>
+        <div className={`pointer-events-none absolute inset-0 flex whitespace-pre-wrap ${data.textMargin === undefined ? 'px-2 py-1' : ''} ${items} ${justify}`} style={{ ...textStyle, ...textDirStyle(data.textDir), ...(data.textMargin !== undefined ? { padding: data.textMargin } : {}) }}>
           {listed ? (
             <div className="w-full">
               {listed.map((l, i) => (

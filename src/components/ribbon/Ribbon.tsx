@@ -588,6 +588,7 @@ function HomeTab() {
   const shadowOn = shapeSel.length > 0 && shapeSel.every((n) => !!n.data.shadow);
   const dirOf = shapeSel[0]?.data.textDir ?? 'across';
   const spacingOf = shapeSel[0]?.data.lineSpacing ?? 1.2;
+  const marginOf = shapeSel[0]?.data.textMargin;
   return (
     <>
       <Group label="Clipboard">
@@ -680,6 +681,12 @@ function HomeTab() {
                 {[1, 1.15, 1.5, 2].map((v) => (
                   <button key={v} className={`flex w-full items-center justify-between px-3 py-1 text-left hover:bg-blue-50 ${spacingOf === v ? 'bg-blue-50' : ''}`} onClick={() => { s.styleSelection({ text: { lineSpacing: v } }); close(); }}>
                     <span>{v.toFixed(v === 1.15 ? 2 : 1)}</span>{spacingOf === v && <span className="text-blue-600">✓</span>}
+                  </button>
+                ))}
+                <div className="mt-1 border-t border-gray-100 px-3 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-gray-400">Text margins</div>
+                {([['None', 0], ['Narrow', 3], ['Normal', undefined], ['Wide', 14]] as const).map(([label, m]) => (
+                  <button key={label} className={`flex w-full items-center justify-between px-3 py-1 text-left hover:bg-blue-50 ${marginOf === m ? 'bg-blue-50' : ''}`} onClick={() => { s.styleSelection({ text: { textMargin: m ?? null } }); close(); }}>
+                    <span>{label}</span>{marginOf === m && <span className="text-blue-600">✓</span>}
                   </button>
                 ))}
               </div>
