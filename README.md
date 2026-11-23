@@ -135,6 +135,11 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   Serial, Location, Status, Asset tag and your own fields. **Type in a cell** to change it (Enter or leaving the cell
   saves, one Ctrl+Z each), click a column heading to sort, filter, and show **this page** or **all pages**. The ➜
   button goes to the device and selects it. Drag the top edge to resize; also under View → Task Panes.
+- **Paste from Excel**: copy a block of cells (e.g. a column of IPs, or names + serials) and paste into a cell: it
+  fills down and across from there, in the table's order, as one undo step. Columns that can't be typed in (cable ends)
+  are skipped.
+- **Copy table** puts the table (as filtered and sorted) on the clipboard for Excel.
+- The **Cables** tab lists every cable with its ends and ports; type, VLAN, label and length can be typed or pasted.
 
 ## Web page export (File → Export → Web page)
 

@@ -222,6 +222,8 @@ interface DiagramState {
   selectItem: (pageId: string, kind: 'node' | 'edge', id: string) => void;
   /** Changes one device on any page of the client (Device Table), one undo step. */
   updateDeviceOnPage: (pageId: string, id: string, patch: Partial<DeviceData>) => void;
+  /** Changes devices and cables on any pages of the client in one undo step (Device Table edits and pastes). */
+  editItems: (edits: ItemEdit[]) => void;
   /** Replaces `term` in the given Find hits (undoable). Returns how many fields changed. */
   replaceInHits: (hits: FindHit[], term: string, replacement: string, matchCase: boolean) => number;
   updateTitleBlock: (patch: Partial<TitleBlock>) => void;
@@ -429,6 +431,9 @@ function lookPatch(t: TextFormat, current: number): TextLook {
   for (const k of ['bold', 'italic', 'underline', 'strike'] as const) if (t[k] !== undefined) out[k] = t[k] || undefined;
   return out;
 }
+
+/** One change from the Device Table: a device (node) or cable (edge) on a page, and the data it gets. */
+export interface ItemEdit { pageId: string; kind: 'node' | 'edge'; id: string; patch: Record<string, unknown> }
 
 /** A saved copy of a client (File → Version History). */
 export interface ProjectVersion {
@@ -1546,6 +1551,21 @@ export const useDiagram = create<DiagramState>()(
           commit({
             nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, ...lockFlags(locked), data: { ...n.data, locked: locked || undefined } } as AppNode) : n)),
           });
+        },
+        editItems: (edits) => {
+          if (!edits.length) return;
+          const byPage = new Map<string, Map<string, ItemEdit>>();
+          for (const e of edits) { if (!byPage.has(e.pageId)) byPage.set(e.pageId, new Map()); byPage.get(e.pageId)!.set(e.id, e); }
+          get().snapshot();
+          commit({ pages: cur().pages.map((pg) => {
+            const m = byPage.get(pg.id);
+            if (!m) return pg;
+            return {
+              ...pg,
+              nodes: pg.nodes.map((n) => { const e = m.get(n.id); return e && e.kind === 'node' && n.type === 'device' ? { ...n, data: { ...n.data, ...(e.patch as Partial<DeviceData>) } } : n; }),
+              edges: pg.edges.map((x) => { const e = m.get(x.id); return e && e.kind === 'edge' ? { ...x, data: { ...((x.data ?? { cable: 'Cat6' }) as CableData), ...(e.patch as Partial<CableData>) } } : x; }),
+            };
+          }) });
         },
         updateDeviceOnPage: (pageId, id, patch) => {
           get().snapshot();
