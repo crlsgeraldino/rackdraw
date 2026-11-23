@@ -7,6 +7,7 @@ import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, textDirStyle, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
+import { realArea } from '@/lib/units';
 import { expandFields } from '@/lib/headerFooter';
 import { setActiveCell, setCell } from '@/lib/table';
 import { rememberCaret } from '@/lib/symbols';
@@ -294,8 +295,11 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   );
 }
 
-function ZoneNodeView({ data, selected }: NodeProps<ZoneNode>) {
+function ZoneNodeView({ data, selected, width, height }: NodeProps<ZoneNode>) {
   const zs = data.style ?? 'dashed';
+  // Space shapes (Visio): the room's area after its title, when the page has a drawing scale.
+  const scale = useCurrentPage().scale;
+  const title = data.showArea && scale && width && height ? `${data.title} · ${realArea(width, height, scale)}` : data.title;
   return (
     <>
       <NodeResizer isVisible={selected && !data.locked} minWidth={160} minHeight={100} color={data.color} />
@@ -306,13 +310,13 @@ function ZoneNodeView({ data, selected }: NodeProps<ZoneNode>) {
         <NodeBadges data={data} selected={selected} />
         {zs === 'header' ? (
           // Heading band across the top, like Visio's container headings.
-          <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white" style={{ background: data.color, ...lookStyle(data) }}>{data.title}</div>
+          <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white" style={{ background: data.color, ...lookStyle(data) }}>{title}</div>
         ) : zs === 'band' ? (
           // Side band with the title reading up.
-          <div className="flex w-7 shrink-0 items-center justify-center text-xs font-semibold uppercase tracking-wide text-white" style={{ background: data.color, writingMode: 'vertical-rl', transform: 'rotate(180deg)', ...lookStyle(data) }}>{data.title}</div>
+          <div className="flex w-7 shrink-0 items-center justify-center text-xs font-semibold uppercase tracking-wide text-white" style={{ background: data.color, writingMode: 'vertical-rl', transform: 'rotate(180deg)', ...lookStyle(data) }}>{title}</div>
         ) : (
           <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color, ...lookStyle(data) }}>
-            {data.title}
+            {title}
           </div>
         )}
       </div>

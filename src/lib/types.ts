@@ -238,6 +238,8 @@ export interface ZoneData extends Record<string, unknown>, NodeExtras, TextLook 
   color: string;
   /** Container style (Visio's container gallery); missing = dashed outline. */
   style?: ZoneStyle;
+  /** Show the room's area after its title (needs a page drawing scale), like Visio's space shapes. */
+  showArea?: boolean;
 }
 
 export type ZoneStyle = 'dashed' | 'solid' | 'header' | 'band' | 'filled';

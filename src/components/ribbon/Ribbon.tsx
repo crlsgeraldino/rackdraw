@@ -32,7 +32,7 @@ import { describeStep, type HistoryState } from '@/lib/history';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
-import { SET_SCALE_EVENT } from '@/lib/units';
+import { SCALE_PRESETS, SET_SCALE_EVENT } from '@/lib/units';
 import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
 import { dashFor } from '@/lib/types';
 import { getStencil, TEXT_DEFAULT_SIZE, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -1154,6 +1154,7 @@ function ContainerGroup({ node }: { node: ZoneNode }) {
       <Column>
         <Small icon="zone" label="Fit to Contents" onClick={() => s.fitZoneToContents(node.id)} title="Resize the zone round what it holds" />
         <Small icon="selectAll" label="Select Contents" onClick={() => s.selectZoneContents(node.id)} title="Select everything inside the zone" />
+        <Check label="Show Area" checked={!!node.data.showArea} onChange={(v) => { s.snapshot(); s.updateNodeData(node.id, { showArea: v || undefined }); }} title="Show the room's floor area after its title (set a drawing scale first), like Visio's space shapes" />
       </Column>
     </Group>
   );
@@ -1644,7 +1645,28 @@ function DesignTab() {
           </label>
         </Column>
         <Big icon="center" label="Center Drawing" onClick={() => centerDrawing(rf)} title="Move the whole drawing to the middle of its page" />
-        <Big icon="scale" label="Set Scale" onClick={() => window.dispatchEvent(new Event(SET_SCALE_EVENT))} title={page.scale ? 'Set the drawing scale again' : 'Set the drawing scale from two points on a floor plan'} active={!!page.scale} />
+        <div className="flex items-start pt-1">
+          <Drop width={230} trigger={(open, isOpen) => <Big icon="scale" label="Drawing Scale" onClick={open} active={isOpen || !!page.scale} title="The page's drawing scale: measure it from two points, or pick a standard scale (like Visio's Page Setup)" />}>
+            {(close) => (
+              <div className="py-1 text-xs">
+                <button className="block w-full px-3 py-1.5 text-left font-medium text-blue-700 hover:bg-blue-50" onClick={() => { close(); window.dispatchEvent(new Event(SET_SCALE_EVENT)); }}>Measure two points…</button>
+                <div className="px-3 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-gray-400">Architectural</div>
+                <div className="grid grid-cols-2">
+                  {SCALE_PRESETS.filter((x) => x.scale.unit === 'ft').map((x) => (
+                    <button key={x.label} className={`px-3 py-1 text-left hover:bg-blue-50 ${page.scale && Math.abs(page.scale.perPx - x.scale.perPx) < 1e-9 ? 'bg-blue-50 font-medium' : ''}`} onClick={() => { s.setPageScale(x.scale); close(); }}>{x.label}</button>
+                  ))}
+                </div>
+                <div className="px-3 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-gray-400">Metric</div>
+                <div className="grid grid-cols-3">
+                  {SCALE_PRESETS.filter((x) => x.scale.unit === 'm').map((x) => (
+                    <button key={x.label} className={`px-3 py-1 text-left hover:bg-blue-50 ${page.scale && Math.abs(page.scale.perPx - x.scale.perPx) < 1e-12 ? 'bg-blue-50 font-medium' : ''}`} onClick={() => { s.setPageScale(x.scale); close(); }}>{x.label}</button>
+                  ))}
+                </div>
+                <button className="mt-1 block w-full border-t border-gray-100 px-3 py-1.5 text-left hover:bg-blue-50 disabled:opacity-40" disabled={!page.scale} onClick={() => { s.setPageScale(null); close(); }}>No scale</button>
+              </div>
+            )}
+          </Drop>
+        </div>
         <Big icon="titleBlock" label="Title Block" active={!!tb?.show} onClick={() => s.updateTitleBlock({ show: !tb?.show })} title="Title block on every printed / PDF sheet (edit it in the panel with nothing selected)" />
       </Group>
       <Group label="Layout">
@@ -1803,6 +1825,7 @@ function ViewTab() {
           <Small icon="zoomIn" label="Zoom In" onClick={() => rf.zoomIn({ duration: 150 })} disabled={!diagram} />
           <Small icon="zoomOut" label="Zoom Out" onClick={() => rf.zoomOut({ duration: 150 })} disabled={!diagram} />
           <Small icon="hundred" label="100%" onClick={() => rf.zoomTo(1, { duration: 150 })} disabled={!diagram} />
+          <Small icon="find" label="Selection" onClick={() => { const ids = rf.getNodes().filter((n) => n.selected).map((n) => ({ id: n.id })); if (ids.length) void rf.fitView({ nodes: ids, padding: 0.4, maxZoom: 2, duration: 200 }); }} disabled={!diagram} title="Zoom to the selected items" />
         </Column>
       </Group>
       <Group label="Show">

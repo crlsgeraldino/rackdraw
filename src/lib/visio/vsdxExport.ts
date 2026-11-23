@@ -9,6 +9,7 @@ import { turnedBox } from '../rotation';
 import { expandFields } from '../headerFooter';
 import { allLinks, listLines, patternOf, type Crop, type TextLook } from '../types';
 import { resolveLink } from '../links';
+import { realArea } from '../units';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
@@ -176,15 +177,16 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         case 'zone':
           {
             const zs = n.data.style ?? 'dashed';
+            const zt = n.data.showArea && pg.scale ? `${n.data.title} · ${realArea(b.w, b.h, pg.scale)}` : n.data.title;
             const zb = ibox(b);
             const head = zs === 'header' || zs === 'band';
             zones.push({
               kind: 'rect', name: n.data.title, container: true, box: zb, line: n.data.color, dashed: zs === 'dashed', lineWeightPt: 1.5, fill: n.data.color, fillTransparency: zs === 'filled' ? 0.8 : 0.93, rounding: head ? inch(4) : inch(8),
-              text: head ? undefined : { text: n.data.title.toUpperCase(), color: n.data.color, ...vLook(n.data, 7, true), align: 'left', valign: 'top' },
+              text: head ? undefined : { text: zt.toUpperCase(), color: n.data.color, ...vLook(n.data, 7, true), align: 'left', valign: 'top' },
             });
             // Heading band (top) or side band (left), with the title in white.
-            if (zs === 'header') zones.push({ kind: 'rect', name: `${n.data.title} heading`, box: { x: zb.x, y: zb.y, w: zb.w, h: inch(22) }, fill: n.data.color, line: null, text: { text: n.data.title.toUpperCase(), color: '#FFFFFF', ...vLook(n.data, 7, true), align: 'left', valign: 'middle' } });
-            if (zs === 'band') zones.push({ kind: 'rect', name: `${n.data.title} heading`, box: { x: zb.x, y: zb.y, w: inch(28), h: zb.h }, fill: n.data.color, line: null, text: { text: n.data.title.toUpperCase(), color: '#FFFFFF', ...vLook(n.data, 7, true), dir: 'up' } });
+            if (zs === 'header') zones.push({ kind: 'rect', name: `${n.data.title} heading`, box: { x: zb.x, y: zb.y, w: zb.w, h: inch(22) }, fill: n.data.color, line: null, text: { text: zt.toUpperCase(), color: '#FFFFFF', ...vLook(n.data, 7, true), align: 'left', valign: 'middle' } });
+            if (zs === 'band') zones.push({ kind: 'rect', name: `${n.data.title} heading`, box: { x: zb.x, y: zb.y, w: inch(28), h: zb.h }, fill: n.data.color, line: null, text: { text: zt.toUpperCase(), color: '#FFFFFF', ...vLook(n.data, 7, true), dir: 'up' } });
           }
           break;
         case 'note':

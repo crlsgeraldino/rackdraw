@@ -33,6 +33,19 @@ export function formatLength(value: number, unit: LengthUnit): string {
   return inch ? `${ft}' ${inch}"` : `${ft}'`;
 }
 
+/** Floor area of a w × h px box on a page with this scale: "120 sq ft" or "11.2 m²". */
+export function realArea(w: number, h: number, scale: PageScale): string {
+  const a = w * scale.perPx * h * scale.perPx;
+  return scale.unit === 'm' ? `${a < 10 ? a.toFixed(1) : Math.round(a)} m²` : `${Math.round(a).toLocaleString()} sq ft`;
+}
+
+/** Page Setup → Drawing Scale presets (architectural and metric), as Visio offers them. 96 px = 1 paper inch. */
+export const SCALE_PRESETS: { label: string; scale: PageScale }[] = [
+  ...([['1/16" = 1\'', 1 / 16], ['1/8" = 1\'', 1 / 8], ['3/16" = 1\'', 3 / 16], ['1/4" = 1\'', 1 / 4], ['1/2" = 1\'', 1 / 2], ['1" = 1\'', 1]] as const)
+    .map(([label, inPerFt]) => ({ label, scale: { perPx: 1 / (96 * inPerFt), unit: 'ft' as const } })),
+  ...([20, 50, 100, 200, 500] as const).map((r) => ({ label: `1:${r}`, scale: { perPx: (0.0254 / 96) * r, unit: 'm' as const } })),
+];
+
 /** Real length of `px` diagram units on a page with this scale. */
 export const realLength = (px: number, scale: PageScale) => formatLength(px * scale.perPx, scale.unit);
 

@@ -129,6 +129,15 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Drawing scale presets, room areas, zoom to selection
+
+- **Design → Drawing Scale**: measure the scale from two points on a floor plan, or pick a standard one: architectural
+  1/16", 1/8", 3/16", 1/4", 1/2" or 1" = 1', or metric 1:20 to 1:500 (96 px = one paper inch), like Visio's
+  Page Setup. **No scale** removes it.
+- **Room areas**: select a zone and tick **Show Area** (Shape tab → Container) to show its floor area after the title,
+  e.g. "Server Room · 190 sq ft" or "IDF · 12 m²", like Visio's space shapes. Visio exports include it.
+- **View → Zoom → Selection** zooms to the selected items.
+
 ## Editing many items at once
 
 - Select several devices: the Shape Data pane shows **Status, Model, Location, Asset tag** and your own fields (Data →
