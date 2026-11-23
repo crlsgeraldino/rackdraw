@@ -129,6 +129,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Editing many items at once
+
+- Select several devices: the Shape Data pane shows **Status, Model, Location, Asset tag** and your own fields (Data →
+  Define Shape Data) for all of them. A value they share is shown; otherwise "(several values)". Type a new one and
+  press Enter (or leave the box) to set it on every selected device in one step.
+- Select several cables: set their **type**, **VLAN** and **label** together.
+
 ## Undo and Redo lists
 
 - The small **▾** beside Undo and Redo (top-left) lists the recent steps in plain words ("Moved 3 items", "Added

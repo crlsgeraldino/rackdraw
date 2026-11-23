@@ -926,6 +926,98 @@ function TitleBlockProps() {
   );
 }
 
+/** One value for several items: shows it when they all agree, else "(several)"; Enter or leaving the box applies it to all. */
+function MultiField({ label, values, onSet, mono, type }: { label: string; values: string[]; onSet: (v: string) => void; mono?: boolean; type?: string }) {
+  const common = values.every((v) => v === values[0]) ? values[0] : null;
+  const [draft, setDraft] = useState<string | null>(null);
+  const apply = () => { if (draft !== null && draft !== common) onSet(draft); setDraft(null); };
+  return (
+    <label className="mb-1.5 flex items-center gap-1">
+      <span className="w-24 shrink-0 truncate text-xs text-gray-600" title={label}>{label}</span>
+      <input className={`min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-1 text-xs outline-none focus:border-blue-500 ${mono ? 'font-mono' : ''}`} type={type ?? 'text'}
+        value={draft ?? common ?? ''} placeholder={common === null ? '(several values)' : ''}
+        onChange={(e) => setDraft(e.target.value)} onBlur={apply}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setDraft(null); (e.target as HTMLInputElement).blur(); } }} aria-label={label} />
+    </label>
+  );
+}
+
+/** Shape Data for several devices at once: the common fields and the client's own fields (Define Shape Data). */
+function MultiDeviceData({ nodes }: { nodes: DeviceNode[] }) {
+  const s = useDiagram.getState();
+  const defs = (useCurrentProject().fieldDefs ?? []).filter((d) => d.label.trim());
+  const ids = nodes.map((n) => n.id);
+  const key = (x: string) => x.trim().toLowerCase();
+  const extraOf = (n: DeviceNode, label: string) => n.data.extraFields?.find((f) => key(f.label) === key(label))?.value ?? '';
+  const setExtra = (label: string, value: string) => s.mapDevices(ids, (d) => {
+    const list = d.extraFields ?? [];
+    const has = list.some((f) => key(f.label) === key(label));
+    const next = (has ? list.map((f) => (key(f.label) === key(label) ? { ...f, value } : f)) : [...list, { label, value }]).filter((f) => f.value !== '' || !defs.some((x) => key(x.label) === key(f.label)));
+    return { extraFields: next.length ? next : undefined };
+  });
+  const statuses = nodes.map((n) => n.data.status ?? 'active');
+  const field = (label: string, k: 'model' | 'location' | 'assetTag' | 'notes') => (
+    <MultiField label={label} values={nodes.map((n) => (n.data[k] as string | undefined) ?? '')} onSet={(v) => s.updateDevicesData(ids, { [k]: v || undefined })} />
+  );
+  return (
+    <div className="mb-4 rounded border border-gray-200 p-2">
+      <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">Shape Data · {nodes.length} devices</div>
+      <label className="mb-1.5 flex items-center gap-1">
+        <span className="w-24 shrink-0 text-xs text-gray-600">Status</span>
+        <select className="min-w-0 flex-1 rounded border border-gray-300 px-1 py-1 text-xs" value={statuses.every((v) => v === statuses[0]) ? statuses[0] : ''}
+          onChange={(e) => e.target.value && s.updateDevicesData(ids, { status: e.target.value as DeviceNode['data']['status'] })}>
+          <option value="" disabled>(several values)</option>
+          {DEVICE_STATUSES.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+        </select>
+      </label>
+      {field('Model', 'model')}
+      {field('Location', 'location')}
+      {field('Asset tag', 'assetTag')}
+      {defs.map((d) => (
+        d.type === 'list' || d.type === 'yesno' ? (
+          <label key={d.id} className="mb-1.5 flex items-center gap-1">
+            <span className="w-24 shrink-0 truncate text-xs text-gray-600" title={d.label}>{d.label}</span>
+            {(() => { const vals = nodes.map((n) => extraOf(n, d.label)); const c = vals.every((v) => v === vals[0]) ? vals[0] : ' '; return (
+              <select className="min-w-0 flex-1 rounded border border-gray-300 px-1 py-1 text-xs" value={c} onChange={(e) => setExtra(d.label, e.target.value)}>
+                <option value={' '} disabled>(several values)</option>
+                <option value="">—</option>
+                {(d.type === 'yesno' ? ['Yes', 'No'] : d.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ); })()}
+          </label>
+        ) : (
+          <MultiField key={d.id} label={d.label} values={nodes.map((n) => extraOf(n, d.label))} onSet={(v) => setExtra(d.label, v)} mono={d.type === 'text'} type={d.type === 'number' ? 'number' : d.type === 'date' ? 'date' : 'text'} />
+        )
+      ))}
+      <p className="text-[10px] text-gray-400">Changes apply to all {nodes.length} selected devices (one Ctrl+Z).</p>
+    </div>
+  );
+}
+
+/** Cable type, VLAN and length for several cables at once. */
+function MultiCableData({ edges }: { edges: CableEdge[] }) {
+  const s = useDiagram.getState();
+  const ids = edges.map((e) => e.id);
+  const data = edges.map((e) => (e.data ?? { cable: 'Cat6' }) as CableData);
+  const type = data.every((d) => d.cable === data[0].cable) ? data[0].cable : null;
+  return (
+    <div className="mb-4 rounded border border-gray-200 p-2">
+      <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">{edges.length} cables</div>
+      <div className="mb-2 grid grid-cols-2 gap-1">
+        {(Object.keys(CABLE_STYLES) as CableType[]).map((c) => (
+          <button key={c} onClick={() => s.updateEdgesData(ids, { cable: c })}
+            className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${type === c ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+            <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke={CABLE_STYLES[c].color} strokeWidth="2.5" strokeDasharray={CABLE_STYLES[c].dash} /></svg>
+            {c}
+          </button>
+        ))}
+      </div>
+      <MultiField label="VLAN(s)" values={data.map((d) => d.vlan ?? '')} onSet={(v) => s.updateEdgesData(ids, { vlan: v || undefined })} mono />
+      <MultiField label="Label" values={data.map((d) => d.label ?? '')} onSet={(v) => s.updateEdgesData(ids, { label: v || undefined })} />
+    </div>
+  );
+}
+
 const LINE_PATTERNS: { value: LinePattern; label: string }[] = [
   { value: 'solid', label: 'Solid' }, { value: 'dash', label: 'Dash' }, { value: 'dot', label: 'Dot' }, { value: 'dashdot', label: 'Dash-dot' },
 ];
@@ -941,6 +1033,8 @@ export function PropertiesPanel() {
     body = (
       <>
         <p className="mb-3 text-sm text-gray-500">{selNodes.length + selEdges.length} items selected</p>
+        {selNodes.filter((n) => n.type === 'device').length > 1 && <MultiDeviceData nodes={selNodes.filter((n): n is DeviceNode => n.type === 'device')} />}
+        {selEdges.length > 1 && <MultiCableData edges={selEdges} />}
         {selNodes.length > 1 && <ArrangeButtons />}
         {selNodes.some((n) => n.type === 'device') && (
           <div className="mt-4">
