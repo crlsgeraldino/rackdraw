@@ -6,10 +6,10 @@ import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableEdge, type Cable
 import { canvasDibEncoder, VisioPackage, type PageItem } from './vssx';
 
 /**
- * "Open a Visio drawing": turns each page of a .vsdx into a NetCraft page. Pictures become devices (their Shape
+ * "Open a Visio drawing": turns each page of a .vsdx into a RackDraw page. Pictures become devices (their Shape
  * Data fills the device fields, their shapes go into a library named after the file), plain boxes/ellipses/text
  * become drawing shapes (transparent dashed boxes become zones), and connectors become cables between the shapes
- * they are glued to (or, for drawings NetCraft saved, between the devices named in their From/To data).
+ * they are glued to (or, for drawings RackDraw saved, between the devices named in their From/To data).
  */
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -63,18 +63,18 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
     }
     return hit.id;
   };
-  const pageIdOf = new Map<string, string>(); // Visio page ID → NetCraft page id
+  const pageIdOf = new Map<string, string>(); // Visio page ID → RackDraw page id
 
   for (const vp of pkg.pages) {
     const { items, connects, warnings } = pkg.readPage(vp, canvasDibEncoder);
     summary.warnings.push(...warnings);
     const nodes: AppNode[] = [];
     const edges: CableEdge[] = [];
-    // Visio shape id → NetCraft node, and where each device's ports are on the page.
+    // Visio shape id → RackDraw node, and where each device's ports are on the page.
     const nodeFor = new Map<string, { node: AppNode; stencil?: StencilDef; k: number }>();
     const byName = new Map<string, { node: AppNode; stencil?: StencilDef; k: number }>();
 
-    // Text NetCraft wrote for a device's label / info box: recreate those on the device instead.
+    // Text RackDraw wrote for a device's label / info box: recreate those on the device instead.
     const pictureNames = new Set(items.filter((i) => i.kind === 'picture').map((i) => i.data.Name || i.name));
     const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
     const infoFor = new Set(items.filter((i) => ownText(i) && i.name.endsWith(' info')).map((i) => i.name.replace(/\sinfo$/, '')));
@@ -139,7 +139,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
       }
     }
 
-    // Cables: glued ends first, else the From / To names NetCraft writes.
+    // Cables: glued ends first, else the From / To names RackDraw writes.
     const glue = new Map<string, { begin?: string; end?: string }>();
     for (const c of connects) glue.set(c.connector, { ...glue.get(c.connector), [c.end]: c.shape });
     const portNear = (ref: { node: AppNode; stencil?: StencilDef; k: number }, [x, y]: [number, number]) => {

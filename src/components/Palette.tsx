@@ -272,7 +272,7 @@ export function Palette() {
               {[
                 { label: 'Import Visio stencil (.vssx)…', sub: 'Vendor stencils (Dell, Ubiquiti, Cisco…); each file becomes a library', run: () => visioRef.current?.click() },
                 { label: 'Import image as device…', sub: 'SVG, PNG or JPG, then mark its ports', run: () => imageRef.current?.click() },
-                { label: 'Open stencil library…', sub: '.netcraft-stencils.json from another tech', run: () => libRef.current?.click() },
+                { label: 'Open stencil library…', sub: '.rackdraw-stencils.json from another tech', run: () => libRef.current?.click() },
                 { label: 'Save all libraries…', sub: 'One file with every library, to share', run: () => saveStencilLibrary(customList, 'all-stencils'), disabled: !customList.length },
               ].map((it) => (
                 <button key={it.label} disabled={it.disabled} className="block w-full rounded px-2 py-1.5 text-left hover:bg-blue-50 disabled:opacity-40" onClick={() => { close(); it.run(); }}>

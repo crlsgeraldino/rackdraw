@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'NetCraft',
+  title: 'RackDraw',
   description: 'Free, browser-based network diagrams for client documentation. Your files never leave your computer.',
 };
 

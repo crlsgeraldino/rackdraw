@@ -102,7 +102,7 @@ export async function readTable(file: File): Promise<Table> {
 export type FieldKey = 'id' | 'name' | 'type' | 'model' | 'ip' | 'mac' | 'serial' | 'assetTag' | 'location' | 'powerW' | 'notes';
 
 export const FIELDS: { key: FieldKey; label: string; aliases: string[] }[] = [
-  { key: 'id', label: 'NetCraft ID', aliases: ['netcraft id', 'id', 'device id'] },
+  { key: 'id', label: 'RackDraw ID', aliases: ['rackdraw id', 'netcraft id', 'id', 'device id'] },
   { key: 'name', label: 'Name / hostname', aliases: ['name', 'hostname', 'host name', 'device', 'device name', 'computer name'] },
   { key: 'type', label: 'Type (for new devices)', aliases: ['type', 'device type', 'stencil', 'category'] },
   { key: 'model', label: 'Model', aliases: ['model', 'product', 'model number'] },
@@ -215,9 +215,9 @@ export function planImport(p: Project, t: Table, m: Mapping, matchKey: FieldKey,
   return plan;
 }
 
-/** One flat sheet of every device, with the NetCraft ID so edits can be matched back exactly. */
+/** One flat sheet of every device, with the RackDraw ID so edits can be matched back exactly. */
 export function deviceListRows(p: Project, stencilName: (id: string) => string): string[][] {
-  const head = ['NetCraft ID', 'Page', 'Name', 'Type', 'Model', 'IP', 'MAC', 'Serial', 'Asset tag', 'Location', 'Power (W)', 'Notes'];
+  const head = ['RackDraw ID', 'Page', 'Name', 'Type', 'Model', 'IP', 'MAC', 'Serial', 'Asset tag', 'Location', 'Power (W)', 'Notes'];
   const rows = p.pages.flatMap((pg) =>
     pg.nodes.filter((n): n is DeviceNode => n.type === 'device').map((n) => [
       n.id, pg.name, n.data.name, stencilName(n.data.stencilId), n.data.model ?? '', n.data.ip ?? '', n.data.mac ?? '',

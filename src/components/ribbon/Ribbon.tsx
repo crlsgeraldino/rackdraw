@@ -358,7 +358,7 @@ export function Ribbon() {
     return () => window.removeEventListener('keydown', onKey);
   }, [collapsed]);
 
-  // Installed app: open .netcraft.json files double-clicked in Explorer (File Handling API).
+  // Installed app: open .rackdraw.json / .netcraft.json files double-clicked in Explorer (File Handling API).
   useEffect(() => {
     const lq = (window as unknown as { launchQueue?: { setConsumer: (cb: (p: { files: { getFile: () => Promise<File> }[] }) => void) => void } }).launchQueue;
     lq?.setConsumer(async ({ files }) => {
@@ -376,13 +376,13 @@ export function Ribbon() {
       {/* Title bar with the Quick Access Toolbar */}
       <div className="flex h-8 items-center gap-1 bg-[#3955a3] px-2 text-white">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4.5V14" /></svg>
-        <button className={qat} onClick={doc.save} title="Save to a file (.netcraft.json)" aria-label="Save"><Icon name="save" size={15} /></button>
+        <button className={qat} onClick={doc.save} title="Save to a file (.rackdraw.json)" aria-label="Save"><Icon name="save" size={15} /></button>
         <button className={qat} onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={15} /></button>
         <HistoryMenu kind="undo" disabled={!canUndo} />
         <button className={qat} onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)" aria-label="Redo"><Icon name="redo" size={15} /></button>
         <HistoryMenu kind="redo" disabled={!canRedo} />
         <div className="mx-auto flex min-w-0 items-center gap-2 text-sm">
-          <span className="hidden font-semibold sm:inline">NetCraft</span>
+          <span className="hidden font-semibold sm:inline">RackDraw</span>
           <span className="text-white/60">—</span>
           <select
             className="max-w-56 rounded bg-white/15 px-1.5 py-0.5 text-sm text-white outline-none hover:bg-white/25 [&>option]:text-gray-900"
@@ -535,7 +535,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <nav className="flex w-56 shrink-0 flex-col bg-[#3955a3] py-3 text-white">
         <button className="mb-3 flex items-center gap-2 px-5 py-1 text-sm hover:bg-white/15" onClick={onClose}><Icon name="goBack" size={22} /> Back</button>
         {item('new', 'New client…', onNew)}
-        {item('open', 'Open… (NetCraft or Visio .vsdx)', onOpen)}
+        {item('open', 'Open… (RackDraw or Visio .vsdx)', onOpen)}
         {item('save', 'Save', onSave)}
         {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
         {item('open', 'Version History…', () => { onClose(); openVersions(); })}
@@ -561,7 +561,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
           {exp('csv', 'CSV tables', 'Devices, connections, racks and port notes for Excel', 'csv')}
         </div>
         <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-gray-500">Save and share</h2>
-        <p className="max-w-3xl text-sm text-gray-600">Save writes a <code>.netcraft.json</code> file with the whole client (pages, racks, custom shapes) that opens on any computer with NetCraft. Your diagrams are also kept automatically on this computer.</p>
+        <p className="max-w-3xl text-sm text-gray-600">Save writes a <code>.rackdraw.json</code> file with the whole client (pages, racks, custom shapes) that opens on any computer with RackDraw. Your diagrams are also kept automatically on this computer.</p>
       </section>
     </div>
   );
@@ -874,7 +874,7 @@ function InsertTab() {
           <Small icon="dimension" label="CAD Drawing" onClick={() => cadRef.current?.click()} title="A floor plan from AutoCAD (.dxf) behind this page, with its real-world scale (like Visio's Insert CAD Drawing)" />
           <Small icon="device" label="Image as Device" onClick={() => paletteAction('import-image')} title="Import a picture and mark its ports" />
           <Small icon="visio" label="Visio Stencil" onClick={() => paletteAction('import-visio')} title="Import shapes from a Visio stencil (.vssx)" />
-          <Small icon="library" label="Stencil Library" onClick={() => paletteAction('import-library')} title="Import a .netcraft-stencils.json library" />
+          <Small icon="library" label="Stencil Library" onClick={() => paletteAction('import-library')} title="Import a .rackdraw-stencils.json library" />
         </Column>
         <input ref={cadRef} type="file" hidden accept=".dxf,.dwg" onChange={async (e) => {
           const f = e.target.files?.[0];

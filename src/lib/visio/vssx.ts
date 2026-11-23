@@ -1,6 +1,6 @@
 /**
  * Reads Visio stencils (.vssx, also the masters inside .vsdx / .vstx) in the browser and turns masters into
- * NetCraft stencils: Visio geometry and styles become SVG, embedded PNG/JPG/GIF/BMP pictures are kept, EMF
+ * RackDraw stencils: Visio geometry and styles become SVG, embedded PNG/JPG/GIF/BMP pictures are kept, EMF
  * pictures go through the EMF converter, and connection points become cable ports.
  *
  * Visio coordinates are inches with y pointing up; everything is drawn in that space and flipped once at the end.
@@ -361,7 +361,7 @@ export class VisioPackage {
           ports = children(sec, 'Row').map((row, i) => {
             const [px, py] = toPx(apply(t.m, num(cell(row, 'X')), num(cell(row, 'Y'))));
             const lx = px - bbox.x, ly = py - bbox.y;
-            // Named connection points (NetCraft writes the port's name) keep their name.
+            // Named connection points (RackDraw writes the port's name) keep their name.
             const label = row.getAttribute('N')?.replace(/^_(?=\d)/, '').replace(/_/g, ' ') || `${i + 1}`;
             return { id: `C${i + 1}`, label, kind: 'rj45', x: Math.max(0, Math.min(W - size, lx - size / 2)), y: Math.max(0, Math.min(Hh - size, ly - size / 2)), w: size, h: size, side: ly < Hh / 2 ? 'top' : 'bottom' } as PortDef;
           });
@@ -406,7 +406,7 @@ export class VisioPackage {
       if (ext === 'emf') {
         try {
           const r = emfToSvg(data, ctx.encodeDib);
-          if (r.empty) ctx.warnings.push('A picture uses a format NetCraft cannot draw (EMF+ only).');
+          if (r.empty) ctx.warnings.push('A picture uses a format RackDraw cannot draw (EMF+ only).');
           else {
             const b = r.bounds;
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${b.x} ${b.y} ${b.width} ${b.height}" preserveAspectRatio="none">${r.body}</svg>`;

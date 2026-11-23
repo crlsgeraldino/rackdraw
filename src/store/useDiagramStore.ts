@@ -344,7 +344,7 @@ function blankProject(name: string): Project {
 /** Gives a copied node a fresh id (keeping its id prefix). */
 const reId = (id: string) => `${id.split('-')[0]}-${uid()}`;
 
-/** Copied diagram items. Also put on the system clipboard, so it can be pasted into another NetCraft window. */
+/** Copied diagram items. Also put on the system clipboard, so it can be pasted into another RackDraw window. */
 export interface Clipboard {
   format: 'netcraft-clip';
   nodes: AppNode[];

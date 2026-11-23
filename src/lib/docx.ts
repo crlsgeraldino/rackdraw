@@ -131,7 +131,7 @@ export function writeDocx(input: DocxInput): Uint8Array {
     'word/_rels/document.xml.rels': strToU8(`${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       rels.map((r) => `<Relationship Id="${r.id}" Type="${r.type}" Target="${esc(r.target)}"/>`).join('') + '</Relationships>'),
     'docProps/core.xml': strToU8(`${XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">` +
-      `<dc:title>${esc(input.title ?? '')}</dc:title><dc:creator>NetCraft</dc:creator></cp:coreProperties>`),
+      `<dc:title>${esc(input.title ?? '')}</dc:title><dc:creator>RackDraw</dc:creator></cp:coreProperties>`),
   };
   for (const [name, bytes] of Object.entries(input.media)) files[`word/media/${name}`] = bytes;
   return zipSync(files, { level: 6 });

@@ -66,7 +66,7 @@ export function DataImportDialog({ fileName, table, link, onClose }: { fileName:
             <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={matchKey} onChange={(e) => setMatchKey(e.target.value as FieldKey)}>
               {MATCH_KEYS.map((k) => <option key={k} value={k} disabled={mapping[k] < 0}>{LABEL[k]}{mapping[k] < 0 ? ' (column not mapped)' : ''}</option>)}
             </select>
-            <p className="mt-1 text-[10px] text-gray-400">NetCraft ID is exact (use Data → Export device list). Names, asset tags, serials, IPs and MACs ignore case and spacing.</p>
+            <p className="mt-1 text-[10px] text-gray-400">RackDraw ID is exact (use Data → Export device list). Names, asset tags, serials, IPs and MACs ignore case and spacing.</p>
 
             <label className="mt-4 flex items-center gap-1.5 text-sm">
               <input type="checkbox" checked={createMissing} onChange={(e) => setCreateMissing(e.target.checked)} />

@@ -55,7 +55,7 @@ export function VersionsDialog() {
           <span className="text-xs text-gray-500">Now: {counts(project)}</span>
         </div>
         <ul className="min-h-0 flex-1 overflow-y-auto">
-          {versions.length === 0 && <li className="px-4 py-6 text-center text-sm text-gray-400">No versions yet. Save one before a big change; NetCraft also keeps one automatically each day you work on this client.</li>}
+          {versions.length === 0 && <li className="px-4 py-6 text-center text-sm text-gray-400">No versions yet. Save one before a big change; RackDraw also keeps one automatically each day you work on this client.</li>}
           {versions.map((v) => (
             <li key={v.id} className="group flex items-center gap-3 border-b border-gray-100 px-4 py-2 hover:bg-gray-50">
               <div className="min-w-0 flex-1">

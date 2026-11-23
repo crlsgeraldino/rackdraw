@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 // The editor relies on browser-only APIs (localStorage, canvas measuring), so it never renders on the server.
 const Editor = dynamic(() => import('@/components/Editor'), {
   ssr: false,
-  loading: () => <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading NetCraft…</div>,
+  loading: () => <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading RackDraw…</div>,
 });
 
 export default function Home() {

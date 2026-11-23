@@ -1,7 +1,11 @@
-# NetCraft
+# RackDraw
 
 Free, browser-based network diagrams for documenting client sites — a lightweight Visio alternative for MSPs.
 Everything runs in your browser: diagrams are stored locally and never uploaded.
+
+> **Formerly NetCraft.** Installing RackDraw over NetCraft keeps every client: the app still keeps its data in
+> `%APPDATA%\NetCraft` (under its old internal `app://netcraft` address), and old `.netcraft.json` diagram files and
+> `.netcraft-stencils.json` libraries open as before. New saves use `.rackdraw.json`.
 
 Built the same way as [PDFCraft](https://github.com/PDFCraftTool/pdfcraft): Next.js (App Router) + TypeScript +
 Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React Flow](https://reactflow.dev) (MIT).
@@ -24,7 +28,7 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Quick info** — hover a device for a floating card with its IP (copy / open), serial, rack, ports in use and
   port notes. Turn it off under **View → Quick info on hover**.
 - **Zones and notes** — resizable rooms/racks and sticky notes.
-- **One diagram per client**, switchable from the toolbar, auto-saved in the browser. Save/open `.netcraft.json` files
+- **One diagram per client**, switchable from the toolbar, auto-saved in the browser. Save/open `.rackdraw.json` files
   to back up or share.
 - **Export** — PDF report (diagram + device and connection tables), PNG (Word/email), SVG (Visio, Office, draw.io),
   CSV (Excel).
@@ -76,9 +80,9 @@ Copy `out/` to any static web host (IIS, Nginx, GitHub Pages, Netlify, Cloudflar
 
 ## Install it as an app
 
-NetCraft is an installable web app (PWA). Open it in Edge or Chrome and click the **Install** icon in the address bar
-(Edge: **⋯ → Apps → Install NetCraft**). You get a Start-menu entry, its own window, and it keeps working offline.
-The installed app can also open `.netcraft.json` files.
+RackDraw is an installable web app (PWA). Open it in Edge or Chrome and click the **Install** icon in the address bar
+(Edge: **⋯ → Apps → Install RackDraw**). You get a Start-menu entry, its own window, and it keeps working offline.
+The installed app can also open `.rackdraw.json` files.
 
 Installing requires HTTPS, or `localhost` for local testing (`npm run build && npm run serve`, then open
 http://localhost:3124).
@@ -87,12 +91,12 @@ http://localhost:3124).
 
 ```bash
 npm run desktop     # build and launch the desktop app
-npm run dist:win    # build the installer: release/NetCraft-Setup-<version>.exe
+npm run dist:win    # build the installer: release/RackDraw-Setup-<version>.exe
 ```
 
 The desktop app is the same static build wrapped in Electron (`electron/main.cjs`). It serves `out/` from a private
 `app://netcraft` origin, so diagrams persist between launches and nothing touches the network.
-The installer asks per-user vs. all users; for silent deployment (Intune/RMM) use `NetCraft-Setup-<version>.exe /S`
+The installer asks per-user vs. all users; for silent deployment (Intune/RMM) use `RackDraw-Setup-<version>.exe /S`
 (add `/allusers` for a per-machine install).
 
 The installer is not code-signed, so SmartScreen will warn on first run until it's signed with a code-signing certificate.
@@ -146,7 +150,7 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 ## Web page export (File → Export → Web page)
 
-- Like Visio's Save as Web Page: one **.html** file that anyone can open in a browser, no NetCraft needed. Every
+- Like Visio's Save as Web Page: one **.html** file that anyone can open in a browser, no RackDraw needed. Every
   page as a sharp vector picture with page tabs and zoom; point at a device for its name, IP and model, click it for
   all its details (Shape Data, your own fields, what it's cabled to port by port, notes and links). The **search box**
   finds devices on any page by name, IP, MAC, serial and so on, and jumps to them.
@@ -315,7 +319,7 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 
 - Like Visio's: **Save a version now** before a big change (e.g. "Before firewall swap"), then **Restore** it or
   **Open as copy** to compare side by side. Restoring first saves the current drawing as a version, so it can be undone.
-- NetCraft also keeps one automatically each day you work on a client (the latest 20 automatic ones are kept; named
+- RackDraw also keeps one automatically each day you work on a client (the latest 20 automatic ones are kept; named
   versions stay until you delete them). Versions are stored on this computer, separately from the everyday saves.
 
 ## Templates (File → New client)
@@ -455,7 +459,7 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   **Pointer** or press Esc. Lines get a colour, width, dashes and arrowheads in the right panel; both can go on
   layers and are saved to `.vsdx`.
 - **Copy / cut / paste** (Ctrl+C / Ctrl+X / Ctrl+V, or the **Arrange** menu) copies devices, shapes, notes and zones
-  together with the cables between them. Paste on another page, another client, or another NetCraft window; each
+  together with the cables between them. Paste on another page, another client, or another RackDraw window; each
   paste lands a little further down-right. Pasting into Notepad or a ticket gives one line per device
   (name, IP, model, serial).
 - **Arrange** menu (also in the right panel when several items are selected): align left/center/right/top/middle/
@@ -613,7 +617,7 @@ The **View** menu works like Visio's layers and data graphics:
 
 The **Data** menu links devices to a spreadsheet, like Visio's *Link Data to Shapes*:
 
-- **Export device list (CSV)** writes one row per device with a **NetCraft ID** column. Edit it in Excel (IPs, MACs,
+- **Export device list (CSV)** writes one row per device with a **RackDraw ID** column. Edit it in Excel (IPs, MACs,
   serials, asset tags, locations, power, notes; add rows for new devices) and import it back.
 - **Import from Excel / CSV…** reads `.xlsx` or `.csv`, auto-maps columns by their headers (Hostname, IP Address,
   Serial Number, Service Tag, Asset Tag, MAC…), matches rows to devices by ID, name, asset tag, serial, IP or MAC,
@@ -652,7 +656,7 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   devices (Shape Data such as *IP Address*, *Serial Number*, *Model* fill the device fields, the rest become your own
   fields; the shapes go into a library named after the file), plain boxes/ellipses/text become drawing shapes,
   transparent dashed boxes become zones, and connectors glued to shapes become cables on the nearest ports. A
-  drawing saved by NetCraft comes back with its devices, fields, ports, cables, labels and info boxes.
+  drawing saved by RackDraw comes back with its devices, fields, ports, cables, labels and info boxes.
 - **Layers** (with visible / print / lock), **containers** (zones) and **background pages** go both ways: saved into
   the `.vsdx` and read back from Visio drawings.
 - Lines in a Visio drawing that aren't glued between two shapes come in as drawn lines (or freehand shapes).
@@ -672,7 +676,7 @@ optional role (WAN, LAN, MGMT). Set how wide it should appear on the diagram and
   search looks inside every library.
 - Hover a library folder to **✎ rename** it (renaming onto an existing name merges the two), **⤓ export** just that
   library, or **✕ delete** it (you're told how many devices in your diagrams use it).
-- Library files (`.netcraft-stencils.json`) keep library names; **Import library** creates the library, or merges into
+- Library files (`.rackdraw-stencils.json`) keep library names; **Import library** creates the library, or merges into
   one with the same name. **Export all** saves every library to one file.
 - Saved project files embed the custom stencils they use, so a diagram opens correctly on any computer.
 - Large photos are resized to 2000 px and re-encoded as WebP; SVGs containing scripts are refused.

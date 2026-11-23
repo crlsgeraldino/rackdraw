@@ -474,7 +474,7 @@ export function exportCsv(p: Project) {
   downloadBlob(`${safeName(p.name)}.csv`, new Blob(['\ufeff' + csv(lines)], { type: 'text/csv;charset=utf-8' }));
 }
 
-/** One flat device sheet (with NetCraft IDs) meant to be edited in Excel and imported back. */
+/** One flat device sheet (with RackDraw IDs) meant to be edited in Excel and imported back. */
 export function exportDeviceList(p: Project) {
   const rows = deviceListRows(p, (id) => getStencil(id)?.name ?? id);
   downloadBlob(`${safeName(p.name)}-devices.csv`, new Blob(['﻿' + csv(rows)], { type: 'text/csv;charset=utf-8' }));
@@ -495,7 +495,7 @@ export function saveProjectFile(p: Project) {
   const used = new Set(allDevices(p).map((n) => n.data.stencilId));
   const stencils = [...used].map(getStencil).filter((s): s is StencilDef => !!s?.custom);
   const body = JSON.stringify({ format: 'netcraft', version: 3, project: clean, stencils }, null, 2);
-  downloadBlob(`${safeName(p.name)}.netcraft.json`, new Blob([body], { type: 'application/json' }));
+  downloadBlob(`${safeName(p.name)}.rackdraw.json`, new Blob([body], { type: 'application/json' }));
 }
 
 export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[] }> {
@@ -503,10 +503,10 @@ export async function readProjectFile(file: File): Promise<{ project: Project; s
   if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" in the shapes palette.');
   const p = json?.project ?? json;
   const valid = p && (Array.isArray(p.pages) || (Array.isArray(p.nodes) && Array.isArray(p.edges)));
-  if (!valid) throw new Error('Not a NetCraft diagram file.');
+  if (!valid) throw new Error('Not a RackDraw diagram file.');
   return {
     // Files saved by v0.2 and earlier have one diagram; migrateProject turns it into a page.
-    project: migrateProject({ name: file.name.replace(/\.netcraft\.json$|\.json$/i, ''), createdAt: Date.now(), ...p }),
+    project: migrateProject({ name: file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$/i, ''), createdAt: Date.now(), ...p }),
     stencils: Array.isArray(json.stencils) ? json.stencils : [],
   };
 }
@@ -515,7 +515,7 @@ export async function readProjectFile(file: File): Promise<{ project: Project; s
 
 export function saveStencilLibrary(stencils: StencilDef[], name = 'my-stencils', library?: string) {
   const file: StencilLibraryFile = { format: 'netcraft-stencils', version: 1, ...(library ? { name: library } : {}), stencils };
-  downloadBlob(`${safeName(name)}.netcraft-stencils.json`, new Blob([JSON.stringify(file)], { type: 'application/json' }));
+  downloadBlob(`${safeName(name)}.rackdraw-stencils.json`, new Blob([JSON.stringify(file)], { type: 'application/json' }));
 }
 
 /**

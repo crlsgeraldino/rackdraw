@@ -1,4 +1,4 @@
-// NetCraft desktop shell: serves the static Next.js export (out/) from a private app:// origin.
+// RackDraw desktop shell (formerly NetCraft): serves the static Next.js export (out/) from a private app:// origin.
 // A custom scheme (rather than file://) keeps absolute asset paths working and gives the app a
 // stable origin, so diagrams saved in localStorage persist between launches.
 const { app, BrowserWindow, Menu, net, protocol, shell } = require('electron');
@@ -6,7 +6,10 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const ROOT = path.join(__dirname, '..', 'out');
+// The app was called NetCraft: its origin and data folder keep that name, so the diagrams saved there (IndexedDB /
+// localStorage belong to this origin, in this folder) are still found after the rename to RackDraw.
 const ORIGIN = 'app://netcraft';
+app.setPath('userData', path.join(app.getPath('appData'), 'NetCraft'));
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
@@ -27,7 +30,7 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 600,
-    title: 'NetCraft',
+    title: 'RackDraw',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,
     backgroundColor: '#f9fafb',
@@ -68,10 +71,10 @@ if (!app.requestSingleInstanceLock()) {
         { label: 'File', submenu: [{ role: 'quit' }] },
         { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
         { label: 'View', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' }] },
-        { label: 'Help', submenu: [{ label: 'About NetCraft', click: () => app.showAboutPanel() }] },
+        { label: 'Help', submenu: [{ label: 'About RackDraw', click: () => app.showAboutPanel() }] },
       ]),
     );
-    app.setAboutPanelOptions({ applicationName: 'NetCraft', applicationVersion: app.getVersion(), copyright: 'MIT License' });
+    app.setAboutPanelOptions({ applicationName: 'RackDraw', applicationVersion: app.getVersion(), copyright: 'MIT License' });
 
     createWindow();
     app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow());

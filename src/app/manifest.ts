@@ -5,8 +5,8 @@ export const dynamic = 'force-static';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'NetCraft — Network Diagrams',
-    short_name: 'NetCraft',
+    name: 'RackDraw — Network Diagrams',
+    short_name: 'RackDraw',
     description: 'Free network diagrams for client documentation. Works offline; your files never leave your computer.',
     start_url: '/',
     scope: '/',
@@ -20,7 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' },
     ],
     file_handlers: [
-      // Lets the installed app open .netcraft.json files (Chromium/Edge).
+      // Lets the installed app open .rackdraw.json (and older .netcraft.json) files (Chromium/Edge).
       { action: '/', accept: { 'application/json': ['.json'] } },
     ],
   } as MetadataRoute.Manifest;

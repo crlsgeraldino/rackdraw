@@ -1,4 +1,4 @@
-// NetCraft service worker: makes the installed app work offline.
+// RackDraw service worker: makes the installed app work offline.
 // Pages: network first, falling back to the cached copy. Static assets: cache first (Next.js hashes their names).
 const CACHE = 'netcraft-v1';
 const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];

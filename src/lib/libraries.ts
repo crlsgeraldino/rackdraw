@@ -48,7 +48,7 @@ const KEEP_WHOLE = [
  */
 export function libraryNameFromFile(fileName: string) {
   const base = fileName
-    .replace(/\.netcraft-stencils\.json$|\.netcraft\.json$/i, '')
+    .replace(/\.(rackdraw|netcraft)-stencils\.json$|\.(rackdraw|netcraft)\.json$/i, '')
     .replace(/\.[^.]+$/, '')
     .replace(/[-_]+/g, ' ');
   return base

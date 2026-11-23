@@ -75,7 +75,7 @@ function clipText(clip: Clipboard) {
     .join('\r\n');
 }
 
-/** Copy/cut/paste of diagram items through the system clipboard (so it also works between NetCraft windows). */
+/** Copy/cut/paste of diagram items through the system clipboard (so it also works between RackDraw windows). */
 function useClipboardEvents() {
   useEffect(() => {
     const { copySelected, cutSelected, paste } = useDiagram.getState();

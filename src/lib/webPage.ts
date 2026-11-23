@@ -130,7 +130,7 @@ footer{position:fixed;left:10px;bottom:6px;font-size:10px;color:#6b7280}
 <div id="bar"><button id="zout" title="Zoom out">−</button><span id="pct">100%</span><button id="zin" title="Zoom in">+</button><button id="zfit">Fit</button><span style="color:#6b7280;margin-left:8px">Point at a device for its details, click it for everything.</span></div>
 <main id="stage"><div id="wrap"><img id="img" alt=""><div id="spots"></div></div></main>
 <div id="tip"></div><aside id="panel"></aside>
-<footer>Made with NetCraft</footer>
+<footer>Made with RackDraw</footer>
 <script id="nc-data" type="application/json">${json}</script>
 <script>${VIEWER}</script>
 </body></html>`;

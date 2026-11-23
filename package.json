@@ -1,8 +1,8 @@
 {
   "name": "netcraft",
-  "productName": "NetCraft",
+  "productName": "RackDraw",
   "version": "0.59.0",
-  "description": "Free network diagrams for client documentation",
+  "description": "RackDraw: free network, rack and floor-plan diagrams for client documentation",
   "author": "crlsgeraldino",
   "license": "MIT",
   "private": true,
@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.crlsgeraldino.netcraft",
-    "productName": "NetCraft",
+    "productName": "RackDraw",
     "copyright": "MIT License",
     "directories": {
       "output": "release",
@@ -49,8 +49,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "NetCraft",
-      "artifactName": "NetCraft-Setup-${version}.${ext}"
+      "shortcutName": "RackDraw",
+      "artifactName": "RackDraw-Setup-${version}.${ext}"
     }
   },
   "devDependencies": {

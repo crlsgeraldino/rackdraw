@@ -53,7 +53,7 @@ export type VShape = {
   text?: VText;
   /** Indexes into the page's layers. */
   layers?: number[];
-  /** A Visio container (NetCraft zone). */
+  /** A Visio container (RackDraw zone). */
   container?: boolean;
   /** Rotation about the centre in radians, counter-clockwise (Visio's Angle); boxes only. */
   angle?: number;
@@ -298,10 +298,10 @@ export function writeVsdx(doc: VDocument): Uint8Array {
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   files['docProps/core.xml'] = strToU8(
     `${XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
-    `<dc:title>${esc(doc.title ?? '')}</dc:title><dc:creator>NetCraft</dc:creator>` +
+    `<dc:title>${esc(doc.title ?? '')}</dc:title><dc:creator>RackDraw</dc:creator>` +
     `<dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`,
   );
-  files['docProps/app.xml'] = strToU8(`${XML}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>NetCraft</Application></Properties>`);
+  files['docProps/app.xml'] = strToU8(`${XML}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>RackDraw</Application></Properties>`);
   files['_rels/.rels'] = strToU8(relsXml([
     { id: 'rId1', type: `${T}/document`, target: 'visio/document.xml' },
     { id: 'rId2', type: 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties', target: 'docProps/core.xml' },
