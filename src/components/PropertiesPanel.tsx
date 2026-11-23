@@ -977,9 +977,9 @@ function MultiDeviceData({ nodes }: { nodes: DeviceNode[] }) {
         d.type === 'list' || d.type === 'yesno' ? (
           <label key={d.id} className="mb-1.5 flex items-center gap-1">
             <span className="w-24 shrink-0 truncate text-xs text-gray-600" title={d.label}>{d.label}</span>
-            {(() => { const vals = nodes.map((n) => extraOf(n, d.label)); const c = vals.every((v) => v === vals[0]) ? vals[0] : ' '; return (
+            {(() => { const vals = nodes.map((n) => extraOf(n, d.label)); const c = vals.every((v) => v === vals[0]) ? vals[0] : '__several__'; return (
               <select className="min-w-0 flex-1 rounded border border-gray-300 px-1 py-1 text-xs" value={c} onChange={(e) => setExtra(d.label, e.target.value)}>
-                <option value={' '} disabled>(several values)</option>
+                <option value={'__several__'} disabled>(several values)</option>
                 <option value="">—</option>
                 {(d.type === 'yesno' ? ['Yes', 'No'] : d.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
