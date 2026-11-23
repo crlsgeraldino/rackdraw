@@ -3,14 +3,15 @@
 import { useReactFlow } from '@xyflow/react';
 import { useMemo, useRef, useState } from 'react';
 import { setPref } from '@/lib/prefs';
-import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableData, type CableEdge, type CableType, type DeviceData, type DeviceNode } from '@/lib/types';
-import { useCurrentProject, useDiagram, type ItemEdit } from '@/store/useDiagramStore';
+import { CABLE_STYLES, DEVICE_STATUSES, isDocumented, type AppNode, type CableData, type CableEdge, type CableType, type DeviceData, type DeviceNode, type PortData } from '@/lib/types';
+import { getStencil, useCurrentProject, useDiagram, type ItemEdit } from '@/store/useDiagramStore';
 
 const key = (s: string) => s.trim().toLowerCase();
 
 /** A row of the table: a device or a cable, with the page it is on. */
 type Row = { kind: 'node'; pageId: string; pageName: string; id: string; data: DeviceData; selected?: boolean }
-  | { kind: 'edge'; pageId: string; pageName: string; id: string; data: CableData; from: string; fromPort: string; to: string; toPort: string; selected?: boolean };
+  | { kind: 'edge'; pageId: string; pageName: string; id: string; data: CableData; from: string; fromPort: string; to: string; toPort: string; selected?: boolean }
+  | { kind: 'port'; pageId: string; pageName: string; id: string; deviceId: string; portId: string; device: string; port: string; data: PortData; peer: string; selected?: boolean };
 
 /**
  * A column: how to read a row's value as text, and (when editable) how a typed or pasted value changes the item.
@@ -74,6 +75,49 @@ const CABLE_COLS: Col[] = [
   cableText('vlan', 'VLAN', 80, true), cableText('label', 'Label', 140), cableText('length', 'Length', 80),
 ];
 
+/* ---------- ports ---------- */
+
+const portText = (k: 'description' | 'vlan' | 'ip' | 'notes', label: string, width: number, mono?: boolean): Col => ({
+  key: k, label, width, mono,
+  get: (r) => (r.kind === 'port' ? r.data[k] ?? '' : ''),
+  set: (_r, v) => ({ [k]: v || undefined }),
+});
+const PORT_COLS: Col[] = [
+  { key: 'device', label: 'Device', width: 140, get: (r) => (r.kind === 'port' ? r.device : '') },
+  { key: 'port', label: 'Port', width: 70, mono: true, get: (r) => (r.kind === 'port' ? r.port : '') },
+  portText('description', 'Description', 170), portText('vlan', 'VLAN', 70, true), portText('ip', 'IP', 110, true),
+  {
+    key: 'uplink', label: 'Uplink', width: 65,
+    get: (r) => (r.kind === 'port' && r.data.uplink ? 'Yes' : 'No'),
+    set: (_r, v) => (/^(y|yes|true|1|x|uplink)$/i.test(v.trim()) ? { uplink: true } : /^(n|no|false|0|)$/i.test(v.trim()) ? { uplink: undefined } : null),
+    options: [{ value: 'No', label: 'No' }, { value: 'Yes', label: 'Yes' }],
+  },
+  portText('notes', 'Notes', 150),
+  { key: 'peer', label: 'Cabled to', width: 170, get: (r) => (r.kind === 'port' ? r.peer : '') },
+];
+
+/** Port edits become device edits: every changed port of a device goes into its `ports` in one go. */
+function toItemEdits(list: { row: Row; patch: Record<string, unknown> }[]): ItemEdit[] {
+  const out = new Map<string, ItemEdit>();
+  for (const { row, patch } of list) {
+    if (row.kind !== 'port') {
+      const k = `${row.pageId}|${row.kind}|${row.id}`;
+      const cur = out.get(k);
+      out.set(k, { pageId: row.pageId, kind: row.kind, id: row.id, patch: { ...(cur?.patch ?? {}), ...patch } });
+      continue;
+    }
+    const k = `${row.pageId}|node|${row.deviceId}`;
+    const st = useDiagram.getState();
+    const dev = st.projects[st.currentId].pages.find((p) => p.id === row.pageId)?.nodes.find((n) => n.id === row.deviceId);
+    if (dev?.type !== 'device') continue;
+    const cur = out.get(k) ?? { pageId: row.pageId, kind: 'node' as const, id: row.deviceId, patch: { ports: { ...(dev.data.ports ?? {}) } } };
+    const ports = cur.patch.ports as Record<string, PortData>;
+    ports[row.portId] = { ...(ports[row.portId] ?? {}), ...patch } as PortData;
+    out.set(k, cur);
+  }
+  return [...out.values()];
+}
+
 /** One editable cell: Enter / leaving saves; pasting several cells (from Excel) fills down and across. */
 function Cell({ value, mono, onSave, onPasteGrid }: { value: string; mono?: boolean; onSave: (v: string) => void; onPasteGrid: (grid: string[][]) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -101,7 +145,8 @@ function Cell({ value, mono, onSave, onPasteGrid }: { value: string; mono?: bool
 export function DeviceTable() {
   const project = useCurrentProject();
   const rf = useReactFlow<AppNode>();
-  const [tab, setTab] = useState<'devices' | 'cables'>('devices');
+  const [tab, setTab] = useState<'devices' | 'cables' | 'ports'>('devices');
+  const [documentedOnly, setDocumentedOnly] = useState(false);
   const [scope, setScope] = useState<'page' | 'all'>('page');
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: 'name', dir: 1 });
   const [q, setQ] = useState('');
@@ -111,6 +156,7 @@ export function DeviceTable() {
 
   const cols = useMemo(() => {
     if (tab === 'cables') return CABLE_COLS;
+    if (tab === 'ports') return PORT_COLS;
     // The client's own fields (Define Shape Data, and any used on a device).
     const labels = new Map<string, string>();
     for (const d of project.fieldDefs ?? []) if (d.label.trim()) labels.set(key(d.label), d.label.trim());
@@ -128,6 +174,26 @@ export function DeviceTable() {
       if (scope === 'page' && pg.id !== project.activePageId) continue;
       if (tab === 'devices') {
         for (const n of pg.nodes) if (n.type === 'device') out.push({ kind: 'node', pageId: pg.id, pageName: pg.name, id: n.id, data: n.data, selected: n.selected });
+      } else if (tab === 'ports') {
+        // Every port of every device (in the device's own port order), with what its cable goes to.
+        const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+        const peerOf = (deviceId: string, portId: string) => {
+          const e = pg.edges.find((x) => (x.source === deviceId && x.sourceHandle === portId) || (x.target === deviceId && x.targetHandle === portId));
+          if (!e) return '';
+          const mine = e.source === deviceId, o = byId.get(mine ? e.target : e.source), h = mine ? e.targetHandle : e.sourceHandle;
+          const name = o?.type === 'device' ? o.data.name : o?.type === 'shape' ? o.data.text : '';
+          const port = o?.type === 'device' ? o.data.ports?.[h ?? '']?.label || getStencil(o.data.stencilId)?.ports.find((p) => p.id === h)?.label || h || '' : '';
+          return [name, port].filter(Boolean).join(' ');
+        };
+        for (const n of pg.nodes) {
+          if (n.type !== 'device') continue;
+          for (const pd of getStencil(n.data.stencilId)?.ports ?? []) {
+            const data = n.data.ports?.[pd.id] ?? {};
+            const peer = peerOf(n.id, pd.id);
+            if (documentedOnly && !isDocumented(data) && !peer) continue;
+            out.push({ kind: 'port', pageId: pg.id, pageName: pg.name, id: `${n.id}:${pd.id}`, deviceId: n.id, portId: pd.id, device: n.data.name, port: data.label || pd.label || pd.id, data, peer, selected: n.selected });
+          }
+        }
       } else {
         const byId = new Map(pg.nodes.map((n) => [n.id, n]));
         const nm = (id: string) => { const n = byId.get(id); return n?.type === 'device' ? n.data.name : n?.type === 'shape' ? n.data.text : n?.type === 'zone' ? n.data.title : ''; };
@@ -140,41 +206,42 @@ export function DeviceTable() {
     const term = q.trim().toLowerCase();
     const shown = term ? out.filter((r) => cols.some((c) => c.get(r).toLowerCase().includes(term))) : out;
     const sc = cols.find((c) => c.key === sort.key) ?? cols[0];
+    // Ties keep the device's own port order (stable sort).
     return [...shown].sort((a, b) => sc.get(a).localeCompare(sc.get(b), undefined, { numeric: true }) * sort.dir);
-  }, [project.pages, project.activePageId, scope, q, sort, cols, tab]);
+  }, [project.pages, project.activePageId, scope, q, sort, cols, tab, documentedOnly]);
 
   const s = useDiagram.getState();
   const go = (r: Row) => {
     const other = r.pageId !== project.activePageId;
     if (other) s.setActivePage(r.pageId);
     setTimeout(() => {
-      useDiagram.getState().selectItem(r.pageId, r.kind, r.id);
-      if (r.kind === 'node') void rf.fitView({ nodes: [{ id: r.id }], maxZoom: 1.2, padding: 1.5, duration: 200 });
+      const id = r.kind === 'port' ? r.deviceId : r.id;
+      useDiagram.getState().selectItem(r.pageId, r.kind === 'edge' ? 'edge' : 'node', id);
+      if (r.kind !== 'edge') void rf.fitView({ nodes: [{ id }], maxZoom: 1.2, padding: 1.5, duration: 200 });
     }, other ? 150 : 0);
   };
   const editOne = (r: Row, c: Col, v: string) => {
     const patch = c.set?.(r, v, r.data as Record<string, unknown>);
-    if (patch) s.editItems([{ pageId: r.pageId, kind: r.kind, id: r.id, patch }]);
+    if (patch) s.editItems(toItemEdits([{ row: r, patch }]));
   };
   // Paste a block (rows × columns) starting at this cell, in the table's current order; read-only columns are skipped.
   const pasteGrid = (r0: number, c0: number, grid: string[][]) => {
-    const edits = new Map<string, ItemEdit>();
+    const changes: { row: Row; patch: Record<string, unknown> }[] = [];
     let skipped = 0;
     grid.forEach((line, i) => {
       const r = rows[r0 + i];
       if (!r) { skipped++; return; }
-      const id = `${r.pageId}|${r.id}`;
       let data = { ...(r.data as Record<string, unknown>) };
-      const cur = edits.get(id) ?? { pageId: r.pageId, kind: r.kind, id: r.id, patch: {} };
+      let patch: Record<string, unknown> = {};
       line.forEach((v, j) => {
         const c = cols[c0 + j];
         const p = c?.set?.(r, v.trim(), data);
-        if (p) { data = { ...data, ...p }; cur.patch = { ...cur.patch, ...p }; }
+        if (p) { data = { ...data, ...p }; patch = { ...patch, ...p }; }
       });
-      edits.set(id, cur);
+      if (Object.keys(patch).length) changes.push({ row: r, patch });
     });
-    const list = [...edits.values()].filter((e) => Object.keys(e.patch).length);
-    if (list.length) s.editItems(list);
+    const list = changes;
+    if (list.length) s.editItems(toItemEdits(list));
     setNote(`Pasted into ${list.length} row${list.length === 1 ? '' : 's'}${skipped ? ` (${skipped} line${skipped === 1 ? '' : 's'} past the last row left out)` : ''}.`);
     setTimeout(() => setNote(''), 4000);
   };
@@ -185,8 +252,8 @@ export function DeviceTable() {
     void navigator.clipboard?.writeText(tsv).then(() => { setNote(`Copied ${rows.length} rows: paste them into Excel.`); setTimeout(() => setNote(''), 4000); }, () => alert('Could not use the clipboard.'));
   };
 
-  const tabBtn = (t: 'devices' | 'cables', label: string) => (
-    <button className={`rounded px-2 py-0.5 ${tab === t ? 'bg-blue-100 font-semibold text-blue-800' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => { setTab(t); setSort({ key: t === 'devices' ? 'name' : 'from', dir: 1 }); }}>{label}</button>
+  const tabBtn = (t: 'devices' | 'cables' | 'ports', label: string) => (
+    <button className={`rounded px-2 py-0.5 ${tab === t ? 'bg-blue-100 font-semibold text-blue-800' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => { setTab(t); setSort({ key: t === 'devices' ? 'name' : t === 'ports' ? 'device' : 'from', dir: 1 }); }}>{label}</button>
   );
 
   return (
@@ -201,13 +268,15 @@ export function DeviceTable() {
       <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-2 py-1 text-xs">
         {tabBtn('devices', 'Devices')}
         {tabBtn('cables', 'Cables')}
+        {tabBtn('ports', 'Ports')}
+        {tab === 'ports' && <label className="flex items-center gap-1 text-gray-600"><input type="checkbox" checked={documentedOnly} onChange={(e) => setDocumentedOnly(e.target.checked)} /> Documented or cabled only</label>}
         <select className="rounded border border-gray-300 px-1 py-0.5" value={scope} onChange={(e) => setScope(e.target.value as 'page' | 'all')}>
           <option value="page">This page</option>
           <option value="all">All pages</option>
         </select>
         <input className="w-40 rounded border border-gray-300 px-1.5 py-0.5" placeholder="Filter…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50" onClick={copyTable} title="Copy the table (as shown) to paste into Excel">Copy table</button>
-        <span className="truncate text-gray-400">{note || `${rows.length} ${tab === 'devices' ? 'device' : 'cable'}${rows.length === 1 ? '' : 's'} · type or paste from Excel into the cells`}</span>
+        <span className="truncate text-gray-400">{note || `${rows.length} ${tab === 'devices' ? 'device' : tab === 'ports' ? 'port' : 'cable'}${rows.length === 1 ? '' : 's'} · type or paste from Excel into the cells`}</span>
         <button className="ml-auto rounded px-1.5 text-base leading-none text-gray-500 hover:bg-gray-100" onClick={() => setPref('deviceTable', false)} aria-label="Close the table">×</button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -246,7 +315,7 @@ export function DeviceTable() {
                 ))}
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={cols.length + 2} className="px-3 py-4 text-center text-gray-400">{q ? 'Nothing matches the filter.' : tab === 'devices' ? 'No devices here yet.' : 'No cables here yet.'}</td></tr>}
+            {!rows.length && <tr><td colSpan={cols.length + 2} className="px-3 py-4 text-center text-gray-400">{q ? 'Nothing matches the filter.' : tab === 'devices' ? 'No devices here yet.' : tab === 'ports' ? 'No ports here yet.' : 'No cables here yet.'}</td></tr>}
           </tbody>
         </table>
       </div>

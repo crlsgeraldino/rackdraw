@@ -140,6 +140,9 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   are skipped.
 - **Copy table** puts the table (as filtered and sorted) on the clipboard for Excel.
 - The **Cables** tab lists every cable with its ends and ports; type, VLAN, label and length can be typed or pasted.
+- The **Ports** tab lists every port of every device (in port order): description, VLAN, IP, uplink and notes can be
+  typed or pasted straight down a 48-port switch, and "Cabled to" shows what each port's cable goes to. Tick
+  **Documented or cabled only** to hide the empty ones.
 
 ## Web page export (File → Export → Web page)
 
