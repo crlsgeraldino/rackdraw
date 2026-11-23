@@ -28,6 +28,7 @@ import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { insertPictureFile } from '@/lib/pictures';
 import { parseDxf } from '@/lib/dxf';
+import { describeStep, type HistoryState } from '@/lib/history';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
@@ -225,6 +226,50 @@ function useCanvasCenter() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Undo / Redo lists (Quick Access Toolbar)                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The ▾ beside Undo / Redo (like Office and Visio): the recent steps in plain words; clicking one undoes (or redoes)
+ * every step down to it.
+ */
+function HistoryMenu({ kind, disabled }: { kind: 'undo' | 'redo'; disabled: boolean }) {
+  const [hover, setHover] = useState(-1);
+  const list = () => {
+    const st = useDiagram.getState();
+    const p = st.projects[st.currentId];
+    const now: HistoryState = { pages: p.pages, racks: p.racks ?? [], activePageId: p.activePageId };
+    if (kind === 'undo') {
+      // Newest first: past[i] → (past[i + 1] or now).
+      const states = [...st.past, now];
+      return st.past.map((_, i) => describeStep(states[i], states[i + 1])).reverse().slice(0, 30);
+    }
+    const states = [now, ...st.future];
+    return st.future.map((_, i) => describeStep(states[i], states[i + 1])).slice(0, 30);
+  };
+  return (
+    <Drop width={260} trigger={(open) => (
+      <button className="-ml-1 flex h-6 w-3 items-center justify-center rounded text-[9px] text-white/80 hover:bg-white/15 disabled:opacity-40" onClick={open} disabled={disabled} title={kind === 'undo' ? 'Undo several steps' : 'Redo several steps'} aria-label={kind === 'undo' ? 'Undo list' : 'Redo list'}>▾</button>
+    )}>
+      {(close) => {
+        const steps = list();
+        return (
+          <div className="py-1 text-xs text-gray-800" onMouseLeave={() => setHover(-1)}>
+            {steps.map((label, i) => (
+              <button key={i} className={`block w-full truncate px-3 py-1 text-left ${i <= hover ? 'bg-blue-100' : 'hover:bg-blue-50'}`} onMouseEnter={() => setHover(i)}
+                onClick={() => { const s = useDiagram.getState(); for (let k = 0; k <= i; k++) (kind === 'undo' ? s.undo : s.redo)(); setHover(-1); close(); }}>
+                {label}
+              </button>
+            ))}
+            <div className="border-t border-gray-100 px-3 pt-1 text-[10px] text-gray-500">{hover >= 0 ? `${kind === 'undo' ? 'Undo' : 'Redo'} ${hover + 1} step${hover ? 's' : ''}` : kind === 'undo' ? 'Pick how far back to go' : 'Pick how far forward to go'}</div>
+          </div>
+        );
+      }}
+    </Drop>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* The ribbon                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -287,7 +332,9 @@ export function Ribbon() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4.5V14" /></svg>
         <button className={qat} onClick={doc.save} title="Save to a file (.netcraft.json)" aria-label="Save"><Icon name="save" size={15} /></button>
         <button className={qat} onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={15} /></button>
+        <HistoryMenu kind="undo" disabled={!canUndo} />
         <button className={qat} onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)" aria-label="Redo"><Icon name="redo" size={15} /></button>
+        <HistoryMenu kind="redo" disabled={!canRedo} />
         <div className="mx-auto flex min-w-0 items-center gap-2 text-sm">
           <span className="hidden font-semibold sm:inline">NetCraft</span>
           <span className="text-white/60">—</span>
