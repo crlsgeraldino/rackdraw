@@ -228,7 +228,7 @@ async function renderViewport(kind: 'png' | 'svg', bounds: Rect, only?: Only) {
   }
   document.body.classList.add('nc-exporting');
   try {
-    return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height };
+    return { url: kind === 'png' ? await toPng(el, opts) : await toSvg(el, opts), width, height, vp };
   } finally {
     document.body.classList.remove('nc-exporting');
     hidden.forEach((h) => h.classList.remove('nc-export-hide'));
@@ -264,6 +264,9 @@ export type PageRenderer = (page: Page) => Promise<{ url: string; width: number;
 
 /** Captures the live canvas showing `bounds`. */
 export const renderCanvasPng = (bounds: Rect) => renderViewport('png', bounds);
+
+/** Captures the live canvas as SVG, with the transform used (to place things on the picture). */
+export const renderCanvasSvg = (bounds: Rect) => renderViewport('svg', bounds);
 
 export async function exportPdf(p: Project, renderPage: PageRenderer) {
   const { jsPDF } = await import('jspdf');

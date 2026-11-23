@@ -5,13 +5,15 @@ import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openFind, paletteAction } from '@/lib/events';
-import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
+import { resolveLink } from '@/lib/links';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { exportDeck } from '@/lib/deck';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
-import { reportFields } from '@/lib/report';
+import { deviceFieldValue, reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { HF_CODES } from '@/lib/headerFooter';
@@ -34,7 +36,7 @@ import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
 import { SCALE_PRESETS, SET_SCALE_EVENT } from '@/lib/units';
 import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
-import { dashFor } from '@/lib/types';
+import { allLinks, dashFor } from '@/lib/types';
 import { getStencil, TEXT_DEFAULT_SIZE, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
@@ -166,6 +168,50 @@ function useDocument() {
       try {
         const bytes = await exportWordReport(project, renderPage);
         downloadBlob(`${safeName(project.name)}.docx`, new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+      } finally {
+        back();
+      }
+    }),
+    web: () => run(async () => {
+      try {
+        const fields = reportFields(project).filter((f) => !['page', 'rack', 'connections', 'documentedPorts', 'notes', 'link', 'name'].includes(f.key));
+        const pages: WebPage[] = [];
+        for (const pg of project.pages) {
+          if (pg.background || !pg.nodes.length) continue;
+          useDiagram.getState().setActivePage(pg.id);
+          await new Promise((r) => setTimeout(r, 800));
+          const shot = await renderCanvasSvg(contentBounds(withBackground(pg)));
+          const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+          const hotspots: WebHotspot[] = [];
+          for (const n of pg.nodes) {
+            if (n.type !== 'device') continue;
+            const inode = rf.getInternalNode(n.id);
+            if (!inode) continue;
+            const { x, y } = inode.internals.positionAbsolute;
+            const w = inode.measured.width ?? 0, h = inode.measured.height ?? 0;
+            const d = n.data;
+            const rows: [string, string][] = fields.map((f) => [f.label, deviceFieldValue(d, f.key)] as [string, string]).filter(([, v]) => v);
+            // Who it is cabled to, port to port.
+            const portName = (id: string, port?: string | null) => { const o = byId.get(id); return o?.type === 'device' ? (o.data.ports?.[port ?? '']?.label || port || '') : ''; };
+            const links = pg.edges.filter((e) => e.source === n.id || e.target === n.id).map((e) => {
+              const mine = e.source === n.id, other = byId.get(mine ? e.target : e.source);
+              const otherName = other?.type === 'device' ? other.data.name : other?.type === 'shape' ? other.data.text : '';
+              return `${portName(n.id, mine ? e.sourceHandle : e.targetHandle)} → ${otherName} ${portName(mine ? e.target : e.source, mine ? e.targetHandle : e.sourceHandle)}`.replace(/\s+/g, ' ').trim();
+            });
+            if (links.length) rows.push(['Connected to', links.join('; ')]);
+            if (d.notes) rows.push(['Notes', d.notes]);
+            hotspots.push({
+              x: (shot.vp.x + x * shot.vp.zoom) / shot.width, y: (shot.vp.y + y * shot.vp.zoom) / shot.height,
+              w: (w * shot.vp.zoom) / shot.width, h: (h * shot.vp.zoom) / shot.height,
+              title: d.name || 'Device', summary: [d.ip, d.model].filter(Boolean).join(' · '), rows,
+              links: allLinks(d).flatMap((l) => { const t = resolveLink(l.address); return t?.kind === 'url' ? [{ label: l.label || t.url, url: t.url }] : []; }),
+            });
+          }
+          pages.push({ name: pg.name, image: shot.url, width: shot.width, height: shot.height, hotspots });
+        }
+        if (!pages.length) return alert('There is nothing to put on a web page yet.');
+        const html = buildWebPage({ name: project.name, site: project.site, date: new Date().toLocaleDateString() }, pages);
+        downloadBlob(`${safeName(project.name)}.html`, new Blob([html], { type: 'text/html' }));
       } finally {
         back();
       }
@@ -400,7 +446,7 @@ export function Ribbon() {
           onOpen={() => { setFile(false); openRef.current?.click(); }}
           onSave={() => { setFile(false); doc.save(); }}
           onPrint={() => { setFile(false); setPrinting(true); }}
-          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx, selPng: () => doc.selection('png'), selSvg: () => doc.selection('svg') })[kind](); }}
+          onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx, selPng: () => doc.selection('png'), selSvg: () => doc.selection('svg'), web: doc.web })[kind](); }}
         />
       )}
       <input ref={openRef} type="file" accept=".json,application/json,.vsdx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
@@ -465,7 +511,7 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
 /** The File tab's full-window page (Office "backstage"). */
 function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onClose: () => void; onNew: () => void; onOpen: () => void; onSave: () => void; onPrint: () => void;
-  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg') => void;
+  onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg' | 'web') => void;
 }) {
   const project = useCurrentProject();
   useEffect(() => {
@@ -478,7 +524,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <Icon name={icon} size={18} /> {label}
     </button>
   );
-  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg') => (
+  const exp = (icon: string, title: string, sub: string, kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg' | 'web') => (
     <button key={kind} className="flex items-start gap-3 rounded border border-gray-200 p-3 text-left hover:border-blue-400 hover:bg-blue-50" onClick={() => onExport(kind)}>
       <Icon name={icon} size={28} className="shrink-0 text-gray-700" />
       <span><span className="block text-sm font-medium text-gray-900">{title}</span><span className="text-xs text-gray-500">{sub}</span></span>
@@ -511,6 +557,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
           {exp('exportFile', 'SVG drawing of this page', 'Scalable vector picture for Office and Visio', 'svg')}
           {exp('image', 'Selection as PNG', 'Only the selected devices and the cables between them, for a ticket or email', 'selPng')}
           {exp('exportFile', 'Selection as SVG', 'The selected items as a scalable picture', 'selSvg')}
+          {exp('exportFile', 'Web page (.html)', 'One file anyone can open in a browser: every page, zoom, device details on hover and click, search', 'web')}
           {exp('csv', 'CSV tables', 'Devices, connections, racks and port notes for Excel', 'csv')}
         </div>
         <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-gray-500">Save and share</h2>

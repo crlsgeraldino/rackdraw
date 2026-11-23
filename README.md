@@ -129,6 +129,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Web page export (File → Export → Web page)
+
+- Like Visio's Save as Web Page: one **.html** file that anyone can open in a browser, no NetCraft needed. Every
+  page as a sharp vector picture with page tabs and zoom; point at a device for its name, IP and model, click it for
+  all its details (Shape Data, your own fields, what it's cabled to port by port, notes and links). The **search box**
+  finds devices on any page by name, IP, MAC, serial and so on, and jumps to them.
+- A good hand-off for a client or a technician on site.
+
 ## Walls, doors and windows
 
 - **Insert → Floor Plan → Convert to Walls** (Visio's Office Layout): walls round the selected zones and rectangles.
