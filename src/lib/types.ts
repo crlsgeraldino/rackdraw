@@ -317,6 +317,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   pair?: string;
   /** Callout style; missing = box. */
   calloutStyle?: CalloutStyle;
+  /** Door set into a wall: the wall's thickness, so the doorway is cut out of it. */
+  wallGap?: number;
   /** Picture flipped left-right / upside down (Arrange → Flip). */
   flipX?: boolean;
   flipY?: boolean;
@@ -396,6 +398,8 @@ export interface MeasureData extends Record<string, unknown>, NodeExtras {
   variant?: 'dimension' | 'wall' | 'line';
   /** Wall thickness / line width in diagram units. */
   thickness?: number;
+  /** Wall: always show its real length beside it (not only while selected). */
+  showLength?: boolean;
   /** Line tool: colour, dashes and arrowheads. */
   color?: string;
   dashed?: boolean;

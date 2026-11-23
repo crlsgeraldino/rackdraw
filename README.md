@@ -136,6 +136,10 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Doors and windows snap into walls**: drop or move one onto (or just beside) a straight wall. A window lies along
   the wall, as thick as it is, horizontal or vertical; a door turns so its opening sits on the wall line and swings
   into the side you dropped it on.
+- A door set into a wall **cuts its doorway** out of the wall (on the canvas, in prints and in Visio exports); moving
+  it off the wall closes the gap again.
+- **Wall Lengths** (Insert → Floor Plan) shows the real length beside the selected walls, or every wall on the page
+  when none is selected (click again to hide). It uses the page's drawing scale.
 
 ## Drawing scale presets, room areas, zoom to selection
 

@@ -96,6 +96,8 @@ interface DiagramState {
   reverseCables: (ids: string[]) => void;
   /** Snaps a door or window into the wall it was dropped near (no undo step: the drag or drop took one). */
   snapDoorWindow: (id: string) => boolean;
+  /** Show (or hide) the real length of the selected walls, or of every wall on the page when none is selected. */
+  setWallLengths: (on: boolean) => number;
   /** Convert to Walls (Visio): walls round the selected zones and rectangles; rectangles are replaced, zones kept. */
   convertToWalls: (thickness?: number) => number;
   /** Insert a zone round the selection (Visio's container from selection), with room for its title. Returns its id. */
@@ -742,10 +744,25 @@ export const useDiagram = create<DiagramState>()(
           if (n?.type !== 'shape' || (n.data.kind !== 'door' && n.data.kind !== 'window') || n.data.locked) return false;
           const m = nodeSize(n);
           const hit = snapIntoWall(n.data.kind, { x: n.position.x, y: n.position.y, w: n.width ?? m.w, h: n.height ?? m.h }, pg.nodes.filter(isWall));
-          if (!hit) return false;
+          if (!hit) {
+            // Moved off its wall: no doorway to cut any more.
+            if (n.data.wallGap) commit({ nodes: pg.nodes.map((x) => (x.id === id && x.type === 'shape' ? { ...x, data: { ...x.data, wallGap: undefined } } : x)) });
+            return false;
+          }
           const { box, rotation } = hit;
-          commit({ nodes: pg.nodes.map((x) => (x.id === id && x.type === 'shape' ? { ...x, position: { x: box.x, y: box.y }, width: box.w, height: box.h, style: { ...x.style, width: box.w, height: box.h }, data: { ...x.data, rotation } } : x)) });
+          const gap = n.data.kind === 'door' ? hit.thickness : undefined;
+          commit({ nodes: pg.nodes.map((x) => (x.id === id && x.type === 'shape' ? { ...x, position: { x: box.x, y: box.y }, width: box.w, height: box.h, style: { ...x.style, width: box.w, height: box.h }, data: { ...x.data, rotation, wallGap: gap } } : x)) });
           return true;
+        },
+        setWallLengths: (on) => {
+          const pg = page();
+          const walls = pg.nodes.filter(isWall);
+          const pick = walls.some((w) => w.selected) ? walls.filter((w) => w.selected) : walls;
+          if (!pick.length) return 0;
+          const ids = new Set(pick.map((w) => w.id));
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => (ids.has(n.id) && n.type === 'measure' ? { ...n, data: { ...n.data, showLength: on || undefined } } : n)) });
+          return pick.length;
         },
         convertToWalls: (thickness = 8) => {
           const pg = page();

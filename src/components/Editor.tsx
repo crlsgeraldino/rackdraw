@@ -375,7 +375,7 @@ function Canvas() {
   }, [duplicateSelected, rf]);
 
   return (
-    <div className={`relative flex-1 ${painting ? 'nc-painting' : ''}`} style={{ fontFamily: project.display?.font }} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
+    <div className={`relative flex-1 ${painting ? 'nc-painting' : ''}`} style={{ fontFamily: project.display?.font, ['--nc-page' as string]: project.display?.pageColor ?? '#ffffff' }} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
       {rulers && <Rulers />}
       <div className="absolute inset-0" style={rulers ? { left: RULER, top: RULER } : undefined}>
       <ReactFlow<AppNode, CableEdge>

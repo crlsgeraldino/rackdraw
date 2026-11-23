@@ -408,6 +408,8 @@ function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
       const g = d.flip ? `matrix(-1 0 0 1 ${w} 0)` : undefined;
       return (
         <g transform={g}>
+          {/* Set into a wall: the doorway is cut out of it (the page colour over the wall). */}
+          {d.wallGap ? <rect x={1} y={h - 1 - d.wallGap / 2} width={r} height={d.wallGap} style={{ fill: 'var(--nc-page, #ffffff)' }} stroke="none" /> : null}
           <line x1={1} y1={h - 1} x2={r + 1} y2={h - 1} stroke={d.stroke} strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
           <line x1={1} y1={h - 1} x2={1} y2={h - 1 - r} stroke={d.stroke} strokeWidth={3} vectorEffect="non-scaling-stroke" />
           <path d={`M1 ${h - 1 - r} A${r} ${r} 0 0 1 ${r + 1} ${h - 1}`} fill="none" stroke={d.stroke} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />

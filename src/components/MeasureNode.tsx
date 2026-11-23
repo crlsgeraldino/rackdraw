@@ -91,9 +91,10 @@ function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
           </marker>
         </defs>
       </svg>
-      {(plain ? !!data.label : !wall || selected || data.label) && <div
+      {(plain ? !!data.label : !wall || selected || data.label || data.showLength) && <div
         className="absolute whitespace-nowrap rounded bg-white/90 px-1 text-[11px] font-medium"
-        style={{ left: dx / 2, top: dy / 2, transform: 'translate(-50%, -50%)', color }}
+        // A wall's length sits beside it (outside the wall), a dimension's on the line.
+        style={{ left: dx / 2 + (wall ? -uy * ((data.thickness ?? 8) / 2 + 10) : 0), top: dy / 2 + (wall ? ux * ((data.thickness ?? 8) / 2 + 10) : 0), transform: 'translate(-50%, -50%)', color }}
         title={scale ? undefined : 'Set the page scale (right panel, nothing selected) to see real lengths'}
       >
         {label}

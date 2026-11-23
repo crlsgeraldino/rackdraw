@@ -879,6 +879,7 @@ function InsertTab() {
           <Small icon="grid" label="Window" onClick={() => shape('window')} />
         </Column>
         <Column>
+          <Small icon="dimension" label="Wall Lengths" onClick={() => { const pg = activePage(useDiagram.getState().projects[useDiagram.getState().currentId]); const walls = pg.nodes.filter((n) => n.type === 'measure' && n.data.variant === 'wall'); const pick = walls.some((w) => w.selected) ? walls.filter((w) => w.selected) : walls; const on = !pick.every((w) => w.type === 'measure' && w.data.showLength); if (!s.setWallLengths(on)) alert('There are no walls on this page yet.'); else if (!pg.scale) alert('Wall lengths show once the page has a drawing scale (Design → Drawing Scale).'); }} title="Show or hide the real length beside the selected walls (or every wall on the page)" />
           <Small icon="zone" label="Convert to Walls" onClick={() => { if (!s.convertToWalls()) alert('Select the rooms (zones) or rectangles to turn into walls first.'); }} title="Walls round the selected zones and rectangles (rectangles are replaced; zones stay as rooms), like Visio's Convert to Walls" />
         </Column>
       </Group>

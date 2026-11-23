@@ -259,6 +259,13 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
               const q = d.flip ? { x: 1 - p.x, y: p.y } : p;
               return rot === 90 ? { x: 1 - q.y, y: q.x } : rot === 180 ? { x: 1 - q.x, y: 1 - q.y } : rot === 270 ? { x: q.y, y: 1 - q.x } : q;
             };
+            // The doorway cut out of the wall (page colour), under the leaf.
+            if (d.wallGap) {
+              const t2 = d.wallGap / 2 / b.h;
+              const corners = [{ x: 0, y: 1 - t2 }, { x: r / bb.w, y: 1 - t2 }, { x: r / bb.w, y: 1 + t2 }, { x: 0, y: 1 + t2 }].map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h }));
+              const gx = Math.min(...corners.map((p) => p.x)), gy = Math.min(...corners.map((p) => p.y));
+              front.push({ kind: 'rect', name: 'Doorway', box: { x: gx, y: gy, w: Math.max(...corners.map((p) => p.x)) - gx, h: Math.max(...corners.map((p) => p.y)) - gy }, fill: project.display?.pageColor ?? '#FFFFFF', line: null });
+            }
             front.push({ kind: 'line', name: 'Door', points: local.map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h })), line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5 });
           } else if (d.kind === 'window') {
             front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1 });
@@ -296,6 +303,12 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           }
           if (n.data.variant === 'wall') {
             front.push({ kind: 'line', name: 'Wall', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: '#4B5563', lineWeightPt: pt(n.data.thickness ?? 8) });
+            if (n.data.showLength && pg.scale) {
+              // The wall's length beside it.
+              const L = Math.hypot(n.data.dx, n.data.dy) || 1, ox = (-n.data.dy / L) * ((n.data.thickness ?? 8) / 2 + 10), oy = (n.data.dx / L) * ((n.data.thickness ?? 8) / 2 + 10);
+              const mx = (a.x + z.x) / 2 + ox, my = (a.y + z.y) / 2 + oy;
+              texts.push({ kind: 'rect', box: { x: X(mx) - 0.4, y: Y(my) - 0.08, w: 0.8, h: 0.16 }, fill: null, line: null, text: { text: realLength(L, pg.scale), sizePt: 7, color: '#334155' } });
+            }
             break;
           }
           const len = Math.hypot(n.data.dx, n.data.dy);

@@ -11,7 +11,7 @@ export const WALL_SNAP = 30;
  * new box and rotation, or null when no wall is near. Windows lie along the wall, as thick as it is; doors sit with
  * their opening on the wall line, swinging into the side they were dropped on.
  */
-export function snapIntoWall(kind: 'door' | 'window', box: Box, walls: MeasureNode[]): { box: Box; rotation: number } | null {
+export function snapIntoWall(kind: 'door' | 'window', box: Box, walls: MeasureNode[]): { box: Box; rotation: number; thickness: number } | null {
   const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   let best: { wall: MeasureNode; d: number; dc: number; horiz: boolean } | null = null;
   for (const w of walls) {
@@ -36,19 +36,19 @@ export function snapIntoWall(kind: 'door' | 'window', box: Box, walls: MeasureNo
   if (kind === 'window') {
     if (best.horiz) {
       const x = clamp(cx - len / 2, x0, Math.max(x0, x1 - len));
-      return { box: { x: Math.round(x), y: Math.round(y0 - t / 2), w: len, h: t }, rotation: 0 };
+      return { box: { x: Math.round(x), y: Math.round(y0 - t / 2), w: len, h: t }, rotation: 0, thickness: t };
     }
     const y = clamp(cy - len / 2, y0, Math.max(y0, y1 - len));
-    return { box: { x: Math.round(x0 - t / 2), y: Math.round(y), w: t, h: len }, rotation: 0 };
+    return { box: { x: Math.round(x0 - t / 2), y: Math.round(y), w: t, h: len }, rotation: 0, thickness: t };
   }
   // Door: a square box with the opening along its bottom edge at rotation 0 (left edge at 90, top at 180, right at 270).
   const size = Math.max(box.w, box.h);
   if (best.horiz) {
     const x = Math.round(clamp(cx - size / 2, x0, Math.max(x0, x1 - size)));
-    return cy <= y0 ? { box: { x, y: Math.round(y0 - size), w: size, h: size }, rotation: 0 } : { box: { x, y: Math.round(y0), w: size, h: size }, rotation: 180 };
+    return cy <= y0 ? { box: { x, y: Math.round(y0 - size), w: size, h: size }, rotation: 0, thickness: t } : { box: { x, y: Math.round(y0), w: size, h: size }, rotation: 180, thickness: t };
   }
   const y = Math.round(clamp(cy - size / 2, y0, Math.max(y0, y1 - size)));
-  return cx >= x0 ? { box: { x: Math.round(x0), y, w: size, h: size }, rotation: 90 } : { box: { x: Math.round(x0 - size), y, w: size, h: size }, rotation: 270 };
+  return cx >= x0 ? { box: { x: Math.round(x0), y, w: size, h: size }, rotation: 90, thickness: t } : { box: { x: Math.round(x0 - size), y, w: size, h: size }, rotation: 270, thickness: t };
 }
 
 /** The four walls round a box (centre lines on its outline). */
