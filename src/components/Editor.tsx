@@ -17,6 +17,7 @@ import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
 import { HelpHost, WhatsNewHost } from './HelpDialog';
 import { WifiOverlay } from './WifiPlan';
+import { SwitchConfigHost } from './SwitchConfigDialog';
 import { PortMapHost } from './PortMapDialog';
 import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
 import { DesktopFiles } from './DesktopFiles';
@@ -588,6 +589,7 @@ export default function Editor() {
         {!presenting && <StatusBar />}
         <PromptHost />
         <HelpHost />
+        <SwitchConfigHost />
         <WhatsNewHost />
         <PortMapHost />
         <ChangeLogHost />

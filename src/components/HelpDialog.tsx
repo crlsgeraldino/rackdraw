@@ -99,7 +99,7 @@ const SECTIONS: { id: HelpSection; label: string; body: () => ReactNode }[] = [
         <><K>External Data</K>: link a spreadsheet of devices (refresh it later), and <K>Network Scan</K> to bring in an nmap or IP-scanner export.</>,
         <><K>Layers</K> and <K>Data Graphics</K>: show or hide groups of items; small tags of device fields on every device.</>,
         <><K>Plan &amp; Quote</K>: <K>Sites</K> (the network place by place), <K>Wi-Fi Plan</K> (coverage map and how many access points a scaled floor plan needs), <K>IP Plan</K> (VLANs, subnets, next free IP), <K>Lifecycle</K> (warranties, end of life, circuits, replacement budget), <K>Bill of Materials</K> (what to order, labour and quote) and <K>Rack from Diagram</K>.</>,
-        <><K>Reports</K>: device reports to Excel / Word / CSV, <K>Labels</K> (cable, asset and patch-panel labels with QR codes), and <K>Port Map</K> (every port of a switch or panel, printed or to Excel).</>,
+        <><K>Reports</K>: device reports to Excel / Word / CSV, <K>Labels</K> (cable, asset and patch-panel labels with QR codes), <K>Port Map</K> (every port of a switch or panel, printed or to Excel), and <K>Switch Config</K> (a starting configuration from the documentation: VLANs, port descriptions, access / trunk ports, PoE; Cisco IOS, Aruba CX or a port table).</>,
       ]} />
     ),
   },

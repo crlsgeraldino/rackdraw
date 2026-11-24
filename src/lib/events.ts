@@ -25,3 +25,6 @@ export const openChangeLog = () => window.dispatchEvent(new Event(CHANGE_LOG_EVE
 /** Help (F1, the ? button): detail is the topic to open (see HelpDialog), else Getting started. */
 export const HELP_EVENT = 'netcraft:help';
 export const openHelp = (section?: string) => window.dispatchEvent(new CustomEvent(HELP_EVENT, { detail: section }));
+/** Data → Switch Config (or a switch's Port Map): detail is the switch to show first, if any. */
+export const SWITCH_CONFIG_EVENT = 'netcraft:switch-config';
+export const openSwitchConfig = (nodeId?: string) => window.dispatchEvent(new CustomEvent(SWITCH_CONFIG_EVENT, { detail: nodeId }));

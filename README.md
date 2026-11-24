@@ -70,6 +70,11 @@ and keyboard shortcuts. After each update a **What's new** window lists what cha
   and port details, cables connected or removed, rack moves, the IP plan), plus notes of your own such as ticket
   numbers; filter, search, save as CSV (Review → Change Log). It is saved with the client. Each device shows its
   own history in Shape Data, and the PDF, Word and printed reports include the last 90 days and the port maps.
+- **Switch configuration starter**: Data → Switch Config writes a starting configuration for a switch from the
+  documentation — VLANs with names, port descriptions (where each port leads, through patch panels), access and trunk
+  ports, PoE, ports turned off, the management address — as Cisco IOS / IOS-XE, Aruba AOS-CX, or a port table for
+  web-managed switches. Copy it, save it, or save every switch as a zip. It never connects to a switch and writes no
+  passwords; review it before applying.
 - **Port maps**: every port of a switch, patch panel, firewall or router on its own face, coloured by VLAN and
   state, with where each port leads (through patch panels), VLAN, speed, PoE, status and cable label; printed one
   sheet per device, copied to Excel or saved as CSV.

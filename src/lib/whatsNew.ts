@@ -11,6 +11,14 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.2.0',
+    title: 'Switch configuration starter',
+    items: [
+      'Data → Switch Config (also from a switch\'s Port Map): a starting configuration written from your documentation — VLANs with their names, port descriptions (where each port leads), access and trunk ports, PoE, ports turned off and the management address.',
+      'Cisco IOS / IOS-XE, Aruba AOS-CX, or a port table for UniFi and other web-managed switches. Copy, save one, or save every switch at once. Review it before applying: RackDraw never connects to a switch and writes no passwords.',
+    ],
+  },
+  {
     version: '1.1.0',
     title: 'Wi-Fi planning',
     items: [
