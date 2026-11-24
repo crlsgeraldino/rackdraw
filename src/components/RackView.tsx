@@ -3,6 +3,7 @@
 import { fmtRuntime, rackPower, upsRating } from '@/lib/rackPower';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { allDevices } from '@/lib/project';
+import { openPortMap } from '@/lib/events';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
 import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
@@ -421,6 +422,11 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
             }}
           >
             Show on diagram
+          </button>
+        )}
+        {device && (getStencil(device.data.stencilId)?.ports ?? []).filter((q) => q.kind === 'rj45' || q.kind === 'sfp').length >= 4 && (
+          <button className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50" onClick={() => openPortMap(device.id)}>
+            Port map
           </button>
         )}
         <button className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50" onClick={() => removeRackItem(rack.id, item.id)}>

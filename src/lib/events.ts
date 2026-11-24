@@ -16,3 +16,6 @@ export const EDIT_TEXT_EVENT = 'netcraft:edit-text';
 export const SAVE_SELECTION_EVENT = 'netcraft:save-selection';
 /** F1: open the keyboard shortcuts list. */
 export const SHORTCUTS_EVENT = 'netcraft:shortcuts';
+/** Data → Port Map (or a device's "Port map" button): detail is the device id to show first, if any. */
+export const PORT_MAP_EVENT = 'netcraft:port-map';
+export const openPortMap = (nodeId?: string) => window.dispatchEvent(new CustomEvent(PORT_MAP_EVENT, { detail: nodeId }));

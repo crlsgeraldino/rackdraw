@@ -16,6 +16,7 @@ import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
+import { PortMapHost } from './PortMapDialog';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
 import { NumberShapesDialog } from './NumberShapesDialog';
@@ -578,6 +579,7 @@ export default function Editor() {
         {!presenting && <StatusBar />}
         <PromptHost />
         <ShortcutsDialog />
+        <PortMapHost />
         <ChangeShapeDialog />
         <VersionsDialog />
         <NumberShapesDialog />

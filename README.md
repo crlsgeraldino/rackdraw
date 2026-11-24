@@ -41,6 +41,9 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Bill of Materials**: what to order (equipment, cable footage, patch cords, transceivers, jacks, racks), with a
   price book, labor estimate, markup, tax and a Word / Excel quote; port and PoE capacity per switch.
 - **Labels**: cable labels, asset labels with QR codes, patch panel strips, on Avery sheets.
+- **Port maps**: every port of a switch, patch panel, firewall or router on its own face, coloured by VLAN and
+  state, with where each port leads (through patch panels), VLAN, speed, PoE, status and cable label; printed one
+  sheet per device, copied to Excel or saved as CSV.
 
 **Check and share**
 - **Check Diagram** (Review): duplicate IPs, IPs outside the plan, ports used twice, unconnected uplinks, VLAN
@@ -63,7 +66,7 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
   - **Design**: page setup, drawing scale, layout, themes, backgrounds, connectors (line jumps), data colours and
     legend, info boxes.
   - **Data**: Shape Data, Define Shape Data, Device Table, Excel data, layers, data graphics, **Plan & Quote** (IP
-    Plan, Lifecycle, Bill of Materials, Rack from Diagram), Reports and Labels.
+    Plan, Lifecycle, Bill of Materials, Rack from Diagram), Reports, Labels and Port Map.
   - **Review**: Check Diagram, comments, find.
   - **View**: diagram / racks, full screen, zoom, show (rulers, grid, page breaks, Pan & Zoom, quick info), task
     panes.
