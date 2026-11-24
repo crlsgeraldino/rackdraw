@@ -1,5 +1,6 @@
 'use client';
 
+import { appendEntries, type ChangeEntry } from '@/lib/changeLog';
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
 import { planRacks } from '@/lib/autoRack';
@@ -231,6 +232,11 @@ interface DiagramState {
   /** Replaces `term` in the given Find hits (undoable). Returns how many fields changed. */
   replaceInHits: (hits: FindHit[], term: string, replacement: string, matchCase: boolean) => number;
   updateTitleBlock: (patch: Partial<TitleBlock>) => void;
+  /** Adds change-log entries to a client (not an undo step). */
+  appendChangeLog: (projectId: string, entries: ChangeEntry[]) => void;
+  /** Review → Change Log: a note of the user's own (ticket number, site visit…). */
+  addChangeNote: (text: string) => void;
+  clearChangeLog: () => void;
 
   // projects
   newProject: (name: string) => void;
@@ -1712,6 +1718,20 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           commit({ pages: replaceHits(cur().pages, hits, term, replacement, matchCase) });
           return hits.length;
+        },
+        appendChangeLog: (projectId, entries) => {
+          const p = get().projects[projectId];
+          if (!p || !entries.length) return;
+          set({ projects: { ...get().projects, [projectId]: { ...p, changeLog: appendEntries(p.changeLog, entries) } } });
+        },
+        addChangeNote: (text) => {
+          const t = text.trim();
+          if (!t) return;
+          get().appendChangeLog(get().currentId, [{ at: Date.now(), kind: 'note', action: 'note', target: 'Note', detail: t }]);
+        },
+        clearChangeLog: () => {
+          const p = cur();
+          set({ projects: { ...get().projects, [p.id]: { ...p, changeLog: undefined, updatedAt: Date.now() } } });
         },
         updateTitleBlock: (patch) => {
           const p = cur();

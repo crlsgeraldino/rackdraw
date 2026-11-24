@@ -17,6 +17,7 @@ import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { PortMapHost } from './PortMapDialog';
+import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
 import { NumberShapesDialog } from './NumberShapesDialog';
@@ -580,6 +581,8 @@ export default function Editor() {
         <PromptHost />
         <ShortcutsDialog />
         <PortMapHost />
+        <ChangeLogHost />
+        <ChangeLogRecorder />
         <ChangeShapeDialog />
         <VersionsDialog />
         <NumberShapesDialog />

@@ -41,6 +41,9 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Bill of Materials**: what to order (equipment, cable footage, patch cords, transceivers, jacks, racks), with a
   price book, labor estimate, markup, tax and a Word / Excel quote; port and PoE capacity per switch.
 - **Labels**: cable labels, asset labels with QR codes, patch panel strips, on Avery sheets.
+- **Change log**: every client records what changed and when (devices added or removed, IPs, serials, warranty
+  and port details, cables connected or removed, rack moves, the IP plan), plus notes of your own such as ticket
+  numbers; filter, search, save as CSV (Review → Change Log). It is saved with the client.
 - **Port maps**: every port of a switch, patch panel, firewall or router on its own face, coloured by VLAN and
   state, with where each port leads (through patch panels), VLAN, speed, PoE, status and cable label; printed one
   sheet per device, copied to Excel or saved as CSV.

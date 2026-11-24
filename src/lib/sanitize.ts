@@ -2,6 +2,7 @@
  * Checks and repairs a client read from a file or a backup before it is opened: a damaged or hand-edited file must
  * not crash the app (and keep crashing it on every start, since the open client is saved).
  */
+import { cleanChangeLog } from './changeLog';
 import { migrateProject } from './project';
 import type { AppNode, CableEdge, Page, Project } from './types';
 
@@ -73,6 +74,7 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
     pages,
     racks,
     activePageId: pages.some((pg) => pg.id === p.activePageId) ? p.activePageId : pages[0].id,
+    changeLog: cleanChangeLog(p.changeLog),
     vlans: Array.isArray(p.vlans) ? p.vlans.filter((v) => isObj(v) && typeof v.name === 'string').map((v) => ({ ...v, id: typeof v.id === 'string' ? v.id : `v-${uid()}`, vlan: String(v.vlan ?? '') })) : undefined,
     createdAt: finite(p.createdAt) ? p.createdAt : Date.now(),
     updatedAt: finite(p.updatedAt) ? p.updatedAt : Date.now(),

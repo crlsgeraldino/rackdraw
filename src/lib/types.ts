@@ -662,6 +662,8 @@ export interface Project {
   vlans?: import('./ipam').VlanDef[];
   display?: DisplaySettings;
   titleBlock?: TitleBlock;
+  /** What changed in the documentation and when (Review → Change Log), newest last. */
+  changeLog?: import('./changeLog').ChangeEntry[];
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */
   nodes?: AppNode[];
   edges?: CableEdge[];
