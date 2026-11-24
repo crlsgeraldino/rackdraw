@@ -159,6 +159,20 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         if (node) { nodes.push(node); summary.shapes++; }
         continue;
       }
+      if (it.kind === 'space') {
+        // A Visio space: a filled RackDraw room showing its area (from the page's drawing scale). The zone tints its
+        // own colour, so a darker shade of Visio's fill keeps the outline visible and the inside close to Visio's.
+        const hex = /^#[0-9a-f]{6}$/i.test(it.fill ?? '') ? it.fill! : '#22c55e';
+        const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+        const k = Math.max(...rgb) > 160 ? 0.55 : 1; // light fills (pastels, greys) are darkened; strong ones kept
+        const dark = '#' + rgb.map((v) => Math.round(v * k).toString(16).padStart(2, '0')).join('');
+        nodes.push({
+          id: `z-${uid()}`, type: 'zone', position: { x: it.x, y: it.y }, zIndex: -1, style: { width: it.w, height: it.h },
+          data: { title: it.text || 'Space', color: dark, style: 'filled', showArea: true, layer: layerId(vp, it.layers) },
+        } as AppNode);
+        summary.shapes++;
+        continue;
+      }
       if (it.kind === 'line' || ownText(it)) continue;
       if (it.kind === 'wall' && it.points && it.points.length >= 2) {
         // A Visio wall becomes a RackDraw wall (doors and windows snap into it, its length shows with the scale).

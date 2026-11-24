@@ -447,6 +447,15 @@ export class VisioPackage {
         items.push({ ...base, kind: 'window', x: wx, y: wy, w: Math.max(...pts.map((p) => p[0])) - wx, h: Math.max(...pts.map((p) => p[1])) - wy });
         continue;
       }
+      // Visio spaces (space planning / floor plans: a named area showing its floor area): rectangular ones become
+      // RackDraw rooms (filled zones showing their area), titled with the space's name, else its use ("Office").
+      const userVal = (n: string) => (userSec ? children(userSec, 'Row').find((r) => r.getAttribute('N') === n) : undefined);
+      if (/^space\b/i.test(masterName ?? '') && userVal('visFMArea') && geos.length === 1 && isRect(geos[0], t.w, t.h) && Math.abs(num(cell(s, 'Angle'))) < 1e-6) {
+        const nameRow = userVal('visFMNameDisplay'), useRow = userVal('visFMUseDisplay');
+        const title = (nameRow && cell(nameRow, 'Value')) || (useRow && cell(useRow, 'Value')) || text.split('\n')[0] || 'Space';
+        items.push({ ...base, kind: 'space', text: title, fill: fillColor, stroke: lineColor });
+        continue;
+      }
       // Visio rooms ("Room", "L" Room): their walls become RackDraw walls, and the room's name stays as text.
       if (hasKids && (/\broom\b/i.test(masterName ?? '') || /^room$/i.test(data['Shape type'] ?? ''))) {
         const walls = roomWalls(s, t.m);
@@ -740,7 +749,7 @@ export interface VisioPageInfo {
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
 export interface PageItem {
   id: string;
-  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall' | 'door' | 'window';
+  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall' | 'door' | 'window' | 'space';
   /** Wall: its thickness on the page; door: the wall it sits in. */
   thicknessPx?: number;
   /** Door: hinge, the leaf's tip when closed (on the wall) and when open, in page px. */
