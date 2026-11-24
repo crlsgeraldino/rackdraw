@@ -6,6 +6,7 @@ import { setPref, usePref } from '@/lib/prefs';
 import type { CableColorBy, DeviceColorBy } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { useDisplay } from './useDisplay';
+import { Big } from './ribbon/parts';
 
 const DEVICE_OPTIONS: { value: DeviceColorBy; label: string }[] = [
   { value: 'none', label: 'No color' },
@@ -64,11 +65,9 @@ export function ViewMenu({ label = 'View' }: { label?: string } = {}) {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50">
-        {label}{hiddenCount ? ` (${hiddenCount} hidden)` : ''} ▾
-      </button>
+      <Big icon="layers" label={`${label}${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`} caret active={open} onClick={() => setOpen((o) => !o)} title="Layers: show, hide, lock and colour groups of items" />
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-[27rem] rounded border border-gray-200 bg-white p-3 text-sm shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-[27rem] rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-xl ring-1 ring-black/5">
           <div className="mb-3 grid grid-cols-2 gap-2">
             <label className="block text-xs text-gray-600">
               Color devices by

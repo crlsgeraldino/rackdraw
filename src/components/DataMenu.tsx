@@ -6,6 +6,7 @@ import { readTable, type Table } from '@/lib/dataImport';
 import { exportDeviceList } from '@/lib/export';
 import { useCurrentProject } from '@/store/useDiagramStore';
 import { DataImportDialog } from './DataImportDialog';
+import { Big } from './ribbon/parts';
 
 type Handle = { getFile: () => Promise<File>; queryPermission?: (o: object) => Promise<string>; requestPermission?: (o: object) => Promise<string> };
 type Picker = (o: object) => Promise<Handle[]>;
@@ -66,9 +67,9 @@ export function DataMenu() {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50">Data ▾</button>
+      <Big icon="excel" label="Excel Data" caret active={open} onClick={() => setOpen((o) => !o)} title="Link a spreadsheet: import a device list, refresh it, or export one to edit in Excel" />
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg" onMouseLeave={() => setOpen(false)}>
+        <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl ring-1 ring-black/5" onMouseLeave={() => setOpen(false)}>
           <button className="block w-full px-3 py-1.5 text-left hover:bg-gray-50" onClick={() => pick(false)}>
             Import from Excel / CSV… <span className="block text-xs text-gray-400">Update devices from a spreadsheet</span>
           </button>

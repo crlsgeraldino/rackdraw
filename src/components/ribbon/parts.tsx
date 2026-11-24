@@ -1,17 +1,21 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 
 /** A labelled group of ribbon commands with its name along the bottom, like Office. */
 export function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex shrink-0 flex-col border-r border-gray-200 px-1.5 last:border-r-0">
+    <div className="ribbon-group relative flex shrink-0 flex-col px-1.5 after:absolute after:bottom-3 after:right-0 after:top-1.5 after:w-px after:bg-slate-200 last:after:hidden">
       <div className="flex min-h-0 flex-1 items-stretch gap-0.5">{children}</div>
-      <div className="mt-0.5 truncate text-center text-[10px] leading-3 text-gray-500">{label}</div>
+      <div className="mt-0.5 truncate text-center text-[10px] font-medium leading-3 tracking-wide text-slate-400">{label}</div>
     </div>
   );
 }
+
+/** Shared look of ribbon buttons: rounded, soft hover / pressed states, a clear "on" state and a keyboard focus ring. */
+const BTN = 'rounded-md text-slate-700 transition-colors duration-100 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 disabled:pointer-events-none disabled:opacity-35';
+const ON = 'bg-blue-50 text-blue-700 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.25)] hover:bg-blue-100 hover:text-blue-800';
 
 type BtnProps = {
   icon: string;
@@ -22,18 +26,19 @@ type BtnProps = {
   active?: boolean;
 };
 
-/** Large button: big icon over a (possibly two-line) label. */
-export function Big({ icon, label, onClick, disabled, title, active }: BtnProps) {
+/** Large button: big icon over a (possibly two-line) label; `caret` marks one that opens a menu. */
+export function Big({ icon, label, onClick, disabled, title, active, caret }: BtnProps & { caret?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       title={title ?? label}
-      className={`flex w-[52px] flex-col items-center justify-start gap-0.5 rounded px-0.5 pt-1 text-[11px] leading-tight text-gray-800 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-transparent ${active ? 'bg-blue-100 ring-1 ring-blue-300' : ''}`}
+      aria-pressed={active}
+      className={`${BTN} flex min-w-[54px] max-w-[86px] flex-col items-center justify-start gap-1 px-1.5 pb-1 pt-1.5 text-[11px] leading-[13px] ${active ? ON : ''}`}
     >
       <Icon name={icon} size={26} />
-      <span className="line-clamp-2 text-center">{label}</span>
+      <span className="line-clamp-2 text-center">{label}{caret && <span className="ml-0.5 text-[9px] text-slate-400">▾</span>}</span>
     </button>
   );
 }
@@ -46,25 +51,35 @@ export function Small({ icon, label, onClick, disabled, title, active, iconOnly 
       onClick={onClick}
       disabled={disabled}
       title={title ?? label}
-      aria-label={iconOnly ? label : undefined}
-      className={`flex h-[22px] items-center gap-1 whitespace-nowrap rounded px-1 text-[11px] text-gray-800 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-transparent ${active ? 'bg-blue-100 ring-1 ring-blue-300' : ''}`}
+      aria-label={label}
+      aria-pressed={active}
+      className={`${BTN} flex h-[23px] items-center gap-1 whitespace-nowrap px-1 text-[11px] ${active ? ON : ''}`}
     >
       <Icon name={icon} size={16} />
-      {!iconOnly && <span>{label}</span>}
+      {/* Hidden when the window is too narrow for this group (see the ribbon's fit check). */}
+      {!iconOnly && <span className="ribbon-label">{label}</span>}
     </button>
   );
 }
 
-/** Stacks small controls in a column (three rows fill the ribbon height). */
+/** Stacks small controls in columns of three (three rows fill the ribbon height); more than three wrap to a new column. */
 export function Column({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col justify-start gap-px py-0.5">{children}</div>;
+  const items = Children.toArray(children).filter(isValidElement);
+  const cols: React.ReactNode[][] = [];
+  for (let i = 0; i < items.length; i += 3) cols.push(items.slice(i, i + 3));
+  if (cols.length <= 1) return <div className="flex flex-col justify-start gap-px py-0.5">{children}</div>;
+  return (
+    <div className="flex gap-1">
+      {cols.map((c, i) => <div key={i} className="flex flex-col justify-start gap-px py-0.5">{c}</div>)}
+    </div>
+  );
 }
 
 /** Checkbox styled for the ribbon. */
 export function Check({ label, checked, onChange, title }: { label: string; checked: boolean; onChange: (v: boolean) => void; title?: string }) {
   return (
-    <label className="flex h-[22px] items-center gap-1 whitespace-nowrap px-1 text-[11px] text-gray-800" title={title}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-3 w-3" />
+    <label className="flex h-[23px] cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 text-[11px] text-slate-700 transition-colors hover:bg-slate-100" title={title}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-3.5 w-3.5 cursor-pointer rounded accent-blue-600" />
       {label}
     </label>
   );
@@ -112,7 +127,7 @@ export function Drop({
     <span ref={anchor} className="inline-flex">
       {trigger(() => setOpen((o) => !o), open)}
       {open && (
-        <div ref={panel} className="fixed z-[1600] rounded border border-gray-200 bg-white p-2 text-sm shadow-xl" style={{ left: pos.left, top: pos.top, width }}>
+        <div ref={panel} className="fixed z-[1600] rounded-lg border border-slate-200 bg-white p-2 text-sm shadow-xl ring-1 ring-black/5" style={{ left: pos.left, top: pos.top, width }}>
           {children(() => setOpen(false))}
         </div>
       )}

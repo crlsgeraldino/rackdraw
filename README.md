@@ -382,6 +382,17 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   drawing: 6.4 MB instead of 20 MB). Pictures no version uses any more are removed. Versions saved by earlier
   releases are compacted the first time they load.
 
+## The ribbon
+
+- Modern look: two-tone icons (the outline plus a soft colour that says what kind of command it is: blue for files
+  and arranging, green for data and checks, orange for pictures and plans, purple for drawing tools, amber for notes
+  and styles, red for delete), rounded buttons with hover / pressed / "on" states, an underline on the open tab, and
+  keyboard focus rings.
+- Fits any window from 1000 px wide: when a tab doesn't fit, its groups switch their small buttons to icons only,
+  starting from the right (hover a button for its name); widen the window and the labels come back. A tab that still
+  doesn't fit scrolls sideways (the mouse wheel scrolls it).
+- Data → **Excel Data** and **Layers** are ribbon buttons with drop-down menus.
+
 ## Keeping your work safe
 
 - **Saving** happens automatically, batched (at most a few times a second instead of on every mouse move), and is

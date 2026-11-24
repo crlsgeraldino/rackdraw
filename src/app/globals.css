@@ -102,3 +102,43 @@ body {
 /* Protection: items that can't be selected let clicks through. */
 .react-flow__node.nc-noselect { pointer-events: none !important; }
 .react-flow__node.nc-noselect * { pointer-events: none !important; }
+
+/* Ribbon form controls (font name / size boxes, page size, colour-by pickers): one modern, consistent look. */
+.ribbon-body select,
+.ribbon-body input[type="text"],
+.ribbon-body input[type="number"],
+.ribbon-body input:not([type]) {
+  border-radius: 6px;
+  border-color: #cbd5e1;
+  background-color: #fff;
+  color: #1e293b;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+.ribbon-body select:hover,
+.ribbon-body input[type="text"]:hover,
+.ribbon-body input[type="number"]:hover,
+.ribbon-body input:not([type]):hover {
+  border-color: #94a3b8;
+}
+.ribbon-body select:focus-visible,
+.ribbon-body input[type="text"]:focus-visible,
+.ribbon-body input[type="number"]:focus-visible,
+.ribbon-body input:not([type]):focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 0.25);
+}
+.ribbon-body input[type="checkbox"] {
+  accent-color: #2563eb;
+}
+
+/* A narrow window where a tab still doesn't fit with icons only: a thin sideways scrollbar. */
+.ribbon-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* Ribbon groups the window is too narrow for show their small buttons as icons only (see Ribbon's fit check). */
+.ribbon-group[data-compact] .ribbon-label {
+  display: none;
+}

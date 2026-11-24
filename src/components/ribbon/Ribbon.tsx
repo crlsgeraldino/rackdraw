@@ -1,7 +1,7 @@
 'use client';
 
 import { useReactFlow } from '@xyflow/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openFind, paletteAction } from '@/lib/events';
@@ -376,10 +376,32 @@ export function Ribbon() {
   const showBody = !collapsed || peek;
   const qat = 'flex h-6 w-6 items-center justify-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40';
 
+  // Office-style fit: when the tab is wider than the window, groups drop their small buttons' labels one at a time,
+  // starting from the right, until it fits (the tooltips still name them); widening the window brings them back.
+  // If it still doesn't fit (Design's drop-downs), the tab scrolls sideways (the mouse wheel works too).
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [scroll, setScroll] = useState(false);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const fit = () => {
+      const groups = [...el.querySelectorAll<HTMLElement>('.ribbon-group')];
+      groups.forEach((g) => g.removeAttribute('data-compact'));
+      for (let i = groups.length - 1; i >= 0 && el.scrollWidth > el.clientWidth + 1; i--) groups[i].setAttribute('data-compact', '');
+      setScroll(el.scrollWidth > el.clientWidth + 1);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    const mo = new MutationObserver(fit);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => { ro.disconnect(); mo.disconnect(); };
+  }, [active, showBody]);
+
   return (
-    <header className="relative z-40 shrink-0 select-none border-b border-gray-300 bg-white" onMouseLeave={() => collapsed && setPeek(false)}>
+    <header className="relative z-40 shrink-0 select-none border-b border-slate-200 bg-white" onMouseLeave={() => collapsed && setPeek(false)}>
       {/* Title bar with the Quick Access Toolbar */}
-      <div className="flex h-8 items-center gap-1 bg-[#3955a3] px-2 text-white">
+      <div className="flex h-8 items-center gap-1 bg-gradient-to-r from-[#2d4a99] via-[#3653a8] to-[#3d5cb6] px-2 text-white">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4.5V14" /></svg>
         <button className={qat} onClick={doc.save} title="Save to a file (.rackdraw.json)" aria-label="Save"><Icon name="save" size={15} /></button>
         <button className={qat} onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={15} /></button>
@@ -402,15 +424,15 @@ export function Ribbon() {
       </div>
 
       {/* Tab row */}
-      <div className="flex h-7 items-end gap-0.5 bg-white px-1 text-[12px]" role="tablist">
-        <button className="mb-0.5 rounded-sm bg-[#3955a3] px-3 py-0.5 text-white hover:bg-[#2e468a]" onClick={() => setFile(true)}>File</button>
+      <div className="flex h-9 items-center gap-0.5 bg-white px-1.5 text-[12.5px]" role="tablist">
+        <button className="mr-1 rounded-md bg-[#3653a8] px-3.5 py-1 font-medium text-white shadow-sm transition-colors hover:bg-[#2d4a99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70" onClick={() => setFile(true)}>File</button>
         {TABS.map((t) => (
           <button
             key={t.id}
             role="tab"
             aria-selected={active === t.id && showBody}
             onClick={() => { setTab(t.id); if (collapsed) setPeek(true); }}
-            className={`rounded-t px-3 py-1 ${active === t.id && showBody ? 'border border-b-white border-gray-300 bg-white font-medium text-[#3955a3]' : 'text-gray-700 hover:text-[#3955a3]'}`}
+            className={`relative rounded-md px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 ${active === t.id && showBody ? 'font-semibold text-[#2f55c4] after:absolute after:inset-x-2.5 after:-bottom-[5px] after:h-[3px] after:rounded-full after:bg-[#2f55c4]' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
           >
             {t.label}
           </button>
@@ -420,20 +442,23 @@ export function Ribbon() {
             role="tab"
             aria-selected={active === 'shape'}
             onClick={() => { setTab('shape'); if (collapsed) setPeek(true); }}
-            className={`rounded-t px-3 py-1 ${active === 'shape' && showBody ? 'border border-b-white border-amber-300 bg-amber-50 font-medium text-amber-800' : 'text-amber-700 hover:text-amber-900'}`}
+            className={`relative rounded-md px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 ${active === 'shape' && showBody ? 'font-semibold text-amber-700 after:absolute after:inset-x-2.5 after:-bottom-[5px] after:h-[3px] after:rounded-full after:bg-amber-500' : 'text-amber-700 hover:bg-amber-50 hover:text-amber-900'}`}
             title="Commands for the selected shape"
           >
             Shape
           </button>
         )}
-        <button className="mb-1 ml-auto rounded p-0.5 text-gray-500 hover:bg-gray-100" onClick={() => { setPref('ribbonCollapsed', !collapsed); setPeek(false); }} title={collapsed ? 'Pin the ribbon (Ctrl+F1)' : 'Collapse the ribbon (Ctrl+F1)'} aria-label="Collapse ribbon">
+        <button className="ml-auto rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" onClick={() => { setPref('ribbonCollapsed', !collapsed); setPeek(false); }} title={collapsed ? 'Pin the ribbon (Ctrl+F1)' : 'Collapse the ribbon (Ctrl+F1)'} aria-label="Collapse ribbon">
           <Icon name={collapsed ? 'chevronDown' : 'chevronUp'} size={14} />
         </button>
       </div>
 
       {/* Ribbon body */}
       {showBody && (
-        <div className={`flex h-[86px] items-stretch border-t border-gray-300 bg-[#f8f9fb] px-1 py-1 ${collapsed ? 'absolute inset-x-0 top-full shadow-lg' : ''}`} onClick={() => collapsed && setTimeout(() => setPeek(false), 0)}>
+        <div
+          ref={bodyRef}
+          onWheel={(e) => { if (scroll && e.deltaY && bodyRef.current) bodyRef.current.scrollLeft += e.deltaY; }}
+          className={`ribbon-body flex h-[90px] items-stretch ${scroll ? 'ribbon-scroll overflow-x-auto overflow-y-hidden' : ''} border-t border-slate-200 bg-white px-1 py-1 shadow-[0_1px_3px_rgba(15,23,42,0.06)] ${collapsed ? 'absolute inset-x-0 top-full shadow-lg' : ''}`} onClick={() => collapsed && setTimeout(() => setPeek(false), 0)}>
           {active === 'home' && <HomeTab />}
           {active === 'insert' && <InsertTab />}
           {active === 'design' && <DesignTab />}
@@ -1874,10 +1899,10 @@ function DataTab() {
         <Big icon="table" label="Device Table" active={table} onClick={() => setPref('deviceTable', !table)} title="Every device as an editable spreadsheet under the drawing: type in cells, sort, filter, go to a device" />
       </Group>
       <Group label="External Data">
-        <div className="flex items-start pt-1"><DataMenu /></div>
+        <DataMenu />
       </Group>
       <Group label="Layers & Colours">
-        <div className="flex items-start pt-1"><ViewMenu label="Layers" /></div>
+        <ViewMenu label="Layers" />
       </Group>
       <Group label="Data Graphics">
         <DataGraphicsMenu />

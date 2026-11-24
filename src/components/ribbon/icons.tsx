@@ -1,10 +1,12 @@
 'use client';
 
+import { Children, cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode, type SVGProps } from 'react';
+
 /**
  * Ribbon icons: small line drawings on a 20×20 grid (stroke = currentColor), drawn here so the app needs no icon
  * library. Coloured accents use fixed colours like Office icons do.
  */
-const P: Record<string, React.ReactNode> = {
+const P: Record<string, ReactNode> = {
   new: <><path d="M5 2h7l4 4v12H5z" /><path d="M12 2v4h4" /><path d="M10 9v6M7 12h6" /></>,
   open: <><path d="M2 5h6l2 2h8v9H2z" /><path d="M2 9h16" /></>,
   save: <><path d="M3 3h11l3 3v11H3z" /><path d="M6 3v5h7V3" /><rect x="6" y="11" width="8" height="6" /></>,
@@ -97,10 +99,63 @@ const P: Record<string, React.ReactNode> = {
 
 export type IconName = keyof typeof P;
 
+/*
+ * Two-tone look (like current Office / Fluent icons): the outline in the text colour, and the icon's closed shapes
+ * filled with a soft tint of a colour that says what kind of command it is.
+ */
+const TONES = {
+  blue: '#2563eb', green: '#16a34a', orange: '#ea580c', purple: '#7c3aed', amber: '#d97706', red: '#dc2626', teal: '#0891b2',
+} as const;
+const TONE_OF: Record<string, keyof typeof TONES> = {
+  // Files, pages and arranging
+  new: 'blue', open: 'amber', save: 'blue', page: 'blue', print: 'teal', exportFile: 'blue', copy: 'blue', paste: 'amber', duplicate: 'blue',
+  group: 'blue', ungroup: 'blue', arrange: 'blue', selectAll: 'blue', center: 'blue', sameSize: 'blue', flipH: 'blue', offpage: 'blue',
+  rotateRight: 'blue', rotateLeft: 'blue', changeShape: 'blue', fullscreen: 'blue', fit: 'blue', minimap: 'blue', panes: 'blue', diagram: 'blue',
+  titleBlock: 'blue', connector: 'blue', table: 'blue', defineData: 'blue', zoomIn: 'blue', zoomOut: 'blue', find: 'blue', goBack: 'blue',
+  // Data and checks
+  csv: 'green', excel: 'green', check: 'green', dataGraphics: 'green', legend: 'green', layers: 'green',
+  // Pictures and plans
+  pdf: 'red', image: 'orange', picture: 'orange', floorplan: 'orange', crop: 'orange',
+  // Drawing tools
+  shapes: 'purple', rectTool: 'purple', ellipseTool: 'purple', lasso: 'purple', pencil: 'purple', lineTool: 'purple', symbol: 'purple',
+  text: 'purple', zone: 'purple', scale: 'purple', dimension: 'purple', ruler: 'purple', jumps: 'purple', weight: 'purple', line: 'purple',
+  // Notes, styles, protection
+  note: 'amber', screenTip: 'amber', painter: 'amber', lock: 'amber', unlock: 'amber', fill: 'amber', colors: 'amber', shadow: 'amber', info: 'blue',
+  // Equipment
+  device: 'teal', racks: 'teal', library: 'teal', keyboard: 'teal', hundred: 'teal', numbering: 'teal', grid: 'teal', edit: 'teal', replace: 'teal',
+  // Destructive
+  delete: 'red', cut: 'red', close: 'red',
+};
+
+const CLOSED = new Set(['rect', 'circle', 'ellipse', 'polygon']);
+const cache = new Map<string, ReactNode>();
+
+/** Gives closed shapes without a fill of their own a soft tint of `color`. */
+function tint(node: ReactNode, color: string): ReactNode {
+  return Children.map(node, (el) => {
+    if (!isValidElement(el)) return el;
+    const props = el.props as { fill?: string; d?: string; children?: ReactNode };
+    if (el.type === Fragment) return cloneElement(el, {}, tint(props.children, color));
+    const closed = CLOSED.has(el.type as string) || (el.type === 'path' && /[zZ]\s*$/.test(props.d ?? ''));
+    return closed && props.fill === undefined ? cloneElement(el as ReactElement<SVGProps<SVGElement>>, { fill: color, fillOpacity: 0.2 }) : el;
+  });
+}
+
+function art(name: string) {
+  let a = cache.get(name);
+  if (a === undefined) {
+    const base = P[name] ?? <circle cx="10" cy="10" r="6" />;
+    const tone = TONE_OF[name];
+    a = tone ? tint(base, TONES[tone]) : base;
+    cache.set(name, a);
+  }
+  return a;
+}
+
 export function Icon({ name, size = 20, className = '' }: { name: string; size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      {P[name] ?? <circle cx="10" cy="10" r="6" />}
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      {art(name)}
     </svg>
   );
 }
