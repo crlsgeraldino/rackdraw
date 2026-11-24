@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PORT_MAP_EVENT } from '@/lib/events';
+import { openSwitchConfig, PORT_MAP_EVENT } from '@/lib/events';
 import { downloadBlob, safeName } from '@/lib/export';
 import { documentedPort, PORT_MAP_COLUMNS, PORT_MAP_CSS, portFaceSvg, portFill, portMap, portMapCells, portMapCsv, portMapDevices, portMapHtml, portMapTsv, type PortMap } from '@/lib/portMap';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -147,6 +147,11 @@ export function PortMapDialog({ nodeId, onClose }: { nodeId?: string; onClose: (
           {map && (
             <button className="rounded border border-gray-300 px-3 py-1.5 hover:bg-gray-50" onClick={() => { useDiagram.getState().selectOnlyNode(map.nodeId); useDiagram.getState().setView('diagram'); onClose(); }}>
               Show on diagram
+            </button>
+          )}
+          {map && !map.passThrough && (
+            <button className="rounded border border-gray-300 px-3 py-1.5 hover:bg-gray-50" onClick={() => { const id = map.nodeId; onClose(); openSwitchConfig(id); }} title="A starting configuration for this switch from its ports">
+              Switch config…
             </button>
           )}
           <span className="flex-1" />

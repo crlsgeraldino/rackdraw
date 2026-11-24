@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
-import { openChangeLog, openFind, openHelp, openPortMap, paletteAction } from '@/lib/events';
+import { openChangeLog, openFind, openHelp, openPortMap, openSwitchConfig, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { desktop, openClientFile, openRecent, saveClient, showFileInFolder, useFileStatus } from '@/lib/fileSave';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
@@ -2042,6 +2042,11 @@ function DataTab() {
           icon="portMap" label="Port Map"
           title="Every port of a switch, patch panel, firewall or router: where it leads (through patch panels), VLAN, speed, PoE, status and cable label — on screen, printed or to Excel"
           onClick={() => openPortMap(activePage(useDiagram.getState().projects[useDiagram.getState().currentId]).nodes.find((n) => n.selected && n.type === 'device')?.id)}
+        />
+        <Big
+          icon="terminal" label="Switch Config"
+          title="A starting configuration for a switch from the documentation: VLANs, port descriptions, access / trunk ports, PoE, ports turned off, management address — Cisco IOS, Aruba CX or a port table; review before applying"
+          onClick={() => openSwitchConfig()}
         />
       </Group>
     </>
