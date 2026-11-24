@@ -11,6 +11,11 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.2.1',
+    title: 'Faster on big drawings',
+    items: ['Pages with hundreds of cables re-draw much faster after a move: spacing parallel cables and line jumps now take a fraction of the time (several times faster at 500 cables, far more for big bundles of patch cords). The drawing is exactly the same.'],
+  },
+  {
     version: '1.2.0',
     title: 'Switch configuration starter',
     items: [

@@ -8,7 +8,7 @@ import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
 import { getStencil, useDiagram } from '@/store/useDiagramStore';
 import { cableText, deviceIndex, edgeRole, endPortName, type CableTag } from '@/lib/cableRole';
 import { activePage } from '@/lib/project';
-import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useDrawnVersion, useRoutesVersion } from '@/lib/jumps';
+import { JUMP_R, jumpsFor, laneIndex, publishDrawn, publishRoute, separateParallel, useDrawnVersion, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
 /** Items cables steer around: devices, notes and drawing shapes (not zones or the backdrop). */
@@ -138,7 +138,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   const drawnVersion = useDrawnVersion();
   // Spread into lanes where it would run on top of other cables.
   const laned = useMemo(
-    () => (pts ? separateParallel(id, pts, otherRouteEntries(id)) : null),
+    () => (pts ? separateParallel(id, pts, laneIndex()) : null),
     // routesVersion: re-lane when another cable moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id, pts, routesVersion],
@@ -152,7 +152,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
     if (route === 'straight') return getStraightPath(pos).slice(0, 3) as [string, number, number];
     if (route === 'curved') return getBezierPath(pos).slice(0, 3) as [string, number, number];
     if (laned) {
-      const { d, mid } = roundedPath(laned, corners, jumpsOn ? findJumps(laned, otherDrawnRoutes(id)) : undefined, jumpR, jumpStyle);
+      const { d, mid } = roundedPath(laned, corners, jumpsOn ? jumpsFor(id, laned) : undefined, jumpR, jumpStyle);
       return [d, mid.x, mid.y];
     }
     // No clear path (e.g. devices overlapping): fall back to a plain right-angle line.
