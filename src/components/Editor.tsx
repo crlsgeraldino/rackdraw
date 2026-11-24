@@ -50,6 +50,7 @@ import { useDisplay } from './useDisplay';
 import { Legend } from './ViewMenu';
 import { ErrorBoundary, RecoveryScreen, SaveBanner } from './SafetyNet';
 import { useSaveStatus } from '@/lib/persistence';
+import { safeFitView } from '@/lib/fit';
 
 export function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
@@ -263,7 +264,7 @@ function Canvas() {
   // Full Screen: fit each page to the screen.
   useEffect(() => {
     if (!presenting) return;
-    const t = setTimeout(() => rf.fitView({ padding: 0.04, duration: 200 }), 120);
+    const t = setTimeout(() => safeFitView(rf, { padding: 0.04, duration: 200 }), 120);
     return () => clearTimeout(t);
   }, [presenting, page.id, rf]);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
@@ -374,7 +375,7 @@ function Canvas() {
       const tools: Record<string, DrawTool | null> = { '1': null, '3': 'connector', '4': 'pencil', '6': 'line', '8': 'rect', '9': 'ellipse' };
       if (!e.shiftKey && key in tools) { e.preventDefault(); setTool(tools[key]); return; }
       if (!e.shiftKey && key === '2') { e.preventDefault(); const c = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); s.addShape('text', c); return; }
-      if (e.shiftKey && key === 'w') { e.preventDefault(); rf.fitView({ padding: 0.1, duration: 200 }); return; }
+      if (e.shiftKey && key === 'w') { e.preventDefault(); safeFitView(rf, { padding: 0.1, duration: 200 }); return; }
       if (key === 'd' && !e.shiftKey) { e.preventDefault(); duplicateSelected(); }
       else if (key === 'g') { e.preventDefault(); if (e.shiftKey) s.ungroupSelected(); else s.groupSelected(); }
       else if (key === 'a' && !e.shiftKey) { e.preventDefault(); s.selectAll(); }

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { setPref } from '@/lib/prefs';
 import type { AppNode, CableEdge, Page } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { safeFitView } from '@/lib/fit';
 
 /** Display name of an item in the navigator. */
 function itemName(n: AppNode): string {
@@ -49,7 +50,7 @@ export function NavigatorPanel() {
     setTimeout(() => {
       const p = useDiagram.getState().projects[project.id].pages.find((x) => x.id === pg.id);
       const e = kind === 'edge' ? p?.edges.find((x) => x.id === id) : undefined;
-      rf.fitView({ nodes: (e ? [e.source, e.target] : [id]).map((x) => ({ id: x })), padding: 0.6, maxZoom: 1.5, duration: 300 });
+      safeFitView(rf, { nodes: (e ? [e.source, e.target] : [id]).map((x) => ({ id: x })), padding: 0.6, maxZoom: 1.5, duration: 300 });
     }, pg.id === project.activePageId ? 30 : 350);
   };
   const toggle = (key: string) => setClosed((c) => { const n = new Set(c); if (n.has(key)) n.delete(key); else n.add(key); return n; });

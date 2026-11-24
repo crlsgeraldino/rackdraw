@@ -8,6 +8,7 @@ import { INFO_GAP, overlaySize } from '@/lib/overlays';
 import type { AppNode } from '@/lib/types';
 import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
 import { OPEN_CHECK_EVENT } from './CheckPanel';
+import { safeFitView } from '@/lib/fit';
 
 const MOD = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -119,7 +120,7 @@ export function useAutoArrange() {
       return p ? p.x + p.w / 2 : undefined;
     };
     setPositions(layoutPage(kind, items, page.edges, origin, { spacing, portX }));
-    setTimeout(() => rf.fitView({ padding: 0.2, duration: 300 }), 80);
+    setTimeout(() => safeFitView(rf, { padding: 0.2, duration: 300 }), 80);
   };
 }
 

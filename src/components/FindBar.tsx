@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { findInProject, type FindHit } from '@/lib/find';
 import type { AppNode } from '@/lib/types';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { safeFitView } from '@/lib/fit';
 
 const MAX_SHOWN = 200;
 
@@ -42,7 +43,7 @@ export function FindBar({ onClose, replaceMode }: { onClose: () => void; replace
       const pg = useDiagram.getState().projects[project.id].pages.find((p) => p.id === h.pageId);
       const edge = h.kind === 'edge' ? pg?.edges.find((e) => e.id === h.id) : undefined;
       const ids = edge ? [edge.source, edge.target] : [h.id];
-      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.6, maxZoom: 1.5, duration: 300 });
+      safeFitView(rf, { nodes: ids.map((id) => ({ id })), padding: 0.6, maxZoom: 1.5, duration: 300 });
     }, 350);
   };
   const go = (dir: 1 | -1) => {
