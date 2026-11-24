@@ -14,6 +14,7 @@ import { exportDeck } from '@/lib/deck';
 import { BomDialog } from '../BomDialog';
 import { IpPlanDialog } from '../IpPlanDialog';
 import { LifecycleDialog } from '../LifecycleDialog';
+import { LabelsDialog } from '../LabelsDialog';
 import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
@@ -1886,6 +1887,7 @@ function DataTab() {
   const [bom, setBom] = useState(false);
   const [ipPlan, setIpPlan] = useState(false);
   const [lifecycle, setLifecycle] = useState(false);
+  const [labels, setLabels] = useState(false);
   const [defining, setDefining] = useState(false);
   return (
     <>
@@ -1893,6 +1895,7 @@ function DataTab() {
       {bom && <BomDialog onClose={() => setBom(false)} />}
       {ipPlan && <IpPlanDialog onClose={() => setIpPlan(false)} />}
       {lifecycle && <LifecycleDialog onClose={() => setLifecycle(false)} />}
+      {labels && <LabelsDialog onClose={() => setLabels(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Show/Hide">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
@@ -1919,6 +1922,7 @@ function DataTab() {
       </Group>
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />
+        <Big icon="label" label="Labels" onClick={() => setLabels(true)} title="Print cable labels (both ends), asset labels with a QR code, and patch panel port strips on Avery sheets" />
         <Big icon="csv" label="Bill of Materials" onClick={() => setBom(true)} title="What to order: equipment by model, cable runs and patch cords by length, transceivers, jacks, racks and accessories, circuits; and free ports per switch" />
       </Group>
       <Group label="Validate">
