@@ -47,6 +47,17 @@ const SERVICES: Record<string, string> = {
 const NOT_EQUIPMENT = new Set(['building', 'remote-user', ...Object.keys(SERVICES)]);
 
 /**
+ * The price-book key of a piece of equipment ("eq|Switch 24-port PoE + 4 SFP|USW-Pro-24-PoE"), or undefined for what
+ * isn't bought as equipment (Internet clouds and other services, buildings, remote users). Shared with the
+ * replacement forecast, so a price typed in either place is the same price.
+ */
+export function equipmentKey(d: DeviceNode, s?: StencilDef): string | undefined {
+  if (SERVICES[d.data.stencilId] || NOT_EQUIPMENT.has(d.data.stencilId)) return undefined;
+  const model = d.data.model?.trim() || s?.defaults?.model || '';
+  return `eq|${s?.name ?? d.data.stencilId}|${model}`;
+}
+
+/**
  * Links that are not a cable you buy. Those that are a recurring service get a line (unless the diagram already
  * shows the service itself, e.g. an MPLS cloud); Wi-Fi, Bluetooth and VPN tunnels cost nothing and get none.
  */
@@ -115,7 +126,7 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
     const model = d.data.model?.trim() || s?.defaults?.model || '';
     const units = s?.rackUnits ? `${s.rackUnits}U` : '';
     const k = `${item}|${model}`;
-    const row = equip.get(k) ?? { key: `eq|${k}`, item, detail: [model, units].filter(Boolean).join(' · '), qty: 0 };
+    const row = equip.get(k) ?? { key: equipmentKey(d, s)!, item, detail: [model, units].filter(Boolean).join(' · '), qty: 0 };
     row.qty++;
     if (s?.rackUnits) work.rackDevices++;
     else if (s?.category !== 'Cabling' && !isPassThrough(d, s)) work.endpoints++;
