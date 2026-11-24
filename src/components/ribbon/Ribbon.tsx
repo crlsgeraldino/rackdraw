@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
-import { openFind, openPortMap, paletteAction } from '@/lib/events';
+import { openChangeLog, openFind, openPortMap, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
@@ -1975,6 +1975,9 @@ function ReviewTab() {
     <>
       <Group label="Proofing">
         <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} title="Find mistakes and gaps: duplicate IPs, IPs outside the IP plan, ports used twice, unconnected uplinks, warranties ending, missing details…" />
+      </Group>
+      <Group label="Tracking">
+        <Big icon="changeLog" label="Change Log" onClick={openChangeLog} title="What changed in this client's documentation and when — devices, IPs, ports, cables, racks, the IP plan — with notes of your own (ticket numbers, site visits); saved with the client, to CSV" />
       </Group>
       <Group label="Comments">
         <Big icon="note" label="New Comment" onClick={() => openComments(true)} title="Comment on the selected item" disabled={!hasSel} />

@@ -672,8 +672,8 @@ export function projectFromTemplate(t: Template['project'], name: string): Proje
 
 /** What a client becomes as a template: its drawing without the client's own details. */
 export function templateFromProject(p: Project, name: string, description: string): Template {
-  const { id: _id, name: _n, createdAt: _c, updatedAt: _u, site: _s, address: _a, contact: _ct, dataLink: _d, notes: _no, quote: _q, ...rest } = p;
-  void _id; void _n; void _c; void _u; void _s; void _a; void _ct; void _d; void _no; void _q;
+  const { id: _id, name: _n, createdAt: _c, updatedAt: _u, site: _s, address: _a, contact: _ct, dataLink: _d, notes: _no, quote: _q, changeLog: _cl, ...rest } = p;
+  void _id; void _n; void _c; void _u; void _s; void _a; void _ct; void _d; void _no; void _q; void _cl;
   const project = JSON.parse(JSON.stringify(rest)) as Template['project'];
   // The client's own paperwork stays with the client: serials, asset tags, MACs, purchase / warranty dates, and the
   // circuit's account number, circuit ID, static IPs and support phone.

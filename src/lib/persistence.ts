@@ -81,6 +81,16 @@ function writeOnce(): Promise<boolean> {
   return writing.then(() => ok);
 }
 
+/** Run before the final save (window hidden or closing): e.g. the change log writes down the last edits. */
+const beforeFinal: (() => void)[] = [];
+export const addBeforeFinalSave = (f: () => void) => { beforeFinal.push(f); };
+
+/** Saves everything now, after letting `addBeforeFinalSave` hooks record their last changes. */
+export function finalSave(): Promise<boolean> {
+  for (const f of beforeFinal) { try { f(); } catch { /* a hook must never stop the save */ } }
+  return flushSave();
+}
+
 /** Retry after a failed save (the banner's Retry button). */
 export const retrySave = () => flushSave();
 
@@ -135,11 +145,11 @@ export async function setAsideSavedData(name = 'netcraft') {
 
 if (typeof window !== 'undefined') {
   // Flush when the window is hidden or closed; Electron also calls this before closing (see electron/main.cjs).
-  const now = () => { void flushSave(); };
+  const now = () => { void finalSave(); };
   window.addEventListener('pagehide', now);
   window.addEventListener('beforeunload', now);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') now(); });
-  (window as unknown as { __rackdrawFlush?: () => Promise<boolean> }).__rackdrawFlush = flushSave;
+  (window as unknown as { __rackdrawFlush?: () => Promise<boolean> }).__rackdrawFlush = finalSave;
   // Ask the browser not to evict the workspace under storage pressure.
   void navigator.storage?.persist?.().catch(() => undefined);
 }
