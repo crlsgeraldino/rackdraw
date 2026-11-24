@@ -2,6 +2,7 @@
 
 import { appendEntries, type ChangeEntry } from '@/lib/changeLog';
 import { applyScanRows, type ScanRow } from '@/lib/scanImport';
+import type { WallMaterial } from '@/lib/wifi';
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
 import { planRacks } from '@/lib/autoRack';
@@ -17,7 +18,7 @@ import { pack, unpack, usedPool } from '@/lib/blobPool';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_LIBRARY, libraryOf, resolveLibrary, sameLibrary } from '@/lib/libraries';
 import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
-import { activePage, migrateProject, newPage } from '@/lib/project';
+import { activePage, allDevices, migrateProject, newPage } from '@/lib/project';
 import { findFreeU, fits } from '@/lib/rack';
 import { alignPositions, distributePositions, isLocked, movable, orderZ, type AlignMode, type DistributeAxis } from '@/lib/arrange';
 import { replaceHits, type FindHit } from '@/lib/find';
@@ -133,6 +134,12 @@ interface DiagramState {
   /** Sets or clears the active page's drawing scale (undoable). */
   setPageScale: (scale: PageScale | null) => void;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
+  /** Wi-Fi Plan: settings of the active page (show the coverage map, people on the floor). */
+  setPageWifi: (patch: NonNullable<Page['wifi']>) => void;
+  /** Wi-Fi Plan: what these walls are made of (one undo step). */
+  setWallMaterial: (ids: string[], material: WallMaterial) => void;
+  /** Wi-Fi Plan: adds access points (Planned) centred on these points of the active page (one undo step). */
+  placeAccessPoints: (points: { x: number; y: number }[]) => number;
   updatePort: (nodeId: string, portId: string, patch: PortData) => void;
   updateEdgeData: (id: string, patch: Partial<CableData>) => void;
   /** Applies one change to several devices on the active page (undoable). */
@@ -1096,6 +1103,31 @@ export const useDiagram = create<DiagramState>()(
             },
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
+        },
+        setPageWifi: (patch) => {
+          const pg = page();
+          commit({ pages: cur().pages.map((x) => (x.id === pg.id ? { ...x, wifi: { ...x.wifi, ...patch } } : x)) });
+        },
+        setWallMaterial: (ids, material) => {
+          if (!ids.length) return;
+          get().snapshot();
+          const set = new Set(ids);
+          commit({ nodes: page().nodes.map((n) => (set.has(n.id) && n.type === 'measure' ? ({ ...n, data: { ...n.data, material } } as AppNode) : n)) });
+        },
+        placeAccessPoints: (points) => {
+          if (!points.length) return 0;
+          get().snapshot();
+          const st = findStencil('access-point', get().customStencils);
+          const w = (st?.width ?? 60) * (st?.scale ?? 1), h = (st?.height ?? 60) * (st?.scale ?? 1);
+          const taken = new Set(allDevices(cur()).map((n) => n.data.name));
+          let k = 1;
+          const name = () => { while (taken.has(`AP-${k}`)) k++; taken.add(`AP-${k}`); return `AP-${k}`; };
+          const added: AppNode[] = points.map((p) => ({
+            id: `n-${uid()}`, type: 'device', position: { x: Math.round(p.x - w / 2), y: Math.round(p.y - h / 2) },
+            data: { ...st?.defaults, stencilId: 'access-point', name: name(), status: 'planned' } as DeviceData,
+          }));
+          commit({ nodes: [...page().nodes, ...added] });
+          return added.length;
         },
         updateNodeData: (id, patch) =>
           commit({ nodes: page().nodes.map((n) => (n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as AppNode) : n)) }),

@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.1.0',
+    title: 'Wi-Fi planning',
+    items: [
+      'Data → Wi-Fi Plan: on a floor plan with a drawing scale, a map of the estimated Wi-Fi signal from your access points, with walls taken into account.',
+      'How much of the floor gets signal good enough for calls and video, and how many access points the floor needs (for coverage and for the number of people), with a button to place the suggested ones.',
+      'Select a wall to set what it is made of (drywall, glass, brick, concrete…), and an access point to set its band and power.',
+    ],
+  },
+  {
     version: '1.0.0',
     title: 'RackDraw 1.0',
     items: [

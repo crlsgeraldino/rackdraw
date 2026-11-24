@@ -16,6 +16,7 @@ import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
 import { HelpHost, WhatsNewHost } from './HelpDialog';
+import { WifiOverlay } from './WifiPlan';
 import { PortMapHost } from './PortMapDialog';
 import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
 import { DesktopFiles } from './DesktopFiles';
@@ -463,6 +464,7 @@ function Canvas() {
         style={{ background: '#d9dde3' }}
       >
         <PageSheet />
+        <WifiOverlay />
         <GuidesLayer />
         {!presenting && <AutoConnectArrows />}
         <Panel position="top-left"><Legend /></Panel>

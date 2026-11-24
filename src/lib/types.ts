@@ -175,6 +175,8 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
   /** Layer id (see Project.layers). */
   layer?: string;
   ports?: Record<string, PortData>;
+  /** Access point: band and power for the Wi-Fi coverage estimate; missing = 5 GHz at the band's typical power. */
+  wifi?: { band?: import('./wifi').Band; eirp?: number };
   /** Which fields the label on the diagram shows; missing = name and IP. Empty = no label. */
   labelFields?: DeviceLabelField[];
   /** Where the label was dragged to, relative to its default spot. */
@@ -461,6 +463,8 @@ export interface MeasureData extends Record<string, unknown>, NodeExtras {
   arrowStart?: boolean;
   arrowEnd?: boolean;
   layer?: string;
+  /** Wall: what it is made of, for the Wi-Fi coverage estimate; missing = drywall. */
+  material?: import('./wifi').WallMaterial;
 }
 export type MeasureNode = Node<MeasureData, 'measure'>;
 export type DeviceNode = Node<DeviceData, 'device'>;
@@ -634,6 +638,8 @@ export interface Page {
   nodes: AppNode[];
   edges: CableEdge[];
   scale?: PageScale;
+  /** Floor plan: show the Wi-Fi coverage estimate (Data → Wi-Fi Plan). */
+  wifi?: { show?: boolean; people?: number };
   /** Paper size and orientation of the drawing page (Design → Page Setup); missing = Letter landscape. */
   setup?: { paper: 'letter' | 'legal' | 'tabloid' | 'a4' | 'a3'; landscape: boolean };
   /** A background page (Visio): drawn behind the pages that use it; not printed on its own. */

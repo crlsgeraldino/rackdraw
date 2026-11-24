@@ -2,6 +2,8 @@
 
 import { openChangeLog, openPortMap } from '@/lib/events';
 import { changeTime, deviceHistory } from '@/lib/changeLog';
+import { isAccessPoint } from '@/lib/wifi';
+import { ApWifiFields, WallMaterialField } from './WifiPlan';
 import { CABLE_ROLES, CABLE_TAGS, edgeRole, roleLabel, type CableRole, type CableTag } from '@/lib/cableRole';
 import { CIRCUIT_KINDS, daysUntil, LIFE_STATES, stateOf, whenText, type CircuitInfo } from '@/lib/lifecycle';
 import { parsePrice } from '@/lib/quote';
@@ -309,6 +311,11 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       </Section>
       <LifecycleSection node={node} />
       {(stencil && (CIRCUIT_STENCILS.test(stencil.id) || stencil.category === 'WAN' || stencil.category === 'Carrier') || d.circuit) && <CircuitSection node={node} />}
+      {isAccessPoint(node, stencil ?? undefined) && (
+        <Section title="Wi-Fi">
+          <ApWifiFields node={node} />
+        </Section>
+      )}
       {stencil && stencil.ports.length > 0 && (
         <Section title={`Ports (${stencil.ports.length})`}>
           <PortList node={node} ports={stencil.ports} peer={peer} />
@@ -1400,6 +1407,7 @@ export function PropertiesPanel() {
             <input type="range" min={2} max={40} className="w-full" value={m.data.thickness ?? 8} onPointerDown={() => useDiagram.getState().snapshot()} onChange={(e) => update(m.id, { thickness: Number(e.target.value) })} />
           </label>
         )}
+        {m.data.variant === 'wall' && <WallMaterialField node={m} />}
         <Field label="Label (optional)" value={m.data.label} onChange={(v) => update(m.id, { label: v || undefined })} />
         <p className="text-[10px] text-gray-400">Drag the line to move it; drag its blue ends to stretch it (hold Shift to keep it straight).</p>
         <hr className="my-4 border-gray-200" />
