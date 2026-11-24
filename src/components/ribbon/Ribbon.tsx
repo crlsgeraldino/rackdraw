@@ -11,6 +11,7 @@ import { resolveLink } from '@/lib/links';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { exportDeck } from '@/lib/deck';
+import { BomDialog } from '../BomDialog';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { deviceFieldValue, reportFields } from '@/lib/report';
@@ -1824,10 +1825,12 @@ function DataTab() {
   const table = usePref('deviceTable');
   const quick = usePref('quickInfo');
   const [reports, setReports] = useState(false);
+  const [bom, setBom] = useState(false);
   const [defining, setDefining] = useState(false);
   return (
     <>
       {reports && <ReportDialog onClose={() => setReports(false)} />}
+      {bom && <BomDialog onClose={() => setBom(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Show/Hide">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
@@ -1850,6 +1853,7 @@ function DataTab() {
       </Group>
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />
+        <Big icon="csv" label="Bill of Materials" onClick={() => setBom(true)} title="What to order: equipment by model, cable runs and patch cords by length, transceivers, jacks, racks and accessories, circuits; and free ports per switch" />
       </Group>
       <Group label="Validate">
         <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} title="Find duplicate IPs, unconnected uplinks, missing details…" />

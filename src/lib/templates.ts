@@ -272,9 +272,9 @@ function mediumNetwork(): Template['project'] {
     nodes.push(...c.nodes);
     edges.push(
       ...c.edges,
-      cable('n-core', `X${5 + i * 2}`, mdf.fp!, `PP${i + 1}`, { cable: 'Fiber', length: '3 ft' }),
-      cable(mdf.fp!, `PP${i + 1}`, c.fp!, 'PP1', { cable: 'Fiber', label: 'OM4 backbone', length: `${180 + i * 40} ft` }),
-      cable(c.fp!, 'PP1', c.switches[0], 'SFP1', { cable: 'Fiber', length: '3 ft' }),
+      cable('n-core', `X${5 + i * 2}`, mdf.fp!, `PP${i + 1}`, { cable: 'Fiber MM', length: '3 ft' }),
+      cable(mdf.fp!, `PP${i + 1}`, c.fp!, 'PP1', { cable: 'Fiber MM', label: 'OM4 backbone', length: `${180 + i * 40} ft` }),
+      cable(c.fp!, 'PP1', c.switches[0], 'SFP1', { cable: 'Fiber MM', length: '3 ft' }),
     );
   });
   const page = newPage('Network', 'network', nodes, edges);
@@ -358,9 +358,9 @@ function largeNetwork(): Template['project'] {
     c.switches.forEach((sw, si) => {
       const dcPort = `PP${bi * 2 + si + 1}`;
       edges.push(
-        cable(si ? 'n-core2' : 'n-core1', `X${3 + bi * 2}`, 'n-dcfp', dcPort, { cable: 'Fiber', length: '3 ft' }),
-        cable('n-dcfp', dcPort, c.fp!, `PP${si + 1}`, { cable: 'Fiber', ...(si ? {} : { label: `OS2 to ${b.name}` }), length: `${b.len} ft` }),
-        cable(c.fp!, `PP${si + 1}`, sw, 'SFP1', { cable: 'Fiber', length: '3 ft' }),
+        cable(si ? 'n-core2' : 'n-core1', `X${3 + bi * 2}`, 'n-dcfp', dcPort, { cable: 'Fiber SM', length: '3 ft' }),
+        cable('n-dcfp', dcPort, c.fp!, `PP${si + 1}`, { cable: 'Fiber SM', ...(si ? {} : { label: `OS2 to ${b.name}` }), length: `${b.len} ft` }),
+        cable(c.fp!, `PP${si + 1}`, sw, 'SFP1', { cable: 'Fiber SM', length: '3 ft' }),
       );
     });
   });

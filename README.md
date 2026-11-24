@@ -722,6 +722,20 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
     single-mode fiber. Four racks (a 32U data center rack and an 18U rack per building).
   - Every drop is traced end to end (endpoint → patch panel → access switch → fiber panels → core), with wall jacks,
     lengths, VLANs (1 / 10 data / 20 voice / 30 cameras), port speeds and PoE filled in.
+- **Bill of materials** (Data → **Bill of Materials**): what to order for the client, counted from every page and
+  rack:
+  - **Equipment** by type and model (with rack units); circuits and cloud services are listed separately.
+  - **Cabling**: permanent runs (over 25 ft) as bulk cable per type with total length + 10% slack and the number of
+    1000 ft boxes; patch cords and DAC cables grouped by length; cables without a length are flagged.
+  - **Transceivers**: one per active SFP / QSFP port with a cable, named by speed, form factor and fiber type
+    (e.g. "10G SFP+ LR transceiver (single-mode, LC)", "10G SFP+ copper module (RJ45)"); DAC cables need none.
+  - **Terminations**: a keystone jack + faceplate at the wall end of each horizontal run from a patch panel, and an
+    LC connector for each backbone fiber end on a fiber panel.
+  - **Racks & accessories**: racks by size, cable managers, blanking panels, shelves, PDUs, cage nuts.
+  - **Circuits & services**: Internet, MPLS, Metro Ethernet, cloud, cellular, satellite, microwave paths.
+  - **Port capacity**: every switch, firewall and patch panel with ports used / free, PoE ports and watts against the
+    switch's PoE budget, flagged at 80% of ports or PoE.
+  - Copy, CSV or Excel; the PDF export and the CSV export include both tables.
 - **Equipment for every kind of network (PAN, WLAN, LAN, CAN, MAN, WAN)**: the Shapes window has filter buttons
   (All · PAN · WLAN · LAN · CAN · MAN · WAN) that show only the built-in equipment used in that kind of network
   (imported libraries are hidden while a filter is on); searching "MAN" or "WAN" works too. 76 built-in items:

@@ -108,7 +108,7 @@ function patchPanel(count: number, fiber = false): StencilDef {
   return {
     id: fiber ? `patch-panel-fiber-${count}` : `patch-panel-${count}`, name: fiber ? `Fiber patch panel ${count}-port LC` : `Patch panel ${count}-port`, category: 'Switching',
     width: 90 + perRow * 36 + Math.floor(perRow / 6) * 14 + 60, height: 90 * rows, scale: 0.5, style: 'panel', ports, rackUnits: rows,
-    defaults: { model: fiber ? `${count}-port LC duplex fiber panel, OM4 (${rows}U)` : `${count}-port Cat6 patch panel (${rows}U)` },
+    defaults: { model: fiber ? `${count}-port LC duplex fiber panel (${rows}U)` : `${count}-port Cat6 patch panel (${rows}U)` },
   };
 }
 

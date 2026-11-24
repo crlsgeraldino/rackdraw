@@ -1,6 +1,7 @@
 import { expandHF, hasHeaderFooter } from './headerFooter';
 import { patchRows, rackCables, rackPortStates } from './rackPatching';
 import { allPaths, pathLength, type TraceHop } from './trace';
+import { billOfMaterials, bomRows } from './bom';
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { createElement } from 'react';
@@ -417,6 +418,13 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan]));
   table('Cable paths', ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'], [0.2, 0.3, 0.2, 0.15, 0.15].map((f) => f * avail),
     cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]));
+  {
+    const { sections, capacity } = billOfMaterials(p, getStencil);
+    table('Bill of materials', ['Section', 'Qty', 'Unit', 'Item', 'Detail'], [0.15, 0.07, 0.06, 0.35, 0.37].map((f) => f * avail),
+      bomRows(sections).map((r) => [String(r[0]), String(r[3]), String(r[4]), String(r[1]), String(r[2])]));
+    table('Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], [0.18, 0.24, 0.07, 0.07, 0.07, 0.12, 0.25].map((f) => f * avail),
+      capacity.map((c) => [c.device, c.model, String(c.ports), String(c.used), String(c.free), c.poeBudgetW ? `${c.poeW} / ${c.poeBudgetW}` : '', c.warning]));
+  }
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
@@ -503,6 +511,9 @@ export function exportCsv(p: Project) {
     [],
     ['CABLE PATHS'], ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'],
     ...cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]),
+    [],
+    ['BILL OF MATERIALS'], ['Section', 'Item', 'Detail', 'Qty', 'Unit'],
+    ...bomRows(billOfMaterials(p, getStencil).sections),
     [],
     ['PORT NOTES'], ['Page', 'Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],
     ...portRows(p).map((r) => [r.page, r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes]),
