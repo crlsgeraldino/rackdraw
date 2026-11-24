@@ -77,6 +77,13 @@ function mul(a: Matrix, b: Matrix): Matrix {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Decodes a .bmp file (file header + DIB) to RGBA, or null if it isn't one we can read. */
+export function bmpToRgba(bytes: Uint8Array): { w: number; h: number; rgba: Uint8ClampedArray } | null {
+  if (bytes.length < 54 || bytes[0] !== 0x42 || bytes[1] !== 0x4d) return null; // "BM"
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  try { return decodeDib(v, 14, v.getUint32(10, true)); } catch { return null; }
+}
+
 /** Decodes an uncompressed DIB to RGBA (top-down). Returns null for formats we don't handle (JPEG/PNG/RLE in DIB). */
 function decodeDib(v: DataView, offBmi: number, offBits: number): { w: number; h: number; rgba: Uint8ClampedArray } | null {
   const hdr = v.getUint32(offBmi, true);

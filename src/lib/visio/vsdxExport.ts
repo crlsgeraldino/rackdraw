@@ -11,7 +11,7 @@ import { allLinks, listLines, patternOf, type Crop, type TextLook } from '../typ
 import { resolveLink } from '../links';
 import { realArea } from '../units';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
-import { writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
+import { RD_SHAPE, writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 
 /**
  * "Save as Visio drawing": shows each page in turn and turns what is drawn into Visio shapes — devices as pictures
@@ -268,12 +268,15 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
               const t2 = d.wallGap / 2 / b.h;
               const corners = [{ x: 0, y: 1 - t2 }, { x: r / bb.w, y: 1 - t2 }, { x: r / bb.w, y: 1 + t2 }, { x: 0, y: 1 + t2 }].map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h }));
               const gx = Math.min(...corners.map((p) => p.x)), gy = Math.min(...corners.map((p) => p.y));
-              front.push({ kind: 'rect', name: 'Doorway', box: { x: gx, y: gy, w: Math.max(...corners.map((p) => p.x)) - gx, h: Math.max(...corners.map((p) => p.y)) - gy }, fill: project.display?.pageColor ?? '#FFFFFF', line: null });
+              front.push({ kind: 'rect', name: 'Doorway', box: { x: gx, y: gy, w: Math.max(...corners.map((p) => p.x)) - gx, h: Math.max(...corners.map((p) => p.y)) - gy }, fill: project.display?.pageColor ?? '#FFFFFF', line: null, data: [[RD_SHAPE, 'doorway']] });
             }
-            front.push({ kind: 'line', name: 'Door', points: local.map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h })), line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5 });
+            // Tagged so RackDraw opens it again as a door (swing, side and doorway kept).
+            const doorData: [string, string][] = [[RD_SHAPE, 'door'], ['Rotation', String(rot)], ['Flip', d.flip ? '1' : '0']];
+            if (d.wallGap) doorData.push(['Wall gap', String(d.wallGap)]);
+            front.push({ kind: 'line', name: 'Door', points: local.map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h })), line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5, data: doorData });
           } else if (d.kind === 'window') {
-            front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1 });
-            front.push({ kind: 'line', points: bb.h > bb.w ? [{ x: bb.x + bb.w / 2, y: bb.y }, { x: bb.x + bb.w / 2, y: bb.y + bb.h }] : [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75 });
+            front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1, data: [[RD_SHAPE, 'window']] });
+            front.push({ kind: 'line', name: 'Window glass', points: bb.h > bb.w ? [{ x: bb.x + bb.w / 2, y: bb.y }, { x: bb.x + bb.w / 2, y: bb.y + bb.h }] : [{ x: bb.x, y: bb.y + bb.h / 2 }, { x: bb.x + bb.w, y: bb.y + bb.h / 2 }], line: d.stroke, lineWeightPt: 0.75, data: [[RD_SHAPE, 'window-glass']] });
           } else if (d.kind === 'callout') {
             const cs = d.calloutStyle ?? 'box';
             if (cs === 'oval') front.push({ kind: 'ellipse', name: 'Callout', box: bb, ...style, text });

@@ -4,6 +4,13 @@ import { libraryNameFromFile } from '../libraries';
 import { newPage } from '../project';
 import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableEdge, type CableType, type DeviceData, type Layer, type Page, type PortDef, type Project, type StencilDef } from '../types';
 import { canvasDibEncoder, looksLikeEquipment, VisioPackage, type PageItem } from './vssx';
+import { RD_SHAPE } from './vsdxWriter';
+
+/**
+ * An SVG as a data URL, escaping only what a data URL needs (%, #, line breaks): pictures embedded in it as base64
+ * stay their own size instead of growing ~2× under full URL encoding.
+ */
+const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${svg.replace(/[%#\r\n]/g, (c) => encodeURIComponent(c))}`;
 
 /**
  * "Open a Visio drawing": turns each page of a .vsdx into a RackDraw page. Pictures become devices (their Shape
@@ -82,6 +89,28 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
     const infoFor = new Set(items.filter((i) => ownText(i) && i.name.endsWith(' info')).map((i) => i.name.replace(/\sinfo$/, '')));
 
     for (const it of items) {
+      // Doors and windows RackDraw saved come back as doors and windows (their extra lines are drawn by them).
+      const own = it.data[RD_SHAPE];
+      if (own === 'doorway' || own === 'window-glass') continue;
+      if (own === 'door' || own === 'window') {
+        const pts = it.points ?? [];
+        const box = own === 'door' && pts.length
+          ? { x: Math.min(...pts.map((p) => p[0])), y: Math.min(...pts.map((p) => p[1])), w: 0, h: 0 }
+          : { x: it.x, y: it.y, w: it.w, h: it.h };
+        if (own === 'door' && pts.length) { box.w = Math.max(...pts.map((p) => p[0])) - box.x; box.h = Math.max(...pts.map((p) => p[1])) - box.y; }
+        const rotation = Number(it.data.Rotation) || 0;
+        const wallGap = Number(it.data['Wall gap']) || undefined;
+        nodes.push({
+          id: `s-${uid()}`, type: 'shape', position: { x: box.x, y: box.y }, width: Math.max(4, box.w), height: Math.max(4, box.h),
+          data: {
+            kind: own, text: '', rotation: own === 'door' ? rotation : 0, flip: own === 'door' && it.data.Flip === '1' ? true : undefined, wallGap,
+            fill: own === 'window' ? it.fill ?? 'transparent' : 'transparent', stroke: (own === 'door' ? it.lineColor : it.stroke) ?? '#374151',
+            textColor: '#111827', fontSize: 14, layer: layerId(vp, it.layers),
+          },
+        } as AppNode);
+        summary.shapes++;
+        continue;
+      }
       if (it.kind === 'line' || ownText(it)) continue;
       if (it.kind === 'wall' && it.points && it.points.length >= 2) {
         // A Visio wall becomes a RackDraw wall (doors and windows snap into it, its length shows with the scale).
@@ -95,7 +124,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         // size and text, that cables can still connect to.
         const node: AppNode = {
           id: `s-${uid()}`, type: 'shape', position: { x: it.x, y: it.y }, width: Math.max(4, it.w), height: Math.max(4, it.h),
-          data: { kind: 'image', text: '', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(it.svg)}`, fill: 'transparent', stroke: 'transparent', textColor: '#111827', fontSize: 14, rotation: 0, layer: layerId(vp, it.layers) },
+          data: { kind: 'image', text: '', src: svgUrl(it.svg), fill: 'transparent', stroke: 'transparent', textColor: '#111827', fontSize: 14, rotation: 0, layer: layerId(vp, it.layers) },
         };
         nodes.push(node);
         nodeFor.set(it.id, { node, k: 1 });
@@ -108,7 +137,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
             id: `custom-${uid()}`,
             name: (it.masterId && it.text.split('\n')[0]) || it.name || 'Visio shape',
             library, category: 'Custom', style: 'image', custom: true,
-            image: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(it.svg)}`,
+            image: svgUrl(it.svg),
             width: Math.max(1, it.w), height: Math.max(1, it.h), scale: 1,
             ports: it.ports?.length ? it.ports : sidePorts(it.w, it.h),
           };
@@ -181,7 +210,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
       return Math.abs(dx) / w > Math.abs(dy) / h ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'bottom' : 'top';
     };
     for (const it of items) {
-      if (it.kind !== 'line' || !it.points || it.points.length < 2) continue;
+      if (it.kind !== 'line' || !it.points || it.points.length < 2 || it.data[RD_SHAPE]) continue;
       const g = glue.get(it.id);
       const a = (g?.begin && nodeFor.get(g.begin)) || byName.get(it.data.From ?? '');
       const b = (g?.end && nodeFor.get(g.end)) || byName.get(it.data.To ?? '');

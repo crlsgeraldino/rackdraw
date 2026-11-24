@@ -8,6 +8,9 @@
  */
 import { strToU8, zipSync } from 'fflate';
 
+/** Shape Data field that tells RackDraw which of its own items a Visio shape was (door, window…). */
+export const RD_SHAPE = 'RackDraw shape';
+
 export interface VPt { x: number; y: number }
 export interface VBox { x: number; y: number; w: number; h: number }
 

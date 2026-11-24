@@ -7,7 +7,7 @@
  */
 import { unzipSync, type Unzipped } from 'fflate';
 import type { PortDef } from '../types';
-import { emfToSvg, type DibEncoder } from './emf';
+import { bmpToRgba, emfToSvg, type DibEncoder } from './emf';
 import { parseTheme, themedColor, type ThemeKind, type VisioTheme } from './theme';
 
 const NS = 'http://schemas.microsoft.com/office/visio/2012/main';
@@ -450,7 +450,8 @@ export class VisioPackage {
 
       // Plain boxes, ellipses, diamonds and text, including copies of simple masters (flowchart and basic shapes):
       // kept as editable drawing shapes. Equipment and anything carrying data stays a picture / device.
-      const simple = !hasKids && !foreign && !Object.keys(data).length && (!masterId || !looksLikeEquipment(data, fields, masterName));
+      // (RackDraw's own tag on doors / windows it saved doesn't count as Shape Data here.)
+      const simple = !hasKids && !foreign && !Object.keys(data).some((k) => k !== 'RackDraw shape') && (!masterId || !looksLikeEquipment(data, fields, masterName));
       if (simple && geos.length === 0 && text) {
         items.push({ ...base, kind: 'text' });
         continue;
@@ -596,6 +597,10 @@ export class VisioPackage {
         }
       } else if (ext === 'wmf') {
         ctx.warnings.push('A WMF picture was skipped (not supported).');
+      } else if (ext === 'bmp' && bmpToRgba(data)) {
+        // Uncompressed bitmaps (often screenshots) are many times bigger than the same picture as PNG.
+        const d = bmpToRgba(data)!;
+        url = ctx.encodeDib(d.w, d.h, d.rgba);
       } else {
         const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif' : ext === 'bmp' ? 'image/bmp' : ext === 'svg' ? 'image/svg+xml' : 'image/png';
         url = `data:${mime};base64,${toBase64(data)}`;
