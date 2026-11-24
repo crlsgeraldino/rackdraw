@@ -1,6 +1,7 @@
 'use client';
 
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
+import { isPassThrough } from '@/lib/trace';
 import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
@@ -200,6 +201,8 @@ interface DiagramState {
   cropPicture: (id: string, crop: { l: number; t: number; r: number; b: number } | null) => void;
   /** Lasso Select: selects these items (and the cables between selected items); `add` keeps the current selection. */
   selectIds: (ids: string[], add?: boolean) => void;
+  /** Selects exactly these items and cables on the active page (a traced cable path). */
+  selectPath: (nodeIds: string[], edgeIds: string[]) => void;
   /** Adds a table (Insert → Table) centred on `position`. */
   addTable: (position: { x: number; y: number }, cells: string[][]) => void;
   /** Renames items on the active page in one undo step: devices get a new name, drawing shapes new text. */
@@ -424,8 +427,11 @@ function turnDevice(n: AppNode, rotation: number, stencil?: StencilDef): AppNode
 
 /** Is this device port already cabled on the page? (Ports of drawing shapes never count as taken.) */
 export function portTaken(pg: Page, nodeId: string, handle?: string | null) {
-  if (!handle || pg.nodes.find((n) => n.id === nodeId)?.type !== 'device') return false;
-  return pg.edges.some((e) => (e.source === nodeId && e.sourceHandle === handle) || (e.target === nodeId && e.targetHandle === handle));
+  const n = pg.nodes.find((x) => x.id === nodeId);
+  if (!handle || n?.type !== 'device') return false;
+  const used = pg.edges.filter((e) => (e.source === nodeId && e.sourceHandle === handle) || (e.target === nodeId && e.targetHandle === handle)).length;
+  // A patch panel port takes two cables: the patch cord on its front and the run on its back.
+  return used >= (isPassThrough(n, getStencil(n.data.stencilId)) ? 2 : 1);
 }
 
 /** Usual text size (px) of each kind of item, for A+ / A− on items that have none set. */
@@ -733,7 +739,7 @@ export const useDiagram = create<DiagramState>()(
         },
         onConnect: (c) => {
           if (c.source === c.target && c.sourceHandle === c.targetHandle) return;
-          // A device port takes one cable (drawing shapes' sides take any number of lines).
+          // A device port takes one cable, a patch panel port two (drawing shapes' sides take any number of lines).
           if (portTaken(page(), c.source, c.sourceHandle) || portTaken(page(), c.target, c.targetHandle)) return;
           get().snapshot();
           // Device-to-device links are network cables; anything touching a drawing shape is a plain arrow line.
@@ -1461,6 +1467,14 @@ export const useDiagram = create<DiagramState>()(
             return !!e.selected === sel ? e : { ...e, selected: sel };
           });
           commit({ nodes, edges });
+        },
+        selectPath: (nodeIds, edgeIds) => {
+          const pg = page();
+          const n = new Set(nodeIds), e = new Set(edgeIds);
+          commit({
+            nodes: pg.nodes.map((x) => (!!x.selected === n.has(x.id) ? x : { ...x, selected: n.has(x.id) })),
+            edges: pg.edges.map((x) => (!!x.selected === e.has(x.id) ? x : { ...x, selected: e.has(x.id) })),
+          });
         },
         addTable: (position, cells) => {
           get().snapshot();

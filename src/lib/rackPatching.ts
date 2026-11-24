@@ -94,6 +94,6 @@ export function patchRows(p: Project, rack: Rack, stencil: (id: string) => Stenc
     };
   };
   return rackCables(p, rack)
-    .map((c) => ({ id: c.id, from: end(c.a), to: end(c.b), cable: c.data?.cable ?? 'Cat6', vlan: c.data?.vlan ?? '', label: c.data?.label ?? '', length: c.data?.length ?? '', color: c.color, inside: c.inside }))
+    .map((c) => ({ id: c.id, fromId: c.a.nodeId, fromPort: c.a.port, from: end(c.a), to: end(c.b), cable: c.data?.cable ?? 'Cat6', vlan: c.data?.vlan ?? '', label: c.data?.label ?? '', length: c.data?.length ?? '', color: c.color, inside: c.inside }))
     .sort((x, y) => (rack.items.find((it) => rackLabel(it) === y.from.position)?.u ?? 0) - (rack.items.find((it) => rackLabel(it) === x.from.position)?.u ?? 0) || x.from.port.localeCompare(y.from.port, undefined, { numeric: true }));
 }

@@ -1,5 +1,6 @@
 import { expandHF, hasHeaderFooter } from './headerFooter';
 import { patchRows, rackCables, rackPortStates } from './rackPatching';
+import { allPaths, pathLength, type TraceHop } from './trace';
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { createElement } from 'react';
@@ -157,6 +158,22 @@ export function patchingRows(p: Project) {
     rack: r.name, fromPosition: x.from.position, fromDevice: x.from.device, fromPort: x.from.port,
     toDevice: x.to.device, toPort: x.to.port, toWhere: x.to.where ? x.to.where : x.to.position, cable: x.cable, vlan: x.vlan, length: x.length,
   })));
+}
+
+/** End-to-end cable paths through patch panels: from, via (panel ports), to, with jack notes and cable types. */
+export function cablePathRows(p: Project) {
+  const label = (h: TraceHop) => [h.name, h.portLabel].filter(Boolean).join(' ');
+  return allPaths(p, getStencil).map((t) => {
+    const ends = t.hops.filter((h) => !h.passThrough);
+    const via = t.hops.filter((h) => h.passThrough);
+    return {
+      from: ends[0] ? label(ends[0]) : label(t.hops[0]),
+      via: via.map((h) => label(h) + (h.where ? ` (${h.where})` : '')).join(' → '),
+      to: ends.length > 1 ? label(ends[ends.length - 1]) : '(not connected)',
+      notes: via.map((h) => h.note).filter(Boolean).join('; '),
+      cables: [[...new Set(t.links.map((l) => l.data?.cable).filter(Boolean))].join(', '), pathLength(t) && `${pathLength(t)} total`].filter(Boolean).join(' · '),
+    };
+  });
 }
 
 /* ---------- rack elevations ---------- */
@@ -398,6 +415,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
   table('Patching', ['Rack', 'Position', 'Device', 'Port', 'To device', 'Port', 'Where', 'Cable', 'VLAN'], [0.11, 0.08, 0.17, 0.07, 0.17, 0.07, 0.13, 0.1, 0.1].map((f) => f * avail),
     patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan]));
+  table('Cable paths', ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'], [0.2, 0.3, 0.2, 0.15, 0.15].map((f) => f * avail),
+    cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]));
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
@@ -481,6 +500,9 @@ export function exportCsv(p: Project) {
     [],
     ['PATCHING'], ['Rack', 'Position', 'Device', 'Port', 'To device', 'To port', 'Where', 'Cable', 'VLAN', 'Length'],
     ...patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan, r.length]),
+    [],
+    ['CABLE PATHS'], ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'],
+    ...cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]),
     [],
     ['PORT NOTES'], ['Page', 'Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],
     ...portRows(p).map((r) => [r.page, r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes]),

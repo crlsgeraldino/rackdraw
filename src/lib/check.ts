@@ -1,4 +1,5 @@
 import { resolveLink } from './links';
+import { isPassThrough } from './trace';
 import { isDocumented, type AppNode, type DeviceNode, type Project, type StencilDef } from './types';
 
 /**
@@ -85,7 +86,10 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
       if (ids.length < 2) continue;
       const [nid, h] = k.split('|');
       const n = byId.get(nid) as DeviceNode;
-      add('error', 'Port used twice', `${n.data.name} port ${portName(n, h)} has ${ids.length} cables`, pg.id, 'node', nid);
+      // A patch panel port takes two: the patch cord on its front and the run on its back.
+      const through = isPassThrough(n, stencilOf(n.data.stencilId));
+      if (through && ids.length === 2) continue;
+      add('error', 'Port used twice', `${n.data.name} port ${portName(n, h)} has ${ids.length} cables${through ? ' (a patch panel port takes two: front patch cord and back run)' : ''}`, pg.id, 'node', nid);
     }
 
     // VLAN on a cable that disagrees with the VLAN noted on either port.

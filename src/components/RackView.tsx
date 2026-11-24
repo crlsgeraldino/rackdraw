@@ -5,6 +5,7 @@ import { allDevices } from '@/lib/project';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
 import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
+import { pathLength, pathText, tracePath } from '@/lib/trace';
 import { STENCILS } from '@/lib/stencils';
 import { PORT_STATUSES, type CableData, type Rack, type RackDepth, type RackItem, type StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -293,7 +294,9 @@ function PortCard({ hover }: { hover: { nodeId: string; port: string; x: number;
     cable = e.data;
   }
   const status = PORT_STATUSES.find((s) => s.value === pd.status);
+  const trace = tracePath(project, d.id, hover.port, (id) => findStencil(id, custom));
   const rows: [string, string][] = [
+    ['Path', trace.hops.length > 2 ? [pathText(trace), pathLength(trace) && `(${pathLength(trace)})`].filter(Boolean).join(' ') : ''],
     ['Cable to', far], ['Connected to', pd.description ?? ''],
     ['Cable', [cable?.cable, cable?.vlan && `VLAN ${cable.vlan}`, cable?.length, cable?.label].filter(Boolean).join(' · ')],
     ['Link', [pd.speed, pd.poe].filter(Boolean).join(' · ')], ['IP', pd.ip ?? ''], ['VLAN', pd.vlan ?? ''], ['Notes', pd.notes ?? ''],
@@ -398,7 +401,11 @@ function Patching({ rack, onlyNode, onHot }: { rack: Rack; onlyNode?: string; on
   const project = useCurrentProject();
   const custom = useDiagram((s) => s.customStencils);
   const rows = useMemo(() => {
-    const all = patchRows(project, rack, (id) => findStencil(id, custom));
+    const stencilOf = (id: string) => findStencil(id, custom);
+    const all = patchRows(project, rack, stencilOf).map((r) => {
+      const t = tracePath(project, r.fromId, r.fromPort, stencilOf);
+      return { ...r, path: t.hops.length > 2 ? pathText(t) : '' };
+    });
     if (!onlyNode) return all;
     const ids = new Set(rackCables(project, rack).filter((c) => c.a.nodeId === onlyNode || c.b.nodeId === onlyNode).map((c) => c.id));
     return all.filter((r) => ids.has(r.id));
@@ -423,6 +430,7 @@ function Patching({ rack, onlyNode, onHot }: { rack: Rack; onlyNode?: string; on
                 {end(r.from)}
                 <span className="text-[10px] text-gray-500">→ {[r.cable, r.vlan && `VLAN ${r.vlan}`, r.length, r.label].filter(Boolean).join(' · ')}</span>
                 {end(r.to)}
+                {r.path && <span className="text-[10px] text-emerald-700">⤷ {r.path}</span>}
               </span>
             </li>
           ))}

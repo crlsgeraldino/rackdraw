@@ -723,6 +723,20 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   VLAN and length, plus the port's notes (speed, PoE, status, IP, VLAN, notes). Ports marked **Down** get a red
   frame and **Disabled** ports a grey slash.
 
+### Cable paths (end-to-end tracing)
+
+- A **patch panel port takes two cables**: the patch cord on its front (to the switch) and the permanent run on its
+  back (to the desk, wall jack or another rack's panel). Check Diagram only flags a panel port with three or more.
+  Patch panels are recognised by their stencil, or by "patch panel", "keystone", "wall jack" or "faceplate" in the
+  name or model of imported equipment.
+- Open a port with a cable (select the device → **Ports**): the **Cable path** box shows the whole run through
+  patch panels, e.g. `Front desk PC NIC → Patch panel A 7 (Wall jack 1-07) → Core switch 14`, with each cable and
+  the **total length** (88 ft). **Select on diagram** selects exactly that path.
+- In the rack, the port hover card and the **Patching** list show the full path, including trunks between racks
+  (`IDF switch 1 → Patch panel B 24 → Patch panel A 24`).
+- The PDF, printout and CSV get a **Cable paths** table: from, via (panel ports and their racks), to, jack notes,
+  cable types and total length. A run that isn't patched through at the far end shows "(not connected)".
+
 ### Port details
 
 - Each port's notes (select a device → **Ports** → click a port) now also hold **Speed** (10M–100G), **PoE**

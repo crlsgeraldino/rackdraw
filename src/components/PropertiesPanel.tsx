@@ -1,16 +1,18 @@
 'use client';
 
+import { pathLength, tracePath } from '@/lib/trace';
 import { HeaderFooterEditor } from './HeaderFooterEditor';
 
 import { turnedBox } from '@/lib/rotation';
 import { fmtNum, fromUnits, useUnits } from '@/lib/measure';
 import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
 import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, PORT_SPEEDS, POE_CLASSES, PORT_STATUSES, type PortStatus, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode, patternOf, type LinePattern, type ExtraLink } from '@/lib/types';
 import { allDevices } from '@/lib/project';
-import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { findStencil, useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { activePage } from '@/lib/project';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
 import { ArrangeButtons } from './ArrangeMenu';
 import { setPref } from '@/lib/prefs';
@@ -325,12 +327,49 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
                     <textarea className={input} rows={2} value={pd.notes ?? ''} placeholder="Patch panel B-12, PoE camera, LACP member…" onFocus={snapshot} onChange={(e) => set({ notes: e.target.value })} />
                   </label>
                   {cable && <p className="text-[10px] text-green-700">Cable on the diagram: {cable}</p>}
+                  {cable && <PortPath nodeId={node.id} port={p.id} />}
                 </div>
               )}
             </li>
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * The port's whole cable path, end to end through patch panels (switch port → panel port → desk), with a button to
+ * select it on the diagram.
+ */
+function PortPath({ nodeId, port }: { nodeId: string; port: string }) {
+  const project = useCurrentProject();
+  const custom = useDiagram((s) => s.customStencils);
+  const t = useMemo(() => tracePath(project, nodeId, port, (id) => findStencil(id, custom)), [project, nodeId, port, custom]);
+  if (t.hops.length < 3 && !t.hops.some((h) => h.passThrough)) return null;
+  const pageId = activePage(project).id;
+  const here = t.links.filter((l) => l.pageId === pageId);
+  return (
+    <div className="rounded border border-emerald-200 bg-emerald-50/60 p-1.5">
+      <div className="mb-0.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+        <span>Cable path{pathLength(t) ? ` · ${pathLength(t)}` : ''}</span>
+        {here.length > 0 && (
+          <button type="button" className="rounded px-1 text-[10px] font-medium normal-case text-emerald-700 hover:bg-emerald-100" onClick={() => useDiagram.getState().selectPath(t.hops.map((h) => h.nodeId), here.map((l) => l.edgeId))}>
+            Select on diagram
+          </button>
+        )}
+      </div>
+      <ol className="space-y-0.5 text-[11px]">
+        {t.hops.map((h, i) => (
+          <li key={`${h.nodeId}${i}`} className="flex flex-wrap items-baseline gap-x-1">
+            <span className={h.nodeId === nodeId ? 'font-semibold' : ''}>{h.name}</span>
+            {h.portLabel && <span className="font-mono text-gray-600">{h.portLabel}</span>}
+            {h.passThrough && <span className="text-[9px] text-emerald-700">(panel)</span>}
+            {(h.where || h.note) && <span className="text-[10px] text-gray-400">{[h.where, h.note].filter(Boolean).join(' · ')}</span>}
+            {i < t.links.length && <span className="w-full pl-2 text-[10px] text-gray-400">↓ {[t.links[i].data?.cable, t.links[i].data?.length].filter(Boolean).join(' · ') || 'cable'}</span>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
