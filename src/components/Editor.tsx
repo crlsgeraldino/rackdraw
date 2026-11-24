@@ -15,7 +15,7 @@ import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
-import { ShortcutsDialog } from './ShortcutsDialog';
+import { HelpHost, WhatsNewHost } from './HelpDialog';
 import { PortMapHost } from './PortMapDialog';
 import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
 import { DesktopFiles } from './DesktopFiles';
@@ -29,7 +29,7 @@ import { useFollowLink } from './NodeBadges';
 import { AutoConnectArrows, captureCableRoutes, DrawOverlay, GuidesLayer, PresentBar, splitCableAtDrop } from './CanvasTools';
 import { setPresenting, setTool, usePresenting, type DrawTool } from '@/lib/tools';
 import { setPainter, usePainter } from '@/lib/tools';
-import { EDIT_TEXT_EVENT, SHORTCUTS_EVENT } from '@/lib/events';
+import { EDIT_TEXT_EVENT, openHelp } from '@/lib/events';
 import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, portTaken, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { activePage } from '@/lib/project';
@@ -355,13 +355,13 @@ function Canvas() {
       }
       if (inField(e.target)) return;
       const s = useDiagram.getState();
-      // Visio's keys: F2 edits the selected item's text, F1 lists the shortcuts.
+      // Visio's keys: F2 edits the selected item's text, F1 opens Help.
       if (e.key === 'F2') {
         const sel = activePage(s.projects[s.currentId]).nodes.filter((n) => n.selected && (n.type === 'device' || n.type === 'shape'));
         if (sel.length === 1) { e.preventDefault(); window.dispatchEvent(new CustomEvent(EDIT_TEXT_EVENT, { detail: sel[0].id })); }
         return;
       }
-      if (e.key === 'F1') { e.preventDefault(); window.dispatchEvent(new Event(SHORTCUTS_EVENT)); return; }
+      if (e.key === 'F1') { e.preventDefault(); openHelp(); return; }
       if (e.key === 'Escape' && usePainter.getState().on) { setPainter(false); return; }
       if (!mod) return;
       // Ctrl+Shift+C / Ctrl+Shift+V: copy / paste formatting (Office).
@@ -585,7 +585,8 @@ export default function Editor() {
         )}
         {!presenting && <StatusBar />}
         <PromptHost />
-        <ShortcutsDialog />
+        <HelpHost />
+        <WhatsNewHost />
         <PortMapHost />
         <ChangeLogHost />
         <ChangeLogRecorder />
