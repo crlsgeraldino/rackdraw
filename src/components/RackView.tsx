@@ -251,6 +251,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-gray-50">
       <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600">
+        <BackToDiagram />
         <span>Drag devices and accessories from the left into the rack. Drag mounted items to move them.</span>
         <label className="ml-auto flex items-center gap-1" title="Draw the cables between this rack's equipment on its front (from the diagram)">
           <input type="checkbox" checked={showCables} onChange={(e) => setShowCables(e.target.checked)} /> Patch cables
@@ -569,6 +570,19 @@ function RackProps({ rack, onHot }: { rack: Rack; onHot: (id: string | null) => 
 
 /* ------------------------------------------------------------------ */
 
+/** Back to the drawing (the same as View → Diagram, which is easy to miss from here). */
+function BackToDiagram() {
+  return (
+    <button
+      className="flex shrink-0 items-center gap-1 rounded border border-blue-300 bg-blue-50 px-2 py-0.5 font-medium text-blue-700 hover:bg-blue-100"
+      onClick={() => useDiagram.getState().setView('diagram')}
+      title="Go back to the drawing (View → Diagram)"
+    >
+      <span aria-hidden>←</span> Diagram
+    </button>
+  );
+}
+
 export function RackView() {
   const project = useCurrentProject();
   const activeId = useDiagram((s) => s.activeRackId);
@@ -602,6 +616,7 @@ export function RackView() {
         <div className="flex flex-1 items-center justify-center bg-gray-50">
           <div className="max-w-sm rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
             <p className="mb-3">No racks for <b>{project.name}</b> yet.</p>
+            <div className="mb-3 flex justify-center"><BackToDiagram /></div>
             <div className="flex flex-col items-center gap-2">
               <BuildFromDiagram className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700" />
               <button className="rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50" onClick={() => addRack('Rack A', 42)}>Add an empty 42U rack</button>
