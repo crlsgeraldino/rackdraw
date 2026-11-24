@@ -12,6 +12,8 @@ export interface PptSlide {
   w?: number;
   h?: number;
   subtitle?: string;
+  /** Alt text for the slide's picture. */
+  alt?: string;
 }
 
 const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n';
@@ -48,7 +50,7 @@ function slideXml(s: PptSlide, footer: string) {
   const k = Math.min(boxW / s.w, boxH / s.h);
   const pw = Math.round(s.w * k), ph = Math.round(s.h * k);
   const px = Math.round((SW - pw) / 2), py = Math.round(top + (boxH - ph) / 2);
-  const pic = `<p:pic><p:nvPicPr><p:cNvPr id="3" name="${esc(s.title)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
+  const pic = `<p:pic><p:nvPicPr><p:cNvPr id="3" name="${esc(s.title)}"${s.alt ? ` descr="${esc(s.alt)}"` : ''}/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
     `<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
     `<p:spPr><a:xfrm><a:off x="${px}" y="${py}"/><a:ext cx="${pw}" cy="${ph}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
   return `${XML}<p:sld xmlns:a="${A}" xmlns:r="${R}" xmlns:p="${P}"><p:cSld><p:spTree>${emptyTree}` +

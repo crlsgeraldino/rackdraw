@@ -206,6 +206,8 @@ interface DiagramState {
   selectWhere: (what: 'devices' | 'cables' | 'shapes' | 'text' | 'zones' | 'same' | `layer:${string}`) => number;
   /** Sets (or clears) the ScreenTip of the selected items. */
   setTipOnSelection: (tip: string) => void;
+  /** Alt Text for the selected items (empty removes it). */
+  setAltOnSelection: (alt: string) => void;
   /**
    * Fill / line colour for the selection (ribbon Shape Style): shapes get fill and border, cables and zones the line
    * colour. `line: null` puts cables back to automatic colouring.
@@ -1488,6 +1490,12 @@ export const useDiagram = create<DiagramState>()(
           const edges = pg.edges.map((e) => ({ ...e, selected: pickEdge(e) }));
           commit({ nodes, edges });
           return nodes.filter((n) => n.selected).length + edges.filter((e) => e.selected).length;
+        },
+        setAltOnSelection: (alt) => {
+          const pg = page();
+          if (!pg.nodes.some((n) => n.selected && n.type !== 'backdrop')) return;
+          get().snapshot();
+          commit({ nodes: pg.nodes.map((n) => (n.selected && n.type !== 'backdrop' ? ({ ...n, data: { ...n.data, alt: alt.trim() || undefined } } as AppNode) : n)) });
         },
         setTipOnSelection: (tip) => {
           const pg = page();

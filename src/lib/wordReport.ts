@@ -2,6 +2,7 @@
 
 import { writeDocx, type DocBlock } from './docx';
 import { connectionRows, deviceRows, portRows, rackRows, renderRack, type PageRenderer } from './export';
+import { pageAlt, rackAlt } from './altText';
 import type { Project } from './types';
 
 /**
@@ -28,10 +29,10 @@ function fit(w: number, h: number, box = LAND) {
 export async function exportWordReport(p: Project, renderPage: PageRenderer): Promise<Uint8Array> {
   const blocks: DocBlock[] = [];
   const media: Record<string, Uint8Array> = {};
-  const add = (url: string, w: number, h: number, box = LAND) => {
+  const add = (url: string, w: number, h: number, box = LAND, alt?: string) => {
     const name = `image${Object.keys(media).length + 1}.png`;
     media[name] = dataUrlBytes(url);
-    blocks.push({ kind: 'image', media: name, ...fit(w, h, box) });
+    blocks.push({ kind: 'image', media: name, ...fit(w, h, box), alt });
   };
 
   blocks.push({ kind: 'title', text: p.name });
@@ -47,14 +48,14 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
     const img = await renderPage(pg);
     if (!img) continue;
     blocks.push({ kind: 'pageBreak' }, { kind: 'h1', text: `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` });
-    add(img.url, img.width, img.height);
+    add(img.url, img.width, img.height, LAND, pageAlt(p, pg));
   }
   // Racks are tall: they go on portrait pages, like a Visio rack diagram; the tables go back to landscape.
   const racks = p.racks ?? [];
   for (const [i, rack] of racks.entries()) {
     const img = await renderRack(p, rack);
     blocks.push(i === 0 ? { kind: 'section', landscape: false } : { kind: 'pageBreak' }, { kind: 'h1', text: `Rack: ${[rack.name, rack.location].filter(Boolean).join(' – ')}` });
-    add(img.url, img.width, img.height, PORT);
+    add(img.url, img.width, img.height, PORT, rackAlt(p, rack));
   }
   let portrait = racks.length > 0;
 

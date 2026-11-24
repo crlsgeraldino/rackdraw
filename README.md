@@ -133,6 +133,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Alt Text and accessible exports
+
+- **Alt Text** (Insert → Text → Alt Text, or right-click an item): a description of the item, like Visio's Format
+  Shape → Alt Text. Screen readers announce it on the canvas (items without one are read by name, model and IP), and
+  the web-page export shows it as the device's description.
+- **Word and PowerPoint exports describe their pictures** automatically: each page and rack picture gets alt text
+  listing what is on it (devices, areas, cables, rack contents), so the documents pass accessibility checks.
+
 ## Shape operations (Shape → Operations)
 
 - Like Visio's shape operations: select two or more drawing shapes (rectangles, rounded rectangles, ellipses,

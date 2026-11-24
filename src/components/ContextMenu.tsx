@@ -1,6 +1,6 @@
 'use client';
 
-import { editScreenTip } from './ribbon/Ribbon';
+import { editAltText, editScreenTip } from './ribbon/Ribbon';
 import { useEffect } from 'react';
 import type { CableRoute } from '@/lib/types';
 import { getStencil, useCurrentPage, useDiagram } from '@/store/useDiagramStore';
@@ -64,6 +64,7 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
     if (selCount > 1) items.push({ label: 'Group', keys: 'Ctrl+G', run: s.groupSelected });
     if (node.type !== 'backdrop' && node.data.group) items.push({ label: 'Ungroup', keys: 'Ctrl+Shift+G', run: s.ungroupSelected });
     if (node.type !== 'backdrop') items.push({ label: node.data.tip ? 'Edit ScreenTip…' : 'ScreenTip…', run: () => void editScreenTip() });
+    if (node.type !== 'backdrop') items.push({ label: node.data.alt ? 'Edit Alt Text…' : 'Alt Text…', run: () => void editAltText() });
     items.push({ label: 'Save selection as picture (PNG)', run: () => window.dispatchEvent(new CustomEvent(SAVE_SELECTION_EVENT, { detail: 'png' })) });
     if (node.type === 'device' || (node.type === 'shape' && node.data.kind !== 'window' && node.data.kind !== 'callout')) {
       items.push({ label: 'Rotate right 90°', run: () => s.rotateSelection(90) }, { label: 'Rotate left 90°', run: () => s.rotateSelection(-90) });

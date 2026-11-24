@@ -88,6 +88,8 @@ export interface NodeExtras {
   comments?: ItemComment[];
   /** ScreenTip (Insert → ScreenTip): text shown when hovering the item. */
   tip?: string;
+  /** Alt Text: a description for screen readers and exports (Visio's Format Shape → Alt Text). */
+  alt?: string;
   /** Protection: the item's text can't be edited on the drawing. */
   lockText?: boolean;
   /** Protection: the item can't be selected (clicks go through it); Arrange → Protection → Allow selecting all. */

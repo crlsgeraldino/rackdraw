@@ -29,6 +29,7 @@ import { parseLength, scaleFrom, SET_SCALE_EVENT } from '@/lib/units';
 import { CLIP_MIME, getStencil, portTaken, useCurrentPage, useCurrentProject, useDiagram, type Clipboard } from '@/store/useDiagramStore';
 import { activePage } from '@/lib/project';
 import { insertPictureFile } from '@/lib/pictures';
+import { itemAlt } from '@/lib/altText';
 import { edgeTypes } from './CableEdgeView';
 import { PageSheet, RULER, Rulers } from './CanvasPage';
 import { CheckPanel, OPEN_CHECK_EVENT } from './CheckPanel';
@@ -181,6 +182,8 @@ function Canvas() {
       const layer = (n.type === 'device' || n.type === 'shape' || n.type === 'measure') ? n.data.layer : undefined;
       // ScreenTip (Insert → ScreenTip): hover text. Devices show theirs in the quick info card instead.
       if (n.type !== 'device' && n.type !== 'backdrop' && n.data.tip) n = { ...n, domAttributes: { title: n.data.tip } } as AppNode;
+      // Alt Text: what a screen reader says for the item.
+      if (n.type !== 'backdrop') n = { ...n, ariaLabel: itemAlt(n) } as AppNode;
       // Protection → can't be selected: clicks go through to what's behind.
       if (n.type !== 'backdrop' && n.data.noSelect) n = { ...n, selectable: false, draggable: false, deletable: false, selected: false, className: [n.className, 'nc-noselect'].filter(Boolean).join(' ') } as AppNode;
       if (!layer) return n;

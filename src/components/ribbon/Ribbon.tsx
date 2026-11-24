@@ -191,6 +191,7 @@ function useDocument() {
             const w = inode.measured.width ?? 0, h = inode.measured.height ?? 0;
             const d = n.data;
             const rows: [string, string][] = fields.map((f) => [f.label, deviceFieldValue(d, f.key)] as [string, string]).filter(([, v]) => v);
+            if (d.alt?.trim()) rows.unshift(['Description', d.alt.trim()]);
             // Who it is cabled to, port to port.
             const portName = (id: string, port?: string | null) => { const o = byId.get(id); return o?.type === 'device' ? (o.data.ports?.[port ?? '']?.label || port || '') : ''; };
             const links = pg.edges.filter((e) => e.source === n.id || e.target === n.id).map((e) => {
@@ -983,6 +984,7 @@ function InsertTab() {
           </Drop>
         </div>
         <Big icon="screenTip" label="ScreenTip" onClick={() => editScreenTip()} title="Text shown when you hover the selected items" />
+        <Big icon="text" label="Alt Text" onClick={() => editAltText()} title="A description of the selected items for screen readers and exports (like Visio's Alt Text)" />
       </Group>
     </>
   );
@@ -1303,6 +1305,17 @@ function insertField(code: string) {
 }
 
 /** Insert → ScreenTip: asks for the hover text of the selected items. */
+/** Alt Text (Visio's Format Shape → Alt Text): a description of the selected items for screen readers. */
+export async function editAltText() {
+  const st = useDiagram.getState();
+  const pg = activePage(st.projects[st.currentId]);
+  const sel = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop');
+  if (!sel.length) return alert('Select the item(s) to describe first.');
+  const first = sel[0].type !== 'backdrop' ? sel[0].data.alt ?? '' : '';
+  const alt = await askText('Alt Text\nDescribe the item for someone who cannot see the drawing (screen readers, accessible exports). Leave empty to use its name. (Ctrl+Enter = OK)', first, { multiline: true });
+  if (alt !== null) st.setAltOnSelection(alt);
+}
+
 export async function editScreenTip() {
   const st = useDiagram.getState();
   const pg = activePage(st.projects[st.currentId]);
