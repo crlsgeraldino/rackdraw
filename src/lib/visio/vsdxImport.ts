@@ -78,11 +78,18 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
 
     // Text RackDraw wrote for a device's label / info box: recreate those on the device instead.
     const pictureNames = new Set(items.filter((i) => i.kind === 'picture').map((i) => i.data.Name || i.name));
-    const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
+    const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'wall' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
     const infoFor = new Set(items.filter((i) => ownText(i) && i.name.endsWith(' info')).map((i) => i.name.replace(/\sinfo$/, '')));
 
     for (const it of items) {
       if (it.kind === 'line' || ownText(it)) continue;
+      if (it.kind === 'wall' && it.points && it.points.length >= 2) {
+        // A Visio wall becomes a RackDraw wall (doors and windows snap into it, its length shows with the scale).
+        const [[x1, y1], [x2, y2]] = it.points;
+        nodes.push({ id: `m-${uid()}`, type: 'measure', position: { x: x1, y: y1 }, data: { dx: x2 - x1, dy: y2 - y1, variant: 'wall', thickness: Math.max(2, Math.round((it.thicknessPx ?? 8) * 10) / 10), layer: layerId(vp, it.layers) } });
+        summary.shapes++;
+        continue;
+      }
       if (it.kind === 'picture' && it.svg && !isEquipment(it)) {
         // Part of a drawing (an ER table, a flowchart symbol, a logo…): a picture of exactly this copy, with its own
         // size and text, that cables can still connect to.
@@ -216,7 +223,14 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
       summary.cables++;
     }
 
-    const pg = newPage(vp.name, 'network', nodes, edges);
+    // A scaled Visio page (floor plan) opens as a floor-plan page with the same drawing scale, so lengths, wall
+    // lengths and room areas read in real units.
+    const scaled = vp.scale != null && Math.abs(vp.scale - 1) > 1e-6;
+    const pg = newPage(vp.name, scaled ? 'floorplan' : 'network', nodes, edges);
+    if (scaled) {
+      const realInPerPx = 1 / (96 * vp.scale!);
+      pg.scale = vp.realUnit === 'm' ? { perPx: realInPerPx * 0.0254, unit: 'm' } : { perPx: realInPerPx / 12, unit: 'ft' };
+    }
     pg.setup = { paper: 'letter', landscape: vp.widthIn >= vp.heightIn };
     if (vp.background) pg.background = true;
     if (vp.id) pageIdOf.set(vp.id, pg.id);

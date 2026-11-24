@@ -58,6 +58,19 @@ function wrapText(text: string, width: number, charW: number): string[] {
   return out;
 }
 
+/** A Visio length as text ("4 in.", "1 ft. 6 in.", "10 cm", "0.2 m", "6\"") in inches; null if unreadable. */
+function realInches(text: string): number | null {
+  const PER: Record<string, number> = { in: 1, inch: 1, inches: 1, '"': 1, ft: 12, feet: 12, foot: 12, "'": 12, mm: 1 / 25.4, cm: 1 / 2.54, m: 39.3701 };
+  let total = 0, any = false;
+  for (const m of text.toLowerCase().matchAll(/(-?\d+(?:[.,]\d+)?)\s*(inches|inch|in|feet|foot|ft|mm|cm|m|"|')?\.?/g)) {
+    const v = Number(m[1].replace(',', '.'));
+    if (!Number.isFinite(v)) continue;
+    total += v * (PER[m[2] ?? 'in'] ?? 1);
+    any = true;
+  }
+  return any && total > 0 ? total : null;
+}
+
 /** The average of #rrggbb colours. */
 function averageColor(cs: string[]): string {
   const ch = (i: number) => Math.round(cs.reduce((a, c) => a + parseInt(c.slice(i, i + 2), 16), 0) / cs.length);
@@ -142,6 +155,9 @@ export class VisioPackage {
           variationStyle: num(sheet ? cell(sheet, 'VariationStyleIndex') : null, 0),
           widthIn: num(sheet ? cell(sheet, 'PageWidth') : null, 11),
           heightIn: num(sheet ? cell(sheet, 'PageHeight') : null, 8.5),
+          // Scaled drawings (floor plans) store shapes in real-world units: paper = real × PageScale / DrawingScale.
+          scale: sheet ? num(cell(sheet, 'PageScale'), 1) / (num(cell(sheet, 'DrawingScale'), 1) || 1) || 1 : 1,
+          realUnit: /^(M|CM|MM|KM|DL_M)$/i.test(sheet ? cellUnit(sheet, 'DrawingScale') ?? '' : '') ? 'm' : 'ft',
         });
       }
     }
@@ -250,8 +266,10 @@ export class VisioPackage {
     const parts: string[] = [];
     const get = (name: string, kind: 'line' | 'fill' | 'text') => styleCell(s, name, kind, this.styles);
 
+    // Line widths, text sizes and margins are paper sizes; on a scaled page the shape itself is in real-world units.
+    const sc = ctx.scale ?? 1;
     // Geometry
-    const lineW = Math.max(0.003, num(get('LineWeight', 'line'), 0.01));
+    const lineW = Math.max(0.003, num(get('LineWeight', 'line'), 0.01)) / sc;
     const linePattern = num(get('LinePattern', 'line'), 1);
     const lineColor = this.colorOf(s, 'line', ctx) ?? '#000000';
     const fillPattern = num(get('FillPattern', 'fill'), 1);
@@ -290,7 +308,7 @@ export class VisioPackage {
     const text = textEl?.textContent?.replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).join('\n').trim();
     // Hidden text (HideText) isn't drawn: Visio shows it only when the shape's settings turn it on.
     if (text && cell(s, 'HideText') !== '1') {
-      const size = num(sectionCell(s, 'Character', 'Size', this.styles), 0.1111);
+      const size = num(sectionCell(s, 'Character', 'Size', this.styles), 0.1111) / sc;
       const bold = (num(sectionCell(s, 'Character', 'Style', this.styles)) & 1) === 1;
       const tc = this.colorOf(s, 'font', ctx) ?? '#000000';
       // The text block: TxtPinX/Y is where its anchor point (TxtLocPinX/Y) sits; by default the block is the shape.
@@ -300,8 +318,8 @@ export class VisioPackage {
       const ty = by + th / 2;
       // Left / right aligned text starts at the block's edge (inside its margin), as Visio draws it.
       const align = num(paraCell(s, 'HorzAlign', this.styles), 1);
-      const left = num(get('LeftMargin', 'text'), 0.0556), right = num(get('RightMargin', 'text'), 0.0556);
-      const top = num(get('TopMargin', 'text'), 0.0556), bottom = num(get('BottomMargin', 'text'), 0.0556);
+      const left = num(get('LeftMargin', 'text'), 0.0556) / sc, right = num(get('RightMargin', 'text'), 0.0556) / sc;
+      const top = num(get('TopMargin', 'text'), 0.0556) / sc, bottom = num(get('BottomMargin', 'text'), 0.0556) / sc;
       const x = align === 0 ? bx + left : align === 2 ? bx + tw - right : bx + tw / 2;
       const anchor = align === 0 ? 'start' : align === 2 ? 'end' : 'middle';
       // Auto-sized text blocks (TxtWidth = the text's own width) never wrap inside their shape's width.
@@ -329,7 +347,7 @@ export class VisioPackage {
     const rels = this.rels(page.file);
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     const warnings: string[] = [];
-    const ctx: Ctx = { pkg: this, rels, folder: page.file.slice(0, page.file.lastIndexOf('/')), encodeDib, warnings, themeIndex: page.themeIndex, variationColor: page.variationColor, variationStyle: page.variationStyle };
+    const ctx: Ctx = { pkg: this, rels, folder: page.file.slice(0, page.file.lastIndexOf('/')), encodeDib, warnings, scale: page.scale, themeIndex: page.themeIndex, variationColor: page.variationColor, variationStyle: page.variationStyle };
     const shapesEl = doc.getElementsByTagNameNS(NS, 'Shapes')[0];
     const tops = shapesEl ? children(shapesEl, 'Shape') : [];
     // A shape drawn from a master only stores what differs from it: fill in the rest (size, geometry, text, styles,
@@ -346,7 +364,8 @@ export class VisioPackage {
       for (const d of Array.from(s.getElementsByTagNameNS(NS, 'Shape'))) topOf.set(d.getAttribute('ID') ?? '', id);
     }
     const H = page.heightIn;
-    const toPx = ([x, y]: [number, number]): [number, number] => [x * PX, (H - y) * PX];
+    const sc = page.scale ?? 1;
+    const toPx = ([x, y]: [number, number]): [number, number] => [x * PX * sc, (H - y) * PX * sc];
     const items: PageItem[] = [];
 
     for (const s of tops) {
@@ -398,6 +417,17 @@ export class VisioPackage {
 
       // Lines and connectors: their geometry (or begin/end points) in page coordinates.
       const lineGeo = geos.length === 1 && !hasKids && !foreign ? lineRows(geos[0]) : null;
+      // Floor-plan walls (Visio's Walls, Shell and Structure stencil): a wall along the shape's centre line, as thick
+      // as its "Wall thickness" (real-world, so scaled like the drawing).
+      const thickText = Object.entries(data).find(([k]) => /^wall\s*thickness$/i.test(k.trim()))?.[1];
+      if ((oneD || lineGeo) && (thickText != null || (/\bwall\b/i.test(masterName ?? '') && !/window/i.test(masterName ?? '')))) {
+        const thickIn = (thickText != null ? realInches(thickText) : null) ?? (t.h > 0 ? t.h : 4);
+        items.push({
+          ...base, kind: 'wall', points: [toPx(apply(t.m, 0, t.h / 2)), toPx(apply(t.m, t.w, t.h / 2))],
+          thicknessPx: Math.max(2, thickIn * PX * sc), lineColor: lineColor ?? '#000000',
+        });
+        continue;
+      }
       // 1-D shapes that draw a filled area (walls, block arrows, pipes) are pictures of themselves, not lines.
       const filledArea = fillColor != null && geos.some((g) => cell(g, 'NoFill') !== '1' && geometry(g, t.w, t.h).closed);
       if ((oneD && !filledArea) || (lineGeo && (cell(geos[0], 'NoFill') === '1' || !fillColor))) {
@@ -442,7 +472,7 @@ export class VisioPackage {
         const own = this.shape(s, ctx);
         if (!own) continue;
         const W = bbox.w, Hh = bbox.h;
-        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r3(W)} ${r3(Hh)}" width="${r3(W)}" height="${r3(Hh)}"><g transform="matrix(${PX} 0 0 ${-PX} ${r3(-bbox.x)} ${r3(H * PX - bbox.y)})">${own}</g></svg>`;
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r3(W)} ${r3(Hh)}" width="${r3(W)}" height="${r3(Hh)}"><g transform="matrix(${r3(PX * sc)} 0 0 ${r3(-PX * sc)} ${r3(-bbox.x)} ${r3(H * PX * sc - bbox.y)})">${own}</g></svg>`;
         const sec = section(s, 'Connection');
         if (sec) {
           const size = Math.max(6, Math.min(16, Math.min(W, Hh) * 0.15));
@@ -646,6 +676,9 @@ export interface VisioPageInfo {
   layers?: { name: string; visible: boolean; print: boolean; lock: boolean }[];
   /** The page's theme number (ColorSchemeIndex / ThemeIndex). */
   themeIndex?: string;
+  /** Paper inches per drawing inch (1 for unscaled pages; 1/48 at 1/4" = 1'), and the real-world unit shown. */
+  scale?: number;
+  realUnit?: 'ft' | 'm';
   /** Which of the theme's variation colours / styles the page uses. */
   variationColor?: number;
   variationStyle?: number;
@@ -654,7 +687,9 @@ export interface VisioPageInfo {
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
 export interface PageItem {
   id: string;
-  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line';
+  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall';
+  /** Wall: its thickness on the page. */
+  thicknessPx?: number;
   align?: 'left' | 'right';
   valign?: 'top' | 'bottom';
   bold?: boolean;
@@ -702,6 +737,8 @@ interface Ctx {
   folder: string;
   encodeDib: DibEncoder;
   warnings: string[];
+  /** Page scale (paper per drawing unit): line widths and text sizes are paper sizes, shapes are drawing units. */
+  scale?: number;
   themeIndex?: string;
   variationColor?: number;
   variationStyle?: number;
@@ -760,6 +797,12 @@ function inheritFrom(inst: Element, ms: Element) {
 function children(el: Element, local: string): Element[] {
   return Array.from(el.children).filter((c) => c.localName === local);
 }
+/** The display unit (U attribute) of a cell, e.g. FT, M, IN_F. */
+function cellUnit(el: Element, name: string): string | null {
+  for (const c of Array.from(el.children)) if (c.localName === 'Cell' && c.getAttribute('N') === name) return c.getAttribute('U');
+  return null;
+}
+
 function cell(el: Element, name: string): string | null {
   for (const c of Array.from(el.children)) if (c.localName === 'Cell' && c.getAttribute('N') === name) return c.getAttribute('V');
   return null;

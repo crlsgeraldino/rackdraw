@@ -710,9 +710,14 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   templates.
 - **Visio themes** are applied: shapes whose colours say "Themed" get the colours Visio shows, from the drawing's
   theme (theme and variation colours, fill / line / text styles, connector styles, keep-visible-on-white). Gradient
-  backgrounds use their gradient colours, text inside pictures wraps to its box, and walls and other 1-D shapes that
-  draw a filled area come in as pictures instead of thin lines.
-- Not carried over yet: changing the theme inside RackDraw (Design → Themes uses RackDraw's own themes).
+  backgrounds use their gradient colours, text inside pictures wraps to its box, and 1-D shapes that draw a filled
+  area (block arrows, pipes) come in as pictures instead of thin lines.
+- **Scaled Visio drawings (floor plans)** open at their paper size as floor-plan pages with the same drawing scale
+  (e.g. 1/4" = 1' or 1:100), so dimension lines, wall lengths and room areas read in real feet or metres. Visio
+  **walls** become RackDraw walls with their real thickness, so doors and windows snap into them.
+- Not carried over yet: changing the theme inside RackDraw (Design → Themes uses RackDraw's own themes); Visio room
+  shapes and window walls whose look comes from ShapeSheet formulas come in as pictures; saving a floor plan to
+  `.vsdx` doesn't write the drawing scale yet.
 
 ## Your own stencils (no code needed)
 
