@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, textDirStyle, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
-import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { deviceFieldValue } from '@/lib/report';
 import { realArea } from '@/lib/units';
 import { expandFields } from '@/lib/headerFooter';
@@ -35,7 +35,8 @@ const SIDE: Record<PortDef['side'], Position> = {
 };
 
 function usePortStates(nodeId: string) {
-  const edges = useCurrentPage().edges;
+  // The page's cable list only (it stays the same object while cables don't change).
+  const edges = useDiagram((s) => activePage(s.projects[s.currentId]).edges);
   return useMemo(() => {
     const states: Record<string, PortState> = {};
     for (const e of edges) {
@@ -133,7 +134,7 @@ function DeviceLabel({ id, data, variant }: { id: string; data: DeviceData; vari
  * dot for status when shown as icons.
  */
 function DataGraphics({ data }: { data: DeviceData }) {
-  const graphics = useCurrentProject().display?.dataGraphics;
+  const graphics = useDiagram((s) => s.projects[s.currentId]?.display?.dataGraphics);
   if (!graphics?.length) return null;
   const items = graphics.flatMap((g) => {
     const v = deviceFieldValue(data, g.field).trim();
@@ -298,7 +299,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
 function ZoneNodeView({ data, selected, width, height }: NodeProps<ZoneNode>) {
   const zs = data.style ?? 'dashed';
   // Space shapes (Visio): the room's area after its title, when the page has a drawing scale.
-  const scale = useCurrentPage().scale;
+  const scale = useDiagram((s) => activePage(s.projects[s.currentId]).scale);
   const title = data.showArea && scale && width && height ? `${data.title} · ${realArea(width, height, scale)}` : data.title;
   return (
     <>

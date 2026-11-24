@@ -15,6 +15,11 @@ const MONO = new Set(['ip', 'mac', 'serial']);
  * Drag it to move it.
  */
 export function DeviceInfoBox({ id, data }: { id: string; data: DeviceData }) {
+  // Only devices whose info box is on watch the page (the rest don't redraw on every change).
+  return data.infoBox?.show ? <InfoBoxBody id={id} data={data} /> : null;
+}
+
+function InfoBoxBody({ id, data }: { id: string; data: DeviceData }) {
   const page = useCurrentPage();
   const update = useDiagram((s) => s.updateNodeData);
   const box = data.infoBox;

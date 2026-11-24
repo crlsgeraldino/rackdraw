@@ -11,14 +11,25 @@ const routes = new Map<string, Pt[]>();
 let version = 0;
 const listeners = new Set<() => void>();
 
+/**
+ * Tell the cables that routes changed, once: many cables publish in the same moment (a whole page drawing, a device
+ * moving), and redrawing every cable for each one made big pages slow.
+ */
+let pending = false;
+function changed() {
+  version++;
+  if (pending) return;
+  pending = true;
+  queueMicrotask(() => { pending = false; listeners.forEach((l) => l()); });
+}
+
 const same = (a?: Pt[], b?: Pt[]) => !!a && !!b && a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
 
 export function publishRoute(id: string, pts: Pt[] | null) {
   if (pts ? same(routes.get(id), pts) : !routes.has(id)) return;
   if (pts) routes.set(id, pts);
   else routes.delete(id);
-  version++;
-  listeners.forEach((l) => l());
+  changed();
 }
 
 export function useRoutesVersion() {
@@ -43,8 +54,7 @@ export function publishDrawn(id: string, pts: Pt[] | null) {
   if (pts ? same(drawn.get(id), pts) : !drawn.has(id)) return;
   if (pts) drawn.set(id, pts);
   else drawn.delete(id);
-  version++;
-  listeners.forEach((l) => l());
+  changed();
 }
 export const otherDrawnRoutes = (id: string) => [...drawn.entries()].filter(([k]) => k !== id).map(([, v]) => v);
 

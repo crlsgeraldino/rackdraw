@@ -5,17 +5,24 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/router';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
-import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { getStencil, useDiagram } from '@/store/useDiagramStore';
 import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
 /** Items cables steer around: devices, notes and drawing shapes (not zones or the backdrop). */
 const BLOCKING = new Set(['device', 'note', 'shape']);
 
-/** A compact string of every obstacle's box, so edges only re-route when something actually moved or resized. */
-function obstacleKey(s: NodesStore) {
+/** How far (px) around a cable's two ends obstacles still count: the router's search grows into this area. */
+const NEAR = 400;
+
+/**
+ * A compact string of the boxes of the obstacles near a cable (within NEAR of the box round its two ends), so a cable
+ * only re-routes when something near it actually moved or resized, not whenever anything on the page moves.
+ */
+function obstacleKey(s: NodesStore, win: { left: number; top: number; right: number; bottom: number }) {
   let key = '';
   const add = (id: string, x: number, y: number, w: number, h: number) => {
+    if (x > win.right || x + w < win.left || y > win.bottom || y + h < win.top) return;
     key += `${id},${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)};`;
   };
   for (const n of s.nodeLookup.values()) {
@@ -43,16 +50,18 @@ function obstacleKey(s: NodesStore) {
   return key;
 }
 
-// Every cable on the page shares the same obstacle list; parse it once per change.
-let cache: { key: string; list: Obstacle[] } = { key: '', list: [] };
+// Parsed obstacle lists, by key (cables near each other often share one).
+const cache = new Map<string, Obstacle[]>();
 function parseObstacles(key: string): Obstacle[] {
-  if (cache.key === key) return cache.list;
+  const hit = cache.get(key);
+  if (hit) return hit;
   const list = key.split(';').filter(Boolean).map((s) => {
     const [id, x, y, w, h] = s.split(',');
     // Labels and info boxes ("<device>#…") get a smaller gap so cables can still pass between them and the device.
     return { id, left: +x, top: +y, right: +x + +w, bottom: +y + +h, clearance: id.includes('#') ? 6 : undefined };
   });
-  cache = { key, list };
+  if (cache.size > 400) cache.clear();
+  cache.set(key, list);
   return list;
 }
 
@@ -61,7 +70,9 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   const route = data?.route ?? 'step';
   // Only right-angle cables are routed around devices; subscribing costs nothing for the others.
   useOverlayVersion(); // re-route when a label or info box changes size
-  const key = useNodesStore((s) => (route === 'step' ? obstacleKey(s) : ''));
+  const key = useNodesStore((s) => (route === 'step'
+    ? obstacleKey(s, { left: Math.min(sourceX, targetX) - NEAR, top: Math.min(sourceY, targetY) - NEAR, right: Math.max(sourceX, targetX) + NEAR, bottom: Math.max(sourceY, targetY) + NEAR })
+    : ''));
 
   // Corner points of a right-angle route around obstacles (null: not routed, or no clear path).
   const pts = useMemo(() => {
@@ -77,7 +88,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   }, [route, key, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   // Line jumps: share this route with the other cables and hop over the ones crossing it.
-  const display = useCurrentProject().display;
+  const display = useDiagram((s) => s.projects[s.currentId]?.display);
   const jumpsOn = display?.lineJumps !== false;
   const jumpStyle = display?.jumpStyle ?? 'arc', jumpR = display?.jumpSize ?? JUMP_R, corners = display?.cableCorners ?? 8;
   // Every right-angle route is shared: for line jumps and for spacing parallel cables apart.

@@ -8,23 +8,24 @@ import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 
 /** Follows a hyperlink: switches page for page links, opens web links in the browser. */
 export function useFollowLink() {
-  const project = useCurrentProject();
   return (link?: string) => {
     const t = resolveLink(link);
     if (!t) return;
+    const s = useDiagram.getState();
     if (t.kind === 'url') openUrl(t.url);
-    else if (project.pages.some((p) => p.id === t.pageId)) useDiagram.getState().setActivePage(t.pageId);
+    else if (s.projects[s.currentId].pages.some((p) => p.id === t.pageId)) s.setActivePage(t.pageId);
     else alert('The page this link points to no longer exists.');
   };
 }
 
 /** Describes a link for tooltips and the properties panel. */
 export function useLinkLabel(link?: string) {
-  const project = useCurrentProject();
   const t = resolveLink(link);
+  // Only the linked page's name is watched (a string), so items don't redraw on every change.
+  const pageName = useDiagram((s) => (t?.kind === 'page' ? s.projects[s.currentId].pages.find((p) => p.id === t.pageId)?.name ?? '(deleted page)' : ''));
   if (!t) return '';
   if (t.kind === 'url') return t.url;
-  return `Page: ${project.pages.find((p) => p.id === t.pageId)?.name ?? '(deleted page)'}`;
+  return `Page: ${pageName}`;
 }
 
 /** An item's links when it has several: pick one to follow (like Visio's hyperlink list on right-click). */

@@ -173,8 +173,16 @@ function Canvas() {
     }
     return out;
   }, [page.nodes, page.edges]);
+  // What the canvas got for each item last time: an item that hasn't changed is handed over as the very same object,
+  // so React Flow doesn't redraw it (and its cables). Copying every item on every change made big pages slow.
+  const derived = useRef(new Map<string, { src: AppNode; ctx: string; out: AppNode }>());
   const nodes = useMemo(
-    () => [...bg.nodes, ...page.nodes].map((n) => {
+    () => [...bg.nodes, ...page.nodes].map((src) => {
+      const layerOf = (src.type === 'device' || src.type === 'shape' || src.type === 'measure') ? src.data.layer : undefined;
+      const ctx = `${labelBeside.has(src.id) ? 1 : 0}${layerOf && display.hidden.has(layerOf) ? 1 : 0}${layerOf && layerProps.locked.has(layerOf) ? 1 : 0}${layerOf && layerProps.noPrint.has(layerOf) ? 1 : 0}`;
+      const hit = derived.current.get(src.id);
+      if (hit && hit.src === src && hit.ctx === ctx) return hit.out;
+      let n = src;
       if (n.type === 'device') {
         const beside = labelBeside.has(n.id) || n.data.labelSide === 'left';
         if (beside || n.data.labelBeside) n = { ...n, data: { ...n.data, labelBeside: beside || undefined } };
@@ -186,15 +194,19 @@ function Canvas() {
       if (n.type !== 'backdrop') n = { ...n, ariaLabel: itemAlt(n) } as AppNode;
       // Protection → can't be selected: clicks go through to what's behind.
       if (n.type !== 'backdrop' && n.data.noSelect) n = { ...n, selectable: false, draggable: false, deletable: false, selected: false, className: [n.className, 'nc-noselect'].filter(Boolean).join(' ') } as AppNode;
-      if (!layer) return n;
-      if (display.hidden.has(layer)) return { ...n, hidden: true };
-      const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);
-      if (!locked && !noPrint) return n;
-      return {
-        ...n,
-        ...(locked ? { selectable: false, draggable: false, deletable: false, selected: false } : {}),
-        ...(noPrint ? { className: [n.className, 'nc-noprint'].filter(Boolean).join(' ') } : {}),
-      };
+      const out = ((): AppNode => {
+        if (!layer) return n;
+        if (display.hidden.has(layer)) return { ...n, hidden: true };
+        const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);
+        if (!locked && !noPrint) return n;
+        return {
+          ...n,
+          ...(locked ? { selectable: false, draggable: false, deletable: false, selected: false } : {}),
+          ...(noPrint ? { className: [n.className, 'nc-noprint'].filter(Boolean).join(' ') } : {}),
+        } as AppNode;
+      })();
+      derived.current.set(src.id, { src, ctx, out });
+      return out;
     }),
     [page.nodes, bg.nodes, display.hidden, layerProps, labelBeside],
   );

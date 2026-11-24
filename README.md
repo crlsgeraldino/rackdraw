@@ -133,6 +133,13 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Big sites
+
+- Pages with hundreds of devices and cables stay responsive: a cable only re-routes when something near it moves,
+  cables share their routes (for line jumps and parallel spacing) in one batch instead of redrawing each other one by
+  one, and unchanged devices and cables aren't redrawn. On a 151-device / 150-cable page, moving a device went from
+  about 1.5 s of work to about 0.13 s.
+
 ## Alt Text and accessible exports
 
 - **Alt Text** (Insert → Text → Alt Text, or right-click an item): a description of the item, like Visio's Format

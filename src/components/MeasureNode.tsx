@@ -5,7 +5,8 @@ import { useRef } from 'react';
 import { realLength } from '@/lib/units';
 import type { MeasureNode } from '@/lib/types';
 import { dashFor, patternOf } from '@/lib/types';
-import { useCurrentPage, useDiagram } from '@/store/useDiagramStore';
+import { useDiagram } from '@/store/useDiagramStore';
+import { activePage } from '@/lib/project';
 
 const TICK = 7;
 
@@ -15,7 +16,7 @@ const TICK = 7;
  */
 function MeasureNodeView({ id, data, selected }: NodeProps<MeasureNode>) {
   const rf = useReactFlow();
-  const scale = useCurrentPage().scale;
+  const scale = useDiagram((s) => activePage(s.projects[s.currentId]).scale);
   const moveEnd = useDiagram((s) => s.moveMeasureEnd);
   const snapshot = useDiagram((s) => s.snapshot);
   const drag = useRef<{ end: 'a' | 'b'; moved: boolean } | null>(null);
