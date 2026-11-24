@@ -282,6 +282,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   shadow?: boolean;
   /** Freeform (Pencil tool): the drawn path as fractions (0–1) of the shape's box. */
   points?: [number, number][];
+  /** Shape operations result: closed outlines as fractions (0–1) of the box, drawn even-odd (inner rings are holes). */
+  rings?: [number, number][][];
   // Font and paragraph (Home tab)
   bold?: boolean;
   italic?: boolean;

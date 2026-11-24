@@ -1945,6 +1945,29 @@ function ShapeTab() {
       {node?.type === 'shape' && node.data.kind === 'image' && <PictureGroup node={node} />}
       {node?.type === 'zone' && <ContainerGroup node={node} />}
       {node?.type === 'shape' && node.data.kind === 'callout' && <CalloutGroup node={node} />}
+      {page.nodes.filter((n) => n.selected && n.type === 'shape').length >= 2 && (
+        <Group label="Operations">
+          <div className="flex items-start pt-1">
+            <Drop width={250} trigger={(open) => <Big icon="group" label="Operations" onClick={open} title="Union, Combine, Intersect or Subtract the selected drawing shapes (like Visio's shape operations)" />}>
+              {(close) => (
+                <div className="py-1 text-xs">
+                  {([['union', 'Union', 'One outline round them all'], ['combine', 'Combine', 'One shape; where they overlap becomes a hole'], ['intersect', 'Intersect', 'Only where they all overlap'], ['subtract', 'Subtract', 'The first selected, with the others cut out']] as const).map(([op, label, sub]) => (
+                    <button key={op} className="block w-full px-3 py-1.5 text-left hover:bg-blue-50" onClick={() => {
+                      close();
+                      const r = s.shapeOperation(op);
+                      if (r === 0) alert('Select two or more drawing shapes (rectangles, ellipses, diamonds, arrows, freehand shapes).');
+                      else if (r === -1) alert('Nothing is left: the shapes do not overlap.');
+                    }}>
+                      <b className="font-medium">{label}</b><span className="block text-[10px] text-gray-500">{sub}</span>
+                    </button>
+                  ))}
+                  <p className="px-3 pt-1 text-[10px] text-gray-400">The result takes the first shape&apos;s fill and line. Undo with Ctrl+Z.</p>
+                </div>
+              )}
+            </Drop>
+          </div>
+        </Group>
+      )}
       {!device && node?.type === 'shape' && node.data.kind !== 'table' && (
         <Group label="Shape">
           <div className="flex items-start pt-1">

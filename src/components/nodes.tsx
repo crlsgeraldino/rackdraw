@@ -400,7 +400,13 @@ function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
     }
     case 'rounded': return <rect x={1} y={1} width={w - 2} height={h - 2} rx={Math.min(16, h / 3)} {...common} />;
     case 'ellipse': return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 1} ry={h / 2 - 1} {...common} />;
-    case 'freeform': return <polyline points={(d.points ?? []).map(([px, py]) => `${px * w},${py * h}`).join(' ')} {...common} fill={d.fill === 'transparent' ? 'none' : d.fill} strokeLinecap="round" strokeLinejoin="round" />;
+    case 'freeform':
+      if (d.rings?.length) {
+        // Shape operations result: closed outlines; a ring inside another is a hole.
+        const path = d.rings.map((r) => `M${r.map(([px, py]) => `${px * w} ${py * h}`).join('L')}Z`).join('');
+        return <path d={path} {...common} fillRule="evenodd" strokeLinejoin="round" />;
+      }
+      return <polyline points={(d.points ?? []).map(([px, py]) => `${px * w},${py * h}`).join(' ')} {...common} fill={d.fill === 'transparent' ? 'none' : d.fill} strokeLinecap="round" strokeLinejoin="round" />;
     case 'diamond': return <polygon points={`${w / 2},1 ${w - 1},${h / 2} ${w / 2},${h - 1} 1,${h / 2}`} {...common} />;
     case 'door': {
       // Floor-plan door: the leaf (hinged bottom-left, drawn open) and its swing arc; flip mirrors the swing.

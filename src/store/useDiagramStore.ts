@@ -18,9 +18,10 @@ import { guideZoom, snapToGuides, SNAP_PX, useGuides } from '@/lib/guides';
 import { getPref } from '@/lib/prefs';
 import { PAGE_LINK } from '@/lib/links';
 import { isWall, snapIntoWall, wallsAround } from '@/lib/floorplan';
+import { intersectAll, subtractAll, unionAll, type Ring } from '@/lib/polybool';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, ShapeNode, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -100,6 +101,8 @@ interface DiagramState {
   setWallLengths: (on: boolean) => number;
   /** Convert to Walls (Visio): walls round the selected zones and rectangles; rectangles are replaced, zones kept. */
   convertToWalls: (thickness?: number) => number;
+  /** Shape operations (Visio): Union / Combine / Intersect / Subtract the selected drawing shapes into one. */
+  shapeOperation: (op: 'union' | 'combine' | 'intersect' | 'subtract') => number;
   /** Insert a zone round the selection (Visio's container from selection), with room for its title. Returns its id. */
   wrapInZone: (title?: string) => string | null;
   /** Space Shapes (Visio): puts exactly `gap` px between neighbouring selected items, left to right or top to bottom. */
@@ -430,6 +433,38 @@ function lookPatch(t: TextFormat, current: number): TextLook {
   if (t.sizeDelta) out.fontSize = Math.max(6, Math.min(72, current + t.sizeDelta));
   for (const k of ['bold', 'italic', 'underline', 'strike'] as const) if (t[k] !== undefined) out[k] = t[k] || undefined;
   return out;
+}
+
+/** Drawing shapes that Shape Operations can work on (closed outlines). */
+const OPERABLE = new Set<ShapeKind>(['rect', 'rounded', 'ellipse', 'diamond', 'arrow', 'callout', 'freeform', 'offpage']);
+
+/** A drawing shape's outline(s) on the page, turned with the shape. */
+function shapeRings(n: ShapeNode): Ring[] {
+  const d = n.data;
+  const m = nodeSize(n);
+  const w = n.width ?? m.w, h = n.height ?? m.h, x = n.position.x, y = n.position.y;
+  const local: [number, number][][] = (() => {
+    switch (d.kind) {
+      case 'ellipse': return [Array.from({ length: 64 }, (_, i) => { const t = (i / 64) * Math.PI * 2; return [0.5 + 0.5 * Math.cos(t), 0.5 + 0.5 * Math.sin(t)] as [number, number]; })];
+      case 'diamond': return [[[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]]];
+      case 'arrow': { const hd = Math.min(w * 0.4, h) / w; return [[[0, 0.28], [1 - hd, 0.28], [1 - hd, 0], [1, 0.5], [1 - hd, 1], [1 - hd, 0.72], [0, 0.72]]]; }
+      case 'offpage': { const tip = Math.min(h / 2, w / 3) / w; return [[[0, 0], [1 - tip, 0], [1, 0.5], [1 - tip, 1], [0, 1]]]; }
+      case 'rounded': {
+        // Quarter circles at the corners, as drawn.
+        const r = Math.min(16, h / 3), rx = r / w, ry = r / h, out: [number, number][] = [];
+        const corner = (cx: number, cy: number, a0: number) => { for (let k = 0; k <= 6; k++) { const t = a0 + (k / 6) * (Math.PI / 2); out.push([cx + rx * Math.cos(t), cy + ry * Math.sin(t)]); } };
+        corner(1 - rx, 1 - ry, 0); corner(rx, 1 - ry, Math.PI / 2); corner(rx, ry, Math.PI); corner(1 - rx, ry, (3 * Math.PI) / 2);
+        return [out];
+      }
+      case 'freeform': return d.rings?.length ? d.rings : [d.points ?? []];
+      default: return [[[0, 0], [1, 0], [1, 1], [0, 1]]];
+    }
+  })();
+  const rot = ((d.rotation ?? 0) * Math.PI) / 180, c = Math.cos(rot), sn = Math.sin(rot);
+  return local.filter((r) => r.length >= 3).map((r) => r.map(([px, py]) => {
+    const lx = (px - 0.5) * w, ly = (py - 0.5) * h;
+    return { x: x + w / 2 + lx * c - ly * sn, y: y + h / 2 + lx * sn + ly * c };
+  }));
 }
 
 /** One change from the Device Table: a device (node) or cable (edge) on a page, and the data it gets. */
@@ -789,6 +824,38 @@ export const useDiagram = create<DiagramState>()(
             edges: pg.edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)),
           });
           return sel.length;
+        },
+        shapeOperation: (op) => {
+          const pg = page();
+          // In selection order on the page; the first one gives the result its look (and is what Subtract cuts from).
+          const sel = pg.nodes.filter((n): n is ShapeNode => !!n.selected && n.type === 'shape' && !n.data.locked && OPERABLE.has(n.data.kind));
+          if (sel.length < 2) return 0;
+          const ringsOf = sel.map((n) => shapeRings(n));
+          const all = ringsOf.flat();
+          const result = op === 'union' ? unionAll(all)
+            : op === 'combine' ? all
+            : op === 'intersect' ? intersectAll(ringsOf.map((r) => r[0]))
+            : subtractAll(ringsOf.map((r) => r[0]));
+          if (!result.length) return -1;
+          const pts = result.flat();
+          const x0 = Math.min(...pts.map((p) => p.x)), y0 = Math.min(...pts.map((p) => p.y));
+          const w = Math.max(1, Math.max(...pts.map((p) => p.x)) - x0), h = Math.max(1, Math.max(...pts.map((p) => p.y)) - y0);
+          const f = sel[0].data;
+          get().snapshot();
+          const node: AppNode = {
+            id: `s-${uid()}`, type: 'shape', position: { x: Math.round(x0), y: Math.round(y0) }, width: Math.round(w), height: Math.round(h), selected: true, zIndex: sel[0].zIndex,
+            data: {
+              kind: 'freeform', text: '', fill: f.fill === 'transparent' ? '#e5e7eb' : f.fill, stroke: f.stroke === 'transparent' ? '#374151' : f.stroke, textColor: f.textColor, fontSize: f.fontSize,
+              lineWidth: f.lineWidth, dashed: f.dashed, linePattern: f.linePattern, fillTransparency: f.fillTransparency, shadow: f.shadow, layer: f.layer, rotation: 0,
+              rings: result.map((r) => r.map((p) => [(p.x - x0) / w, (p.y - y0) / h] as [number, number])),
+            },
+          } as AppNode;
+          const gone = new Set(sel.map((n) => n.id));
+          commit({
+            nodes: [...pg.nodes.filter((n) => !gone.has(n.id)).map((n) => (n.selected ? { ...n, selected: false } : n)), node],
+            edges: pg.edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)),
+          });
+          return 1;
         },
         wrapInZone: (title) => {
           const pg = page();

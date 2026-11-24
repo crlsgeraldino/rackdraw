@@ -133,6 +133,14 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Shape operations (Shape → Operations)
+
+- Like Visio's shape operations: select two or more drawing shapes (rectangles, rounded rectangles, ellipses,
+  diamonds, arrows, freehand shapes, earlier results) and pick **Union** (one outline round them all), **Combine**
+  (overlaps become holes), **Intersect** (only where they all overlap) or **Subtract** (the first selected with the
+  others cut out). The result is one shape with the first shape's fill and line; Ctrl+Z puts the originals back.
+  Visio exports draw holes as separate outlines.
+
 ## Spelling and text margins
 
 - **Spelling** (desktop app): misspelt words in any text box are underlined; right-click one for suggestions or

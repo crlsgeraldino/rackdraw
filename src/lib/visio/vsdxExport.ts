@@ -230,6 +230,10 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
                   text: v ? { text: expandFields(v, project, pg.id), color: d.textColor, sizePt: pt(d.fontSize), bold: head || d.bold, align: d.align ?? 'left', valign: 'middle', font: d.fontFamily ?? clientFont } : undefined });
               }
             });
+          } else if (d.kind === 'freeform' && d.rings?.length) {
+            // Shape operations result: each outline as a filled polygon (holes are drawn as separate outlines).
+            for (const r of d.rings) if (r.length >= 3) front.push({ kind: 'polygon', name: 'Shape', box: bb, points: r.map(([x, y]) => ({ x, y })), ...style });
+            if (text) front.push({ kind: 'rect', box: bb, fill: null, line: null, text });
           } else if (d.kind === 'freeform') {
             const pts = (d.points ?? []).map(([px, py]) => ({ px: px * bb.w, py: py * bb.h }));
             // Turn the drawn points about the centre, so the line needs no Angle.
