@@ -22,6 +22,7 @@ import { documentedPort, portMap, portMapDevices } from './portMap';
 import { changeKindLabel, changeTime } from './changeLog';
 import { SITE_TABLE, siteSummaries, siteTableRows } from './sites';
 import { edgeRole, roleLabel } from './cableRole';
+import { isRackdrawPackage, packRackdraw, RACKDRAW_EXT, RACKDRAW_MIME, RackdrawFileError, unpackRackdraw } from './rackdrawFile';
 import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
@@ -657,8 +658,8 @@ export function exportDeviceList(p: Project) {
 
 /* ---------- project files ---------- */
 
-/** Saves a project; custom stencils it uses are embedded so the file opens on any computer. */
-export function saveProjectFile(p: Project) {
+/** What a client file holds: the client, and the custom stencils it uses (so it opens on any computer). */
+export function projectFilePayload(p: Project) {
   const clean: Project = {
     ...p,
     pages: p.pages.map((pg) => ({
@@ -669,22 +670,42 @@ export function saveProjectFile(p: Project) {
   };
   const used = new Set(allDevices(p).map((n) => n.data.stencilId));
   const stencils = [...used].map(getStencil).filter((s): s is StencilDef => !!s?.custom);
-  const body = JSON.stringify({ format: 'netcraft', version: 3, project: clean, stencils }, null, 2);
-  downloadBlob(`${safeName(p.name)}.rackdraw.json`, new Blob([body], { type: 'application/json' }));
+  return { format: 'netcraft', version: 3, project: clean, stencils };
+}
+
+/** The client as a .rackdraw file (see lib/rackdrawFile.ts). */
+export function projectFileBytes(p: Project): Uint8Array {
+  return packRackdraw(projectFilePayload(p), { name: p.name });
+}
+
+/** Downloads the client as a .rackdraw file (the browser version's Save; a copy before deleting a client). */
+export function saveProjectFile(p: Project) {
+  downloadBlob(`${safeName(p.name)}${RACKDRAW_EXT}`, new Blob([projectFileBytes(p) as BlobPart], { type: RACKDRAW_MIME }));
 }
 
 export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[] }> {
   let json: { format?: string; version?: number; project?: unknown; stencils?: unknown };
-  try {
-    json = JSON.parse(await file.text());
-  } catch {
-    throw new Error('This file could not be read: it is not a RackDraw diagram, or it is damaged.');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (isRackdrawPackage(bytes)) {
+    // A .rackdraw package (RackDraw 0.108 and later).
+    try {
+      json = unpackRackdraw(bytes).payload as typeof json;
+    } catch (e) {
+      throw new Error(e instanceof RackdrawFileError ? e.message : 'This file could not be read: it is not a RackDraw drawing, or it is damaged.');
+    }
+  } else {
+    // The older .rackdraw.json / .netcraft.json text files.
+    try {
+      json = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      throw new Error('This file could not be read: it is not a RackDraw drawing, or it is damaged.');
+    }
   }
   if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" in the shapes palette.');
   if (json?.format === 'rackdraw-backup') throw new Error('This is a full backup. Use File → Restore from backup.');
   if (typeof json?.version === 'number' && json.version > PROJECT_FILE_VERSION) throw new Error('This diagram was saved by a newer version of RackDraw. Update RackDraw to open it.');
   // Checked and repaired here (files saved by v0.2 and earlier have one diagram, which becomes a page).
-  const { project } = sanitizeProject(json?.project ?? json, file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$/i, ''));
+  const { project } = sanitizeProject(json?.project ?? json, file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$|\.rackdraw$/i, ''));
   return {
     project,
     stencils: Array.isArray(json.stencils) ? json.stencils.filter((x: unknown) => !!x && typeof x === 'object' && typeof (x as StencilDef).id === 'string') : [],

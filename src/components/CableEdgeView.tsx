@@ -6,7 +6,7 @@ import { roundedPath, routeOrthogonal, type Obstacle, type Pt, type Side } from 
 import { INFO_GAP, overlaySize, overlayVersion, useOverlayVersion } from '@/lib/overlays';
 import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
 import { getStencil, useDiagram } from '@/store/useDiagramStore';
-import { cableText, edgeRole, type CableTag } from '@/lib/cableRole';
+import { cableText, deviceIndex, edgeRole, endPortName, type CableTag } from '@/lib/cableRole';
 import { activePage } from '@/lib/project';
 import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useDrawnVersion, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
@@ -178,6 +178,24 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
     return p ? edgeRole(activePage(p).nodes, { source, target, sourceHandle: sourceHandleId, targetHandle: targetHandleId, data }, getStencil) : undefined;
   });
   const text = cableText(data, role, tag);
+  // Design → Cable Text → port names at the ends: the port each end plugs into, a little way along the cable.
+  const endName = (nodeId: string, handle?: string | null) => (s: ReturnType<typeof useDiagram.getState>) => {
+    const p = s.projects[s.currentId];
+    if (!p?.display?.cablePorts) return '';
+    const n = deviceIndex(activePage(p).nodes).get(nodeId);
+    return endPortName(n, n ? getStencil(n.data.stencilId) : undefined, handle);
+  };
+  const portA = useDiagram(endName(source, sourceHandleId));
+  const portB = useDiagram(endName(target, targetHandleId));
+  const ends = useMemo(() => {
+    if (!portA && !portB) return null;
+    const m = measurePath(path);
+    const len = m.getTotalLength();
+    if (!Number.isFinite(len) || len < 1) return null;
+    const off = Math.min(22, len / 4);
+    const a = m.getPointAtLength(off), b = m.getPointAtLength(len - off);
+    return { a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y } };
+  }, [path, portA, portB]);
 
   return (
     <>
@@ -217,6 +235,20 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
           >
             {text}
           </div>
+        </EdgeLabelRenderer>
+      )}
+      {ends && (
+        <EdgeLabelRenderer>
+          {([[portA, ends.a], [portB, ends.b]] as const).map(([name, pt], i) => name && (
+            <div
+              key={i}
+              data-edge-label={id}
+              className="nodrag nopan pointer-events-none absolute whitespace-nowrap rounded-sm border bg-white px-0.5 font-mono text-[8px] leading-tight"
+              style={{ transform: `translate(-50%, -50%) translate(${pt.x}px, ${pt.y}px)`, borderColor: style.color, color: '#374151' }}
+            >
+              {name}
+            </div>
+          ))}
         </EdgeLabelRenderer>
       )}
     </>

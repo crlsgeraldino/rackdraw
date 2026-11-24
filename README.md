@@ -46,6 +46,7 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
   (or chosen in Shape Data). Design -> Cable Text shows the function, the cable type or both on every cable
   ("WAN uplink · Cat6", "Uplink · DAC"); a cable can have its own. The function is in the Connections tables and
   Visio Shape Data.
+  Tick "Port names at the ends" to write the port each cable plugs into at each end ("X1", "24", "Gi1/0/5").
 - **Replacement budget**: when each piece of equipment is due for replacement (its End of life, else purchase date
   plus a typical service life for its kind, else warranty end) and what that costs per year for the next 5 years plus
   anything overdue, from the same price book as the Bill of Materials; circuits as a yearly cost (Data → Lifecycle →
@@ -143,6 +144,13 @@ The installer asks per-user vs. all users; for silent deployment (Intune/RMM) us
 (add `/allusers` for a per-machine install).
 
 The installer is not code-signed, so SmartScreen will warn on first run until it's signed with a code-signing certificate.
+
+**Client files (.rackdraw).** File → Save (Ctrl+S) saves the client to a `.rackdraw` file: the first time it asks
+where, after that it writes back to the same file; Save As (Ctrl+Shift+S) always asks. Double-click a `.rackdraw`
+file in Explorer to open it (the installer registers the file type). A `.rackdraw` file is a ZIP package like Office
+files: `mimetype`, `manifest.json` (version, checksum), `project.json` (the client) and `media/` (pictures as real
+files), so it is small and a damaged copy is refused cleanly. Older `.rackdraw.json` / `.netcraft.json` files still
+open; saving one asks for a new `.rackdraw` name. Your work is also kept automatically inside RackDraw, as before.
 
 **Data folder.** Clients are kept in `%APPDATA%\NetCraft` (the app's original name, so older data is still found). Set
 the environment variable `RACKDRAW_DATA_DIR` to a folder to use that instead: a portable copy on a USB stick, a

@@ -1,7 +1,7 @@
 {
   "name": "netcraft",
   "productName": "RackDraw",
-  "version": "0.106.0",
+  "version": "0.108.0",
   "description": "RackDraw: free network, rack and floor-plan diagrams for client documentation",
   "author": "crlsgeraldino",
   "license": "MIT",
@@ -23,6 +23,15 @@
     "productName": "RackDraw",
     "copyright": "MIT License",
     "electronLanguages": ["en-US"],
+    "fileAssociations": [
+      {
+        "ext": "rackdraw",
+        "name": "RackDraw drawing",
+        "description": "RackDraw client drawing",
+        "mimeType": "application/vnd.rackdraw+zip",
+        "role": "Editor"
+      }
+    ],
     "electronFuses": {
       "runAsNode": false,
       "enableNodeOptionsEnvironmentVariable": false,

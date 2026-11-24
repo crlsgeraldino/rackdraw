@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { setPref, usePref } from '@/lib/prefs';
 import type { AppNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { safeFitView } from '@/lib/fit';
 
 /** Opens the Comments panel; `detail.add` starts a new comment on the selected item. */
 export const OPEN_COMMENTS_EVENT = 'netcraft:comments';
@@ -39,7 +40,7 @@ export function CommentsPanel({ onClose, startAdding }: { onClose: () => void; s
 
   const go = (pageId: string, id: string) => {
     selectItem(pageId, 'node', id);
-    setTimeout(() => rf.fitView({ nodes: [{ id }], padding: 0.8, maxZoom: 1.5, duration: 300 }), 350);
+    setTimeout(() => safeFitView(rf, { nodes: [{ id }], padding: 0.8, maxZoom: 1.5, duration: 300 }), 350);
   };
   const add = () => {
     if (!selected || !text.trim()) return;

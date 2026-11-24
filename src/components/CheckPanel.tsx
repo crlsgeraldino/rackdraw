@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { checkProject, type Issue, type Severity } from '@/lib/check';
 import type { AppNode } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { safeFitView } from '@/lib/fit';
 
 /** Fired by the Arrange menu to open the Check diagram panel on the canvas. */
 export const OPEN_CHECK_EVENT = 'netcraft:check-diagram';
@@ -31,7 +32,7 @@ export function CheckPanel({ onClose }: { onClose: () => void }) {
     setTimeout(() => {
       const pg = useDiagram.getState().projects[project.id].pages.find((p) => p.id === i.pageId);
       const edge = i.kind === 'edge' ? pg?.edges.find((e) => e.id === i.id) : undefined;
-      rf.fitView({ nodes: (edge ? [edge.source, edge.target] : [i.id]).map((id) => ({ id })), padding: 0.6, maxZoom: 1.5, duration: 300 });
+      safeFitView(rf, { nodes: (edge ? [edge.source, edge.target] : [i.id]).map((id) => ({ id })), padding: 0.6, maxZoom: 1.5, duration: 300 });
     }, 350);
   };
 

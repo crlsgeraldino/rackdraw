@@ -5,7 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openChangeLog, openFind, openPortMap, paletteAction } from '@/lib/events';
-import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
+import { desktop, openClientFile, saveClient } from '@/lib/fileSave';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
@@ -56,6 +57,7 @@ import { PrintDialog } from '../PrintDialog';
 import { ViewMenu } from '../ViewMenu';
 import { Icon } from './icons';
 import { Big, Check, Column, Drop, Group, Small, Swatches } from './parts';
+import { safeFitView } from '@/lib/fit';
 
 type Tab = 'home' | 'insert' | 'design' | 'data' | 'review' | 'view' | 'shape';
 const TABS: { id: Tab; label: string }[] = [
@@ -105,7 +107,7 @@ function centerDrawing(rf: ReturnType<typeof useReactFlow<AppNode>>) {
   const dx = (cols * sheet.w - b.width) / 2 - b.x, dy = (rows * sheet.h - b.height) / 2 - b.y;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
   st.moveDrawing(dx, dy);
-  setTimeout(() => rf.fitView({ padding: 0.08, duration: 200 }), 50);
+  setTimeout(() => safeFitView(rf, { padding: 0.08, duration: 200 }), 50);
 }
 
 function useDocument() {
@@ -239,7 +241,7 @@ function useDocument() {
       }
     }),
     print: (o: PrintOptions) => run(async () => { try { await printProject(project, renderPage, o); } finally { back(); } }, o.pageIds.length > 0),
-    save: () => saveProjectFile(project),
+    save: () => void saveClient(),
     open: async (f?: File) => {
       if (!f) return;
       try {
@@ -249,7 +251,7 @@ function useDocument() {
           try {
             const { project: p, stencils, summary } = await importVsdx(f);
             useDiagram.getState().importProject(p, stencils);
-            setTimeout(() => rf.fitView({ padding: 0.2 }), 80);
+            setTimeout(() => safeFitView(rf, { padding: 0.2 }), 80);
             const notes = [...new Set(summary.warnings)];
             alert(
               `Opened ${f.name}: ${summary.pages} page${summary.pages === 1 ? '' : 's'}, ${summary.devices} devices, ${summary.cables} cables, ${summary.shapes} other shapes.` +
@@ -262,9 +264,9 @@ function useDocument() {
           }
           return;
         }
-        const { project: p, stencils } = await readProjectFile(f);
-        useDiagram.getState().importProject(p, stencils);
-        setTimeout(() => rf.fitView({ padding: 0.2 }), 50);
+        // Desktop app: a .rackdraw file stays linked to its client, so Save writes back to it.
+        await openClientFile(f, desktop()?.pathOf(f) ?? '');
+        setTimeout(() => safeFitView(rf, { padding: 0.2 }), 50);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -409,7 +411,7 @@ export function Ribbon() {
       {/* Title bar with the Quick Access Toolbar */}
       <div className="flex h-8 items-center gap-1 bg-gradient-to-r from-[#2d4a99] via-[#3653a8] to-[#3d5cb6] px-2 text-white">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4.5V14" /></svg>
-        <button className={qat} onClick={doc.save} title="Save to a file (.rackdraw.json)" aria-label="Save"><Icon name="save" size={15} /></button>
+        <button className={qat} onClick={doc.save} title="Save (Ctrl+S): to the client's .rackdraw file" aria-label="Save"><Icon name="save" size={15} /></button>
         <button className={qat} onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={15} /></button>
         <HistoryMenu kind="undo" disabled={!canUndo} />
         <button className={qat} onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)" aria-label="Redo"><Icon name="redo" size={15} /></button>
@@ -420,7 +422,7 @@ export function Ribbon() {
           <select
             className="max-w-56 rounded bg-white/15 px-1.5 py-0.5 text-sm text-white outline-none hover:bg-white/25 [&>option]:text-gray-900"
             value={project.id}
-            onChange={(e) => { openProject(e.target.value); setTimeout(() => rf.fitView({ padding: 0.2 }), 50); }}
+            onChange={(e) => { openProject(e.target.value); setTimeout(() => safeFitView(rf, { padding: 0.2 }), 50); }}
             title="Client"
           >
             {sorted.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -485,7 +487,7 @@ export function Ribbon() {
           onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx, selPng: () => doc.selection('png'), selSvg: () => doc.selection('svg'), web: doc.web })[kind](); }}
         />
       )}
-      <input ref={openRef} type="file" accept=".json,application/json,.vsdx,.vstx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={openRef} type="file" accept=".rackdraw,.json,application/json,.vsdx,.vstx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
       {printing && <PrintDialog onPrint={(o) => { setPrinting(false); doc.print(o); }} onClose={() => setPrinting(false)} />}
       {naming !== null && <NewClientDialog value={naming} onChange={setNaming} onClose={() => setNaming(null)} />}
     </header>
@@ -607,6 +609,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         {item('new', 'New client…', onNew)}
         {item('open', 'Open… (RackDraw, Visio .vsdx or template .vstx)', onOpen)}
         {item('save', 'Save', onSave)}
+        {item('save', 'Save As…', () => { onClose(); void saveClient(true); })}
         {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
         {item('open', 'Version History…', () => { onClose(); openVersions(); })}
         {item('titleBlock', 'Save as template…', () => void saveTemplate())}
@@ -637,7 +640,7 @@ Nothing here is replaced: clients you already have stay as they are, and a clien
         {item('delete', 'Delete this client…', () => {
           if (!confirm(`Delete "${project.name}" from this computer?
 
-A copy is downloaded first (${safeName(project.name)}.rackdraw.json), so you can open it again with File → Open. Its Version History is deleted.`)) return;
+A copy is downloaded first (${safeName(project.name)}.rackdraw), so you can open it again with File → Open. Its Version History is deleted.`)) return;
           saveProjectFile(project);
           useDiagram.getState().deleteProject(project.id);
           onClose();
@@ -1912,7 +1915,7 @@ function DesignTab() {
               {CABLE_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </label>
-          <span className="px-1 text-[10px] text-gray-500">e.g. &quot;WAN uplink · Cat6&quot;</span>
+          <Check label="Port names at the ends" checked={!!d.cablePorts} onChange={(v) => s.setDisplay({ cablePorts: v || undefined })} />
         </Column>
       </Group>
       <Group label="Info Boxes">
@@ -2037,12 +2040,12 @@ function ViewTab() {
         <Big icon="racks" label={`Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`} active={!diagram} onClick={() => setView('racks')} />
       </Group>
       <Group label="Zoom">
-        <Big icon="fit" label="Fit Page" onClick={() => rf.fitView({ padding: 0.2, duration: 200 })} disabled={!diagram} title="Fit the whole page in the window" />
+        <Big icon="fit" label="Fit Page" onClick={() => safeFitView(rf, { padding: 0.2, duration: 200 })} disabled={!diagram} title="Fit the whole page in the window" />
         <Column>
           <Small icon="zoomIn" label="Zoom In" onClick={() => rf.zoomIn({ duration: 150 })} disabled={!diagram} />
           <Small icon="zoomOut" label="Zoom Out" onClick={() => rf.zoomOut({ duration: 150 })} disabled={!diagram} />
           <Small icon="hundred" label="100%" onClick={() => rf.zoomTo(1, { duration: 150 })} disabled={!diagram} />
-          <Small icon="find" label="Selection" onClick={() => { const ids = rf.getNodes().filter((n) => n.selected).map((n) => ({ id: n.id })); if (ids.length) void rf.fitView({ nodes: ids, padding: 0.4, maxZoom: 2, duration: 200 }); }} disabled={!diagram} title="Zoom to the selected items" />
+          <Small icon="find" label="Selection" onClick={() => { const ids = rf.getNodes().filter((n) => n.selected).map((n) => ({ id: n.id })); if (ids.length) void safeFitView(rf, { nodes: ids, padding: 0.4, maxZoom: 2, duration: 200 }); }} disabled={!diagram} title="Zoom to the selected items" />
         </Column>
       </Group>
       <Group label="Show">

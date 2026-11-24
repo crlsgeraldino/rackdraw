@@ -1,7 +1,7 @@
 /** Unit tests for cable functions and the text on cables. */
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { cableText, edgeRole, roleLabel } from '../src/lib/cableRole';
+import { cableText, edgeRole, endPortName, roleLabel } from '../src/lib/cableRole';
 import { BUILT_IN_TEMPLATES, projectFromTemplate } from '../src/lib/templates';
 import { STENCIL_MAP } from '../src/lib/stencils';
 import type { AppNode, CableData, CableEdge, DeviceNode } from '../src/lib/types';
@@ -64,5 +64,13 @@ describe('cable function', () => {
     const found = new Set(pg.edges.map((e: CableEdge) => roleLabel(edgeRole(pg.nodes, e, st))));
     for (const r of ['WAN uplink', 'Uplink', 'Patch', 'Access', 'Backbone', 'Server link', 'Storage', 'Management']) assert.ok(found.has(r), r);
     assert.ok(!found.has(undefined), 'every cable has a function');
+  });
+  it('names the port at each end of a cable', () => {
+    const sw = { ...dev('sw', 'switch-24-poe'), data: { stencilId: 'switch-24-poe', name: 'sw', ports: { P5: { label: 'Gi1/0/5' } } } } as DeviceNode;
+    assert.equal(endPortName(sw, st('switch-24-poe'), 'P3'), '3', 'the stencil name of the port');
+    assert.equal(endPortName(sw, st('switch-24-poe'), 'P5'), 'Gi1/0/5', 'the name given to the port on this device');
+    assert.equal(endPortName(sw, st('switch-24-poe'), 'top'), '', 'attached to the device, not a port');
+    assert.equal(endPortName(sw, st('switch-24-poe'), undefined), '');
+    assert.equal(endPortName(dev('fw', 'firewall'), st('firewall'), 'WAN'), 'WAN');
   });
 });

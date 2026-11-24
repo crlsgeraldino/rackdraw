@@ -18,6 +18,9 @@ import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { PortMapHost } from './PortMapDialog';
 import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
+import { DesktopFiles } from './DesktopFiles';
+import { Toast } from './Toast';
+import { saveClient } from '@/lib/fileSave';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
 import { NumberShapesDialog } from './NumberShapesDialog';
@@ -50,6 +53,7 @@ import { useDisplay } from './useDisplay';
 import { Legend } from './ViewMenu';
 import { ErrorBoundary, RecoveryScreen, SaveBanner } from './SafetyNet';
 import { useSaveStatus } from '@/lib/persistence';
+import { safeFitView } from '@/lib/fit';
 
 export function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
@@ -263,7 +267,7 @@ function Canvas() {
   // Full Screen: fit each page to the screen.
   useEffect(() => {
     if (!presenting) return;
-    const t = setTimeout(() => rf.fitView({ padding: 0.04, duration: 200 }), 120);
+    const t = setTimeout(() => safeFitView(rf, { padding: 0.04, duration: 200 }), 120);
     return () => clearTimeout(t);
   }, [presenting, page.id, rf]);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
@@ -374,7 +378,9 @@ function Canvas() {
       const tools: Record<string, DrawTool | null> = { '1': null, '3': 'connector', '4': 'pencil', '6': 'line', '8': 'rect', '9': 'ellipse' };
       if (!e.shiftKey && key in tools) { e.preventDefault(); setTool(tools[key]); return; }
       if (!e.shiftKey && key === '2') { e.preventDefault(); const c = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); s.addShape('text', c); return; }
-      if (e.shiftKey && key === 'w') { e.preventDefault(); rf.fitView({ padding: 0.1, duration: 200 }); return; }
+      if (e.shiftKey && key === 'w') { e.preventDefault(); safeFitView(rf, { padding: 0.1, duration: 200 }); return; }
+      // Ctrl+S: save the client to its file (asks where the first time); Ctrl+Shift+S: Save As.
+      if (key === 's') { e.preventDefault(); void saveClient(e.shiftKey); return; }
       if (key === 'd' && !e.shiftKey) { e.preventDefault(); duplicateSelected(); }
       else if (key === 'g') { e.preventDefault(); if (e.shiftKey) s.ungroupSelected(); else s.groupSelected(); }
       else if (key === 'a' && !e.shiftKey) { e.preventDefault(); s.selectAll(); }
@@ -583,6 +589,8 @@ export default function Editor() {
         <PortMapHost />
         <ChangeLogHost />
         <ChangeLogRecorder />
+        <DesktopFiles />
+        <Toast />
         <ChangeShapeDialog />
         <VersionsDialog />
         <NumberShapesDialog />

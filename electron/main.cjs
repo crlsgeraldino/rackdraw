@@ -1,7 +1,8 @@
 // RackDraw desktop shell (formerly NetCraft): serves the static Next.js export (out/) from a private app:// origin.
 // A custom scheme (rather than file://) keeps absolute asset paths working and gives the app a
 // stable origin, so diagrams saved in localStorage persist between launches.
-const { app, BrowserWindow, Menu, dialog, net, protocol, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, net, protocol, session, shell } = require('electron');
+const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -87,6 +88,61 @@ function openOutside(url) {
   }
 }
 
+/* ---------- .rackdraw files: Save / Save As, and files opened from Explorer ---------- */
+
+const { MAX_FILE, key, mayWrite, writeAtomic, filesIn, suggestedPath } = require('./files.cjs');
+/** Files the user picked in a Save dialog or opened this session: Save may write back to them without asking. */
+const approved = new Set();
+
+let mainWindow = null;
+let pageReady = false;
+const pendingFiles = [];
+
+async function openFiles(paths) {
+  for (const p of paths) {
+    try {
+      if ((await fsp.stat(p)).size > MAX_FILE) continue;
+      const bytes = new Uint8Array(await fsp.readFile(p));
+      if (/\.rackdraw$/i.test(p)) approved.add(key(p));
+      const file = { path: p, name: path.basename(p), bytes };
+      if (pageReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rd:open-file', file);
+      else pendingFiles.push(file);
+    } catch {
+      // unreadable file: skip it
+    }
+  }
+}
+
+ipcMain.handle('rd:save', async (e, args) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || !isOwn(e.senderFrame?.url ?? '')) throw new Error('Not allowed');
+  const { bytes, suggestedName, path: given, saveAs } = args ?? {};
+  if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > MAX_FILE) throw new Error('Nothing to save');
+  let target = !saveAs && mayWrite(given, approved) ? given : null;
+  if (!target) {
+    const r = await dialog.showSaveDialog(win, {
+      title: 'Save client',
+      defaultPath: suggestedPath(given, suggestedName, app.getPath('documents')),
+      filters: [{ name: 'RackDraw drawing', extensions: ['rackdraw'] }],
+      properties: ['showOverwriteConfirmation'],
+    });
+    if (r.canceled || !r.filePath) return null;
+    target = /\.rackdraw$/i.test(r.filePath) ? r.filePath : `${r.filePath}.rackdraw`;
+  }
+  await writeAtomic(target, Buffer.from(bytes));
+  approved.add(key(target));
+  return { path: target, name: path.basename(target) };
+});
+
+ipcMain.on('rd:ready', (e) => {
+  if (!isOwn(e.senderFrame?.url ?? '')) return;
+  pageReady = true;
+  for (const f of pendingFiles.splice(0)) e.sender.send('rd:open-file', f);
+});
+
+// macOS: files opened from Finder arrive as an event rather than on the command line.
+app.on('open-file', (e, p) => { e.preventDefault(); void openFiles([p]); });
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -97,7 +153,7 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,
     backgroundColor: '#f9fafb',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true, preload: path.join(__dirname, 'preload.cjs') },
   });
 
   // Links to other sites open in the default browser, not inside the app.
@@ -167,6 +223,9 @@ function createWindow() {
     Menu.buildFromTemplate(items).popup({ window: win });
   });
 
+  // A reload starts the page over: opened files wait until it is listening again.
+  win.webContents.on('did-start-loading', () => { pageReady = false; });
+  mainWindow = win;
   win.loadURL(`${ORIGIN}/`);
 }
 
@@ -178,12 +237,14 @@ app.on('before-quit', () => { quitting = true; });
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  // RackDraw already running: a double-clicked file opens in the open window.
+  app.on('second-instance', (_e, argv) => {
     const [win] = BrowserWindow.getAllWindows();
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
+    void openFiles(filesIn(argv));
   });
 
   app.whenReady().then(() => {
@@ -217,6 +278,7 @@ if (!app.requestSingleInstanceLock()) {
     app.setAboutPanelOptions({ applicationName: 'RackDraw', applicationVersion: app.getVersion(), copyright: 'MIT License' });
 
     createWindow();
+    void openFiles(filesIn(process.argv));
     app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow());
   });
 

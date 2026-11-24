@@ -541,6 +541,8 @@ export interface DisplaySettings {
   cableCorners?: number;
   /** Design → Cable Text: what every cable shows (typed label, function, type, or both); missing = label only. */
   cableTag?: import('./cableRole').CableTag;
+  /** Design → Cable Text: the port each cable plugs into, written at each end ("X1", "24"). */
+  cablePorts?: boolean;
   /** Design → Backgrounds: the drawing page's colour; missing = white. */
   pageColor?: string;
   /** Design → Borders & Titles: a frame round the page, or a title banner (page name and client). */

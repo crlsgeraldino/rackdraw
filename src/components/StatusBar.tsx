@@ -7,6 +7,7 @@ import { realLength } from '@/lib/units';
 import type { AppNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { Icon } from './ribbon/icons';
+import { safeFitView } from '@/lib/fit';
 
 const MIN = 0.1, MAX = 4;
 /** Slider position (0–100) ↔ zoom, logarithmic so 100% sits in the middle like Office. */
@@ -54,7 +55,7 @@ export function StatusBar() {
         />
         <button className={btn} onClick={() => rf.zoomIn({ duration: 120 })} title="Zoom in" aria-label="Zoom in" disabled={!diagram}>+</button>
         <button className="w-10 rounded text-right hover:bg-gray-200" onClick={() => rf.zoomTo(1, { duration: 120 })} title="Zoom to 100%" disabled={!diagram}>{Math.round(zoom * 100)}%</button>
-        <button className={btn} onClick={() => rf.fitView({ padding: 0.2, duration: 200 })} title="Fit page to current window" aria-label="Fit page" disabled={!diagram}>
+        <button className={btn} onClick={() => safeFitView(rf, { padding: 0.2, duration: 200 })} title="Fit page to current window" aria-label="Fit page" disabled={!diagram}>
           <Icon name="fit" size={14} />
         </button>
       </div>

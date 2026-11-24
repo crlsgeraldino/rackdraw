@@ -22,6 +22,7 @@ import { useIconPortOffsets } from './iconPorts';
 import MeasureNodeView from './MeasureNode';
 import { NodeBadges } from './NodeBadges';
 import { useDisplay } from './useDisplay';
+import { safeFitView } from '@/lib/fit';
 
 const SIDES: PortDef['side'][] = ['top', 'right', 'bottom', 'left'];
 /** Which way a port faces once the device is turned clockwise by `deg` (quarter turns). */
@@ -535,7 +536,7 @@ function ShapeNodeView({ id, data, selected, width, height, positionAbsoluteX, p
       const pair = data.pair;
       if (!pair || !activePage(useDiagram.getState().projects[st.currentId]).nodes.some((n) => n.id === pair)) return;
       useDiagram.getState().selectIds([pair]);
-      void rfi.fitView({ nodes: [{ id: pair }], maxZoom: 1.2, padding: 2, duration: 250 });
+      void safeFitView(rfi, { nodes: [{ id: pair }], maxZoom: 1.2, padding: 2, duration: 250 });
     }, 150);
   };
   const listed = listLines(shownText ?? '', data.list);

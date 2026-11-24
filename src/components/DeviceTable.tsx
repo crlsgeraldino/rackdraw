@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { setPref } from '@/lib/prefs';
 import { CABLE_STYLES, DEVICE_STATUSES, isDocumented, PORT_SPEEDS, POE_CLASSES, PORT_STATUSES, type AppNode, type CableData, type CableEdge, type CableType, type DeviceData, type DeviceNode, type PortData } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram, type ItemEdit } from '@/store/useDiagramStore';
+import { safeFitView } from '@/lib/fit';
 
 const key = (s: string) => s.trim().toLowerCase();
 
@@ -242,7 +243,7 @@ export function DeviceTable() {
     setTimeout(() => {
       const id = r.kind === 'port' ? r.deviceId : r.id;
       useDiagram.getState().selectItem(r.pageId, r.kind === 'edge' ? 'edge' : 'node', id);
-      if (r.kind !== 'edge') void rf.fitView({ nodes: [{ id }], maxZoom: 1.2, padding: 1.5, duration: 200 });
+      if (r.kind !== 'edge') void safeFitView(rf, { nodes: [{ id }], maxZoom: 1.2, padding: 1.5, duration: 200 });
     }, other ? 150 : 0);
   };
   const editOne = (r: Row, c: Col, v: string) => {
