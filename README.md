@@ -704,6 +704,13 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - Exports: the **PDF** gets a front/rear elevation page per rack and a **Rack contents** table; the **CSV** gets a
   RACKS section and rack positions in the device list.
 
+- **Patch panels**: 24-port (1U), **48-port (2U)** and **96-port (4U)**, in rows of 24 numbered left to right, row
+  by row; every port is a connection point.
+- Drawn like a real cabinet: steel posts and top cap, silver rails with cage-nut holes and unit numbers, a dark
+  interior, shaded faceplates with screwed-in ears. Servers and NAS get drive bays with activity LEDs, the UPS an
+  LCD status screen, cable managers a brush strip, the PDU its outlets and current display. The rear shows power
+  supplies and fans on active equipment and punch-down blocks on patch panels.
+
 ### Rack connections (patching)
 
 - Cables you draw on the diagram show in the rack: ports with a cable **light up** on mounted equipment, and

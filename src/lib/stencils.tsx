@@ -69,15 +69,20 @@ function switchStencil(id: string, name: string, copper: number, sfp: number, po
   };
 }
 
+/** Patch panel: rows of 24 ports (1U each, like standard 24 / 48 / 96-port panels), numbered left to right, row by row. */
 function patchPanel(count: number): StencilDef {
+  const perRow = Math.min(24, count);
+  const rows = Math.ceil(count / perRow);
   const ports: PortDef[] = [];
   for (let i = 0; i < count; i++) {
-    const x = 90 + i * 36 + Math.floor(i / 6) * 14;
-    ports.push({ id: `PP${i + 1}`, label: `${i + 1}`, kind: 'rj45', x, y: 34, w: 30, h: 28, side: 'bottom' });
+    const c = i % perRow, r = Math.floor(i / perRow);
+    const x = 90 + c * 36 + Math.floor(c / 6) * 14;
+    ports.push({ id: `PP${i + 1}`, label: `${i + 1}`, kind: 'rj45', x, y: 34 + r * 90, w: 30, h: 28, side: 'bottom' });
   }
   return {
     id: `patch-panel-${count}`, name: `Patch panel ${count}-port`, category: 'Switching',
-    width: 90 + count * 36 + Math.floor(count / 6) * 14 + 60, height: 90, scale: 0.5, style: 'panel', ports, rackUnits: 1,
+    width: 90 + perRow * 36 + Math.floor(perRow / 6) * 14 + 60, height: 90 * rows, scale: 0.5, style: 'panel', ports, rackUnits: rows,
+    defaults: { model: `${count}-port Cat6 patch panel (${rows}U)` },
   };
 }
 
@@ -99,6 +104,8 @@ export const STENCILS: StencilDef[] = [
   switchStencil('switch-48', 'Switch 48-port + 4 SFP', 48, 4, false),
   switchStencil('switch-8', 'Switch 8-port + 2 SFP', 8, 2, false),
   patchPanel(24),
+  patchPanel(48),
+  patchPanel(96),
   icon('internet', 'Internet / ISP', 'WAN', [{ id: 'WAN', label: 'WAN', side: 'bottom' }]),
   icon('modem', 'ISP modem / ONT', 'WAN', [{ id: 'UPLINK', label: 'Uplink', side: 'top' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }]),
   icon('access-point', 'Wireless access point', 'Wireless', [{ id: 'ETH', label: 'PoE uplink', side: 'top', kind: 'rj45' }, { id: 'WIFI', label: 'Wireless', side: 'bottom' }]),
@@ -223,14 +230,21 @@ function SwitchDecor({ s }: { s: StencilDef }) {
 }
 
 function PatchDecor({ s }: { s: StencilDef }) {
+  const rows = Math.max(1, Math.round(s.height / 90));
   return (
     <g fontFamily="Arial, Helvetica, sans-serif">
-      <rect x={70} y={10} width={s.width - 120} height={18} fill="#f5f5f5" />
-      {s.ports.map((p) => (
-        <text key={p.id} x={p.x + p.w / 2} y={24} fontSize={9} fill="#333" textAnchor="middle">{p.label}</text>
+      {Array.from({ length: rows }, (_, r) => (
+        <g key={r}>
+          {/* Each 1U row: its write-on label strip, mounting holes, and a seam to the next row. */}
+          <rect x={70} y={10 + r * 90} width={s.width - 120} height={18} fill="#f5f5f5" />
+          <circle cx={30} cy={45 + r * 90} r={7} fill="#111" stroke="#666" />
+          <circle cx={s.width - 30} cy={45 + r * 90} r={7} fill="#111" stroke="#666" />
+          {r > 0 && <rect x={0} y={r * 90 - 1} width={s.width} height={2} fill="#1c1c1e" />}
+        </g>
       ))}
-      <circle cx={30} cy={45} r={7} fill="#111" stroke="#666" />
-      <circle cx={s.width - 30} cy={45} r={7} fill="#111" stroke="#666" />
+      {s.ports.map((p) => (
+        <text key={p.id} x={p.x + p.w / 2} y={p.y - 10} fontSize={9} fill="#333" textAnchor="middle">{p.label}</text>
+      ))}
     </g>
   );
 }
