@@ -42,9 +42,11 @@ export interface Prefs {
   /** Your price book: unit price per Bill of Materials item (key → price), used for every client's quote. */
   priceBook: Record<string, number>;
   /** The .rackdraw file each client is saved to on this computer (client id → file), so Save writes back to it. */
-  fileLinks: Record<string, { path: string; name: string }>;
+  fileLinks: Record<string, { path: string; name: string; sig?: string }>;
+  /** Client files opened or saved lately (desktop app), newest first: File → Recent and the taskbar list. */
+  recentFiles: { path: string; name: string; at: number }[];
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {}, fileLinks: {} };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {}, fileLinks: {}, recentFiles: [] };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

@@ -90,7 +90,7 @@ function openOutside(url) {
 
 /* ---------- .rackdraw files: Save / Save As, and files opened from Explorer ---------- */
 
-const { MAX_FILE, key, mayWrite, writeAtomic, filesIn, suggestedPath } = require('./files.cjs');
+const { MAX_FILE, key, mayWrite, writeAtomic, filesIn, suggestedPath, isClientFile } = require('./files.cjs');
 /** Files the user picked in a Save dialog or opened this session: Save may write back to them without asking. */
 const approved = new Set();
 
@@ -104,6 +104,7 @@ async function openFiles(paths) {
       if ((await fsp.stat(p)).size > MAX_FILE) continue;
       const bytes = new Uint8Array(await fsp.readFile(p));
       if (/\.rackdraw$/i.test(p)) approved.add(key(p));
+      app.addRecentDocument(p); // the taskbar icon's list (Windows jump list)
       const file = { path: p, name: path.basename(p), bytes };
       if (pageReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rd:open-file', file);
       else pendingFiles.push(file);
@@ -131,7 +132,22 @@ ipcMain.handle('rd:save', async (e, args) => {
   }
   await writeAtomic(target, Buffer.from(bytes));
   approved.add(key(target));
+  app.addRecentDocument(target);
   return { path: target, name: path.basename(target) };
+});
+
+// File → Recent: open a client file again (only client files: .rackdraw, .rackdraw.json, .netcraft.json).
+ipcMain.handle('rd:open-path', async (e, p) => {
+  if (!isOwn(e.senderFrame?.url ?? '') || !isClientFile(p)) return false;
+  await openFiles([p]);
+  return true;
+});
+
+// Open file location: Explorer with the client's file selected.
+ipcMain.handle('rd:show-in-folder', (e, p) => {
+  if (!isOwn(e.senderFrame?.url ?? '') || !isClientFile(p)) return false;
+  shell.showItemInFolder(p);
+  return true;
 });
 
 ipcMain.on('rd:ready', (e) => {

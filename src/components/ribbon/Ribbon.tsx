@@ -6,7 +6,7 @@ import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openChangeLog, openFind, openPortMap, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
-import { desktop, openClientFile, saveClient } from '@/lib/fileSave';
+import { desktop, openClientFile, openRecent, saveClient, showFileInFolder, useFileStatus } from '@/lib/fileSave';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
@@ -427,6 +427,7 @@ export function Ribbon() {
           >
             {sorted.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          <FileName />
         </div>
         {doc.busy && <span className="text-xs text-white/80">Working…</span>}
       </div>
@@ -580,6 +581,57 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
 }
 
 /** The File tab's full-window page (Office "backstage"). */
+/** Title bar: the client's file, with a dot while there are changes not saved to it. */
+function FileName() {
+  const f = useFileStatus();
+  if (!f) return null;
+  return (
+    <span
+      className="hidden max-w-48 truncate text-xs text-white/80 md:inline"
+      title={f.dirty ? `Changes not saved to ${f.path} (Ctrl+S saves them)` : `Saved in ${f.path}`}
+    >
+      {f.name}{f.dirty && <span className="ml-1 text-amber-300" aria-label="unsaved changes">●</span>}
+    </span>
+  );
+}
+
+/** File page: the client's own file, and the client files opened or saved lately (desktop app). */
+function RecentFiles({ onClose }: { onClose: () => void }) {
+  const recent = usePref('recentFiles');
+  const f = useFileStatus();
+  if (!desktop()) return null;
+  return (
+    <div className="mb-8 max-w-3xl">
+      {f && (
+        <p className="mb-4 text-sm text-gray-600">
+          Saved in <span className="font-mono text-xs text-gray-800">{f.path}</span>{f.dirty && <span className="text-amber-700"> · changes not saved yet</span>}{' '}
+          <button type="button" className="text-blue-700 hover:underline" onClick={() => void showFileInFolder(f.path)}>Open file location</button>
+        </p>
+      )}
+      {recent.length > 0 && (
+        <>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Recent</h2>
+          <ul className="divide-y divide-gray-100 rounded border border-gray-200">
+            {recent.map((r) => {
+              const folder = r.path.slice(0, Math.max(0, r.path.length - r.name.length - 1));
+              return (
+                <li key={r.path} className="flex items-center gap-3 px-3 py-1.5 hover:bg-blue-50">
+                  <button type="button" className="min-w-0 flex-1 text-left" title={r.path} onClick={() => { onClose(); void openRecent(r.path, r.name); }}>
+                    <span className="block truncate text-sm font-medium text-gray-900">{r.name}</span>
+                    <span className="block truncate text-xs text-gray-500">{folder}</span>
+                  </button>
+                  <span className="shrink-0 text-xs text-gray-400">{new Date(r.at).toLocaleDateString()}</span>
+                  <button type="button" className="shrink-0 text-xs text-blue-700 hover:underline" onClick={() => void showFileInFolder(r.path)} title="Show the file in Explorer">Location</button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onClose: () => void; onNew: () => void; onOpen: () => void; onSave: () => void; onPrint: () => void;
   onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg' | 'web') => void;
@@ -649,6 +701,7 @@ A copy is downloaded first (${safeName(project.name)}.rackdraw), so you can open
       <section className="flex-1 overflow-y-auto p-8">
         <h1 className="mb-1 text-2xl font-light text-gray-900">{project.name}</h1>
         <p className="mb-6 text-sm text-gray-500">{[project.site, project.address].filter(Boolean).join(' · ') || 'Client diagram'} · {project.pages.length} page{project.pages.length === 1 ? '' : 's'}</p>
+        <RecentFiles onClose={onClose} />
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Export</h2>
         <div className="grid max-w-3xl grid-cols-2 gap-3">
           {exp('visio', 'Visio drawing (.vsdx)', 'Every page as a Visio drawing: devices with their Shape Data, cables, zones, labels and info boxes', 'vsdx')}
@@ -663,7 +716,7 @@ A copy is downloaded first (${safeName(project.name)}.rackdraw), so you can open
           {exp('csv', 'CSV tables', 'Devices, connections, racks and port notes for Excel', 'csv')}
         </div>
         <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-gray-500">Save and share</h2>
-        <p className="max-w-3xl text-sm text-gray-600">Save writes a <code>.rackdraw.json</code> file with the whole client (pages, racks, custom shapes) that opens on any computer with RackDraw. Your diagrams are also kept automatically on this computer.</p>
+        <p className="max-w-3xl text-sm text-gray-600">Save (Ctrl+S) writes a <code>.rackdraw</code> file with the whole client (pages, racks, custom shapes) that opens on any computer with RackDraw; after the first time it saves back to the same file. Your diagrams are also kept automatically on this computer.</p>
       </section>
     </div>
   );

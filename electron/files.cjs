@@ -34,8 +34,22 @@ function mayWrite(p, approved) {
   return approved.has(key(p)) || isRackdrawOnDisk(p);
 }
 
+/** Writes to the same file wait for each other, so they land in the order they were asked for. */
+const queues = new Map();
+function inOrder(k, job) {
+  const next = (queues.get(k) ?? Promise.resolve()).then(job, job);
+  const tail = next.catch(() => undefined);
+  queues.set(k, tail);
+  void tail.then(() => { if (queues.get(k) === tail) queues.delete(k); });
+  return next;
+}
+
 /** Writes a temporary file next to the target, then renames it over the target: a crash never leaves half a file. */
-async function writeAtomic(target, bytes) {
+function writeAtomic(target, bytes) {
+  return inOrder(key(target), () => writeNow(target, bytes));
+}
+
+async function writeNow(target, bytes) {
   const tmp = `${target}.${process.pid}-${Date.now()}.tmp`;
   await fsp.writeFile(tmp, bytes);
   try {
@@ -54,6 +68,12 @@ function filesIn(argv) {
     .filter((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } });
 }
 
+/** An existing client file (.rackdraw, or an older .rackdraw.json / .netcraft.json) at an absolute path. */
+function isClientFile(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p) || !OPENABLE.test(p)) return false;
+  try { return fs.statSync(p).isFile(); } catch { return false; }
+}
+
 /** The name the Save dialog suggests: an old .rackdraw.json / .netcraft.json becomes .rackdraw. */
 function suggestedPath(given, name, documents) {
   if (typeof given === 'string' && path.isAbsolute(given)) return given.replace(/(\.(rackdraw|netcraft))?(\.json)?$/i, '.rackdraw');
@@ -61,4 +81,4 @@ function suggestedPath(given, name, documents) {
   return path.join(documents, /\.rackdraw$/i.test(clean) ? clean : `${clean}.rackdraw`);
 }
 
-module.exports = { RD_MIME, MAX_FILE, key, isRackdrawOnDisk, mayWrite, writeAtomic, filesIn, suggestedPath };
+module.exports = { RD_MIME, MAX_FILE, key, isRackdrawOnDisk, mayWrite, writeAtomic, filesIn, suggestedPath, isClientFile };
