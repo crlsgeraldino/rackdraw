@@ -3,6 +3,7 @@
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
 import { planRacks } from '@/lib/autoRack';
+import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -140,6 +141,8 @@ interface DiagramState {
   mapAllDevices: (fn: (d: DeviceData) => Partial<DeviceData>) => void;
   /** Applies one change to several cables on the active page (undoable). */
   updateEdgesData: (ids: string[], patch: Partial<CableData>) => void;
+  /** Data → Labels: gives every physical cable without a label the number it prints with (C-001…). */
+  numberCables: (pageId?: string) => void;
   deleteSelected: () => void;
   duplicateSelected: () => void;
 
@@ -1114,6 +1117,13 @@ export const useDiagram = create<DiagramState>()(
         mapAllDevices: (fn) => {
           get().snapshot();
           commit({ pages: cur().pages.map((pg) => ({ ...pg, nodes: pg.nodes.map((n) => (n.type === 'device' ? { ...n, data: { ...n.data, ...fn(n.data) } } : n)) })) });
+        },
+        numberCables: (pageId) => {
+          const p = cur();
+          const ids = new Map(labelledCables(p, pageId).filter((c) => !c.e.data?.label?.trim()).map((c) => [c.e.id, c.id]));
+          if (!ids.size) return;
+          get().snapshot();
+          commit({ pages: p.pages.map((pg) => ({ ...pg, edges: pg.edges.map((e) => (ids.has(e.id) ? { ...e, data: { ...(e.data ?? { cable: 'Cat6' }), label: ids.get(e.id) } } as CableEdge : e)) })) });
         },
         updateEdgesData: (ids, patch) => {
           const set = new Set(ids);

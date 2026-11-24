@@ -756,6 +756,17 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
     single-mode fiber. Four racks (a 32U data center rack and an 18U rack per building).
   - Every drop is traced end to end (endpoint → patch panel → access switch → fiber panels → core), with wall jacks,
     lengths, VLANs (1 / 10 data / 20 voice / 30 cameras), port speeds and PoE filled in.
+- **Labels** (Data → **Labels**): print-ready labels with a live preview.
+  - **Cable labels**: the cable's number, both ends (device and port), type, VLAN and length, with a colour bar in
+    its VLAN / type colour; one label for each end (the end it goes on first) or one per cable. Cables without a
+    label are numbered C-001…; **Write the numbers on the diagram too** puts those numbers on the cables so the
+    drawing and the printed labels match. Wi-Fi, Bluetooth, VPN and MPLS links get no label.
+  - **Asset labels**: name, model, serial, asset tag and IP with a **QR code** (the device's details, or its web
+    link). The QR encoder is built in (no add-on).
+  - **Patch panel strips**: blocks of six ports to slide into the panel's label windows, each port with its wall
+    jack (from the port's "connected to" note) or the device its back run reaches.
+  - Sheets: Avery 5160 / 8160 (30), 5167 (80), 5163 (10), and A4 L7160 (21), L7651 (65). Start at any label to
+    reuse a partly used sheet; print outlines to test on plain paper. Print at 100% scale.
 - **Lifecycle & circuits** (Data → **Lifecycle**):
   - Every device has **Purchased**, **Warranty / support ends** and **End of life** dates (Shape Data → Lifecycle,
     and Device Table columns), each showing how long is left.
