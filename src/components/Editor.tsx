@@ -22,6 +22,7 @@ import { PortMapHost } from './PortMapDialog';
 import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
 import { DesktopFiles } from './DesktopFiles';
 import { Toast } from './Toast';
+import { PasswordHost } from './PasswordHost';
 import { saveClient } from '@/lib/fileSave';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
@@ -596,6 +597,7 @@ export default function Editor() {
         <ChangeLogRecorder />
         <DesktopFiles />
         <Toast />
+        <PasswordHost />
         <ChangeShapeDialog />
         <VersionsDialog />
         <NumberShapesDialog />

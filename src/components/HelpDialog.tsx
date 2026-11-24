@@ -146,6 +146,7 @@ const SECTIONS: { id: HelpSection; label: string; body: () => ReactNode }[] = [
           <><K>Save As (Ctrl+Shift+S)</K>: a copy under a new name or place.</>,
           <><K>Open</K>: <code>.rackdraw</code> files, older <code>.rackdraw.json</code> files, Visio drawings (.vsdx) and templates (.vstx). Double-clicking a <code>.rackdraw</code> file in Explorer opens it too.</>,
           <><K>File → Recent</K> lists the client files you used lately; <K>Open file location</K> shows the file in Explorer.</>,
+          <><K>File → Protect with password</K>: anyone opening the file needs the password (Ctrl+S keeps it protected). A forgotten password can&apos;t be recovered, so keep it in your password manager. The copy RackDraw keeps on this computer and exports are not protected. <K>Back up everything</K> can protect the backup too.</>,
         ]} />
         <H>Sharing</H>
         <P>Export from <K>File</K>: Visio drawing, PDF report, Word report, PowerPoint slides, pictures (PNG / SVG), a web page anyone can open, and CSV tables.</P>

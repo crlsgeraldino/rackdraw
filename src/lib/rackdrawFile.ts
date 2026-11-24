@@ -1,4 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
+import { deriveSecret, fromB64, seal, toB64, unseal, type Secret } from './fileCrypto';
 
 /*
  * The .rackdraw file: a ZIP package, like Office and Visio files.
@@ -136,6 +137,7 @@ export function unpackRackdraw(bytes: Uint8Array): { payload: unknown; manifest:
     throw new RackdrawFileError('This file is damaged and can\'t be opened (its contents list is missing).');
   }
   if (manifest?.format !== 'rackdraw') throw new RackdrawFileError('This is not a RackDraw drawing.');
+  if ((manifest as { protected?: unknown }).protected) throw new RackdrawFileError('This file is password-protected: open it in RackDraw (File → Open) to enter the password.');
   if (typeof manifest.version === 'number' && manifest.version > FORMAT_VERSION) throw new RackdrawFileError('This file was saved by a newer version of RackDraw. Update RackDraw to open it.');
   const raw = files['project.json'];
   if (!raw) throw new RackdrawFileError('This file is damaged and can\'t be opened (the drawing is missing).');
@@ -171,4 +173,54 @@ export function unpackRackdraw(bytes: Uint8Array): { payload: unknown; manifest:
     throw new RackdrawFileError('This file is damaged and can\'t be opened (the drawing can\'t be read).');
   }
   return { payload: walk(payload), manifest };
+}
+
+/* ---------- password-protected .rackdraw files ---------- */
+
+/**
+ * A protected file is a .rackdraw package too (same "mimetype", so it is still recognised as a RackDraw drawing):
+ * manifest.json says it is protected and how (no client name), and payload.bin is the whole ordinary .rackdraw
+ * package, encrypted (see lib/fileCrypto.ts).
+ */
+export interface Protection { kdf: 'PBKDF2-SHA256'; cipher: 'AES-256-GCM'; iterations: number; salt: string; iv: string }
+
+/** How a file is protected, or null for an ordinary file (or something that isn't a package). */
+export function protectionOf(bytes: Uint8Array): Protection | null {
+  if (!isRackdrawPackage(bytes)) return null;
+  try {
+    const files = unzipSync(bytes, { filter: (f) => f.name === 'manifest.json' });
+    const m = JSON.parse(strFromU8(files['manifest.json'])) as { protected?: Protection };
+    return m?.protected && typeof m.protected.salt === 'string' ? m.protected : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function packProtected(inner: Uint8Array, secret: Secret, saved = new Date()): Promise<Uint8Array> {
+  const s = await seal(secret, inner);
+  const manifest = {
+    format: 'rackdraw', version: FORMAT_VERSION, saved: saved.toISOString(),
+    protected: { kdf: 'PBKDF2-SHA256', cipher: 'AES-256-GCM', iterations: secret.iterations, salt: toB64(secret.salt), iv: toB64(s.iv) } satisfies Protection,
+  };
+  return zipSync({
+    mimetype: [strToU8(RACKDRAW_MIME), { level: 0 }],
+    'manifest.json': [strToU8(JSON.stringify(manifest, null, 1)), { level: 6 }],
+    'payload.bin': [s.data, { level: 0 }],
+  });
+}
+
+/** The ordinary .rackdraw package inside a protected file, and the key to save it again (WrongPasswordError if not). */
+export async function unprotect(bytes: Uint8Array, password: string): Promise<{ inner: Uint8Array; secret: Secret }> {
+  const p = protectionOf(bytes);
+  if (!p) throw new RackdrawFileError('This file is not password-protected.');
+  let files: Record<string, Uint8Array>;
+  try {
+    files = unzipSync(bytes);
+  } catch {
+    throw new RackdrawFileError('This file is damaged and can\'t be opened (it may not have been copied completely).');
+  }
+  if (!files['payload.bin']) throw new RackdrawFileError('This file is damaged and can\'t be opened (the drawing is missing).');
+  const secret = await deriveSecret(password, fromB64(p.salt), p.iterations);
+  const inner = await unseal(secret, { iv: fromB64(p.iv), data: files['payload.bin'] });
+  return { inner, secret };
 }

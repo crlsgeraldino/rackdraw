@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.3.0',
+    title: 'Password-protected files',
+    items: [
+      'File → Protect with password: anyone opening the client\'s .rackdraw file needs the password — from email, a shared folder or a USB stick. Saving keeps it protected; a lock shows next to the file name.',
+      'File → Back up everything can protect the backup with a password too; Restore asks for it.',
+      'A forgotten password can\'t be recovered: keep it in your password manager. The copy RackDraw keeps on this computer and exports (PDF, Visio, Word…) are not protected.',
+    ],
+  },
+  {
     version: '1.2.1',
     title: 'Faster on big drawings',
     items: ['Pages with hundreds of cables re-draw much faster after a move: spacing parallel cables and line jumps now take a fraction of the time (several times faster at 500 cables, far more for big bundles of patch cords). The drawing is exactly the same.'],
