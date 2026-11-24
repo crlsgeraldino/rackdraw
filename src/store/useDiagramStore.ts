@@ -2,6 +2,7 @@
 
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
+import { planRack } from '@/lib/autoRack';
 import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
@@ -23,7 +24,7 @@ import { isWall, snapIntoWall, wallsAround } from '@/lib/floorplan';
 import { intersectAll, subtractAll, unionAll, type Ring } from '@/lib/polybool';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, ShapeNode, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DeviceNode, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, ShapeNode, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
 
 /**
  * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
@@ -307,6 +308,11 @@ interface DiagramState {
   selectRack: (id: string | null) => void;
   selectRackItem: (id: string | null) => void;
   addRack: (name: string, units: number) => string;
+  /**
+   * Build rack from diagram: mounts the active page's rack-mountable devices (not already in a rack) in a new rack,
+   * firewall at the top, panels above their switches, servers, UPS at the bottom. Returns how many were mounted.
+   */
+  buildRackFromDiagram: (name?: string) => number;
   updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes'>>) => boolean;
   deleteRack: (id: string) => void;
   /** Places an item if it fits; returns false otherwise. */
@@ -2057,6 +2063,19 @@ export const useDiagram = create<DiagramState>()(
           commit({ racks: [...(cur().racks ?? []), rack] });
           set({ activeRackId: rack.id, selectedRackItemId: null });
           return rack.id;
+        },
+        buildRackFromDiagram: (name) => {
+          const p = cur();
+          const racks = p.racks ?? [];
+          const mounted = new Set(racks.flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
+          const devices = page().nodes.filter((n): n is DeviceNode => n.type === 'device' && !mounted.has(n.id));
+          const cables = p.pages.flatMap((pg) => pg.edges.map((e) => ({ a: e.source, b: e.target })));
+          const { rack, mounted: count } = planRack(name || `Rack ${String.fromCharCode(65 + racks.length)}`, devices, getStencil, cables);
+          if (!count) return 0;
+          get().snapshot();
+          commit({ racks: [...racks, rack] });
+          set({ activeRackId: rack.id, selectedRackItemId: null, view: 'racks' });
+          return count;
         },
         updateRack: (id, patch) => {
           const racks = cur().racks ?? [];

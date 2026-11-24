@@ -91,7 +91,10 @@ function SideList({ rack }: { rack: Rack | undefined }) {
           </div>
         </form>
       ) : (
-        <button onClick={() => { setAdding(true); setName(`Rack ${String.fromCharCode(65 + racks.length)}`); }} className="mb-3 w-full rounded border border-dashed border-blue-400 bg-blue-50 px-2 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">+ Add rack</button>
+        <>
+          <button onClick={() => { setAdding(true); setName(`Rack ${String.fromCharCode(65 + racks.length)}`); }} className="mb-1 w-full rounded border border-dashed border-blue-400 bg-blue-50 px-2 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">+ Add rack</button>
+          <BuildFromDiagram className="mb-3 w-full rounded border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100" />
+        </>
       )}
 
       {rack && (
@@ -137,6 +140,26 @@ function SideList({ rack }: { rack: Rack | undefined }) {
         </>
       )}
     </aside>
+  );
+}
+
+/** "Build rack from diagram": the current page's rack equipment, mounted in a new rack the way a tech would. */
+function BuildFromDiagram({ className }: { className: string }) {
+  const [msg, setMsg] = useState('');
+  return (
+    <>
+      <button
+        className={className}
+        title="Mount the diagram page's rack equipment (firewall, patch panels, switches, servers, UPS) in a new rack: firewall at the top, each patch panel above its switch with a cable manager between, UPS at the bottom"
+        onClick={() => {
+          const n = useDiagram.getState().buildRackFromDiagram();
+          setMsg(n ? '' : "Nothing to mount: the diagram page has no rack-mountable devices that aren't already in a rack.");
+        }}
+      >
+        Build rack from diagram
+      </button>
+      {msg && <p className="mb-2 text-[11px] text-amber-700">{msg}</p>}
+    </>
   );
 }
 
@@ -523,7 +546,10 @@ export function RackView() {
         <div className="flex flex-1 items-center justify-center bg-gray-50">
           <div className="max-w-sm rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
             <p className="mb-3">No racks for <b>{project.name}</b> yet.</p>
-            <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700" onClick={() => addRack('Rack A', 42)}>Add a 42U rack</button>
+            <div className="flex flex-col items-center gap-2">
+              <BuildFromDiagram className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700" />
+              <button className="rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50" onClick={() => addRack('Rack A', 42)}>Add an empty 42U rack</button>
+            </div>
             <p className="mt-3 text-xs text-gray-400">Devices you mount are the same ones on the diagram: edit a name or IP in either place.</p>
           </div>
         </div>

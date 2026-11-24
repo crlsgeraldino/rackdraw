@@ -1904,6 +1904,11 @@ function ViewTab() {
         <Big icon="fullscreen" label="Full Screen" onClick={() => { setView('diagram'); setPresenting(true); }} title="Show the drawing alone, page by page (F5); arrow keys change page, Esc ends" />
         <Big icon="diagram" label="Diagram" active={diagram} onClick={() => setView('diagram')} />
         <Big icon="racks" label={`Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`} active={!diagram} onClick={() => setView('racks')} />
+        <Big
+          icon="racks" label="Rack from Diagram"
+          title="Mount this page's rack equipment (firewall, patch panels, switches, servers, UPS) in a new rack, laid out like a real one; its cables show as patch cords"
+          onClick={() => { if (!useDiagram.getState().buildRackFromDiagram()) alert('Nothing to mount: this page has no rack-mountable devices that aren\'t already in a rack.'); }}
+        />
       </Group>
       <Group label="Zoom">
         <Big icon="fit" label="Fit Page" onClick={() => rf.fitView({ padding: 0.2, duration: 200 })} disabled={!diagram} title="Fit the whole page in the window" />

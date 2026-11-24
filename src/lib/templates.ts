@@ -2,8 +2,10 @@
  * File → New templates (Visio's template gallery): starter drawings built from the default stencils only, and the
  * user's own templates saved from a client. Creating a client from a template copies it with fresh ids.
  */
+import { planRack } from './autoRack';
 import { newPage } from './project';
-import type { AppNode, CableEdge, Page, Project, Rack } from './types';
+import { STENCIL_MAP } from './stencils';
+import type { AppNode, CableEdge, DeviceNode, Page, Project, Rack } from './types';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -94,8 +96,65 @@ function floorPlan(): Template['project'] {
   return { pages: [page], activePageId: page.id };
 }
 
+/**
+ * An office network as an MSP documents it, and the same equipment in its rack: the diagram shows ISP → firewall →
+ * core switch, the switch patched to patch panel A, and the panel's back runs to each desk / AP / camera / phone
+ * (wall jack numbers, lengths, VLANs, port speed and PoE noted). The rack is planned from the diagram exactly as
+ * "Rack from Diagram" does, so its patch cords match the diagram's cables.
+ */
+function officeWithRack(): Template['project'] {
+  const port = (speed: string, extra: Record<string, unknown> = {}) => ({ speed, status: 'up', ...extra });
+  const swPorts: Record<string, unknown> = { P1: port('1G', { uplink: true, description: 'Firewall X3 (LAN)' }) };
+  const drops = [
+    { id: 'n-ap1', stencil: 'access-point', name: 'AP-1 Lobby', nic: 'ETH', vlan: '1', poe: 'PoE+', len: '95 ft', x: 0 },
+    { id: 'n-ap2', stencil: 'access-point', name: 'AP-2 Office', nic: 'ETH', vlan: '1', poe: 'PoE+', len: '120 ft', x: 130 },
+    { id: 'n-pc1', stencil: 'workstation', name: 'Front desk PC', nic: 'NIC', vlan: '10', len: '85 ft', x: 260 },
+    { id: 'n-pc2', stencil: 'workstation', name: 'Office PC 1', nic: 'NIC', vlan: '10', len: '110 ft', x: 390 },
+    { id: 'n-pc3', stencil: 'workstation', name: 'Office PC 2', nic: 'NIC', vlan: '10', len: '115 ft', x: 520 },
+    { id: 'n-prn', stencil: 'printer', name: 'Printer', nic: 'NIC', vlan: '10', len: '60 ft', x: 650 },
+    { id: 'n-cam', stencil: 'camera', name: 'Camera Entrance', nic: 'ETH', vlan: '30', poe: 'PoE', len: '140 ft', x: 780 },
+    { id: 'n-ph1', stencil: 'phone', name: 'Reception phone', nic: 'LAN', vlan: '20', poe: 'PoE', len: '80 ft', x: 910 },
+  ];
+  const ppPorts: Record<string, unknown> = {};
+  drops.forEach((d, i) => {
+    ppPorts[`PP${i + 1}`] = { description: `Wall jack 1-${String(i + 1).padStart(2, '0')}` };
+    swPorts[`P${(i + 1) * 2}`] = port('1G', { vlan: d.vlan, ...(d.poe ? { poe: d.poe } : {}) });
+  });
+  Object.assign(swPorts, { P18: port('10G', { description: 'Server 1' }), P20: port('1G'), P22: port('1G') });
+  const nodes = [
+    dev({ id: 'n-isp', stencil: 'internet', name: 'Internet', x: 410, y: -470 }),
+    dev({ id: 'n-ont', stencil: 'modem', name: 'ISP modem', x: 410, y: -350, extra: { model: 'Fiber ONT' } }),
+    dev({ id: 'n-fw', stencil: 'sonicwall-tz570-670', name: 'Firewall', x: 180, y: -220, extra: { ip: '10.0.0.1' } }),
+    dev({ id: 'n-sw', stencil: 'switch-24-poe', name: 'Core switch', x: 140, y: -40, extra: { ip: '10.0.0.2', ports: swPorts } }),
+    // The panel's name sits to its right, clear of the runs leaving its ports.
+    dev({ id: 'n-pp', stencil: 'patch-panel-24', name: 'Patch panel A', x: 200, y: 200, extra: { ports: ppPorts, labelOffset: { x: 560, y: -44 } } }),
+    ...drops.map((d) => dev({ id: d.id, stencil: d.stencil, name: d.name, x: d.x, y: 500 })),
+    dev({ id: 'n-srv', stencil: 'server', name: 'Server 1', x: 1060, y: -60, extra: { ip: '10.0.0.10', model: 'Hyper-V host' } }),
+    dev({ id: 'n-nas', stencil: 'nas', name: 'NAS', x: 1060, y: 80, extra: { ip: '10.0.0.20' } }),
+    dev({ id: 'n-ups', stencil: 'ups', name: 'UPS', x: 1060, y: 220, extra: { ip: '10.0.0.30' } }),
+  ];
+  const edges = [
+    cable('n-isp', 'WAN', 'n-ont', 'UPLINK', { cable: 'Fiber' }),
+    // X2 (top) faces the modem above and X3 (bottom) the switch below, so both runs are straight.
+    cable('n-ont', 'LAN', 'n-fw', 'X2', { label: 'WAN' }),
+    cable('n-fw', 'X3', 'n-sw', 'P1', { label: 'LAN', length: '3 ft' }),
+    // Front: short patch cords from the switch to the panel. Back: the permanent runs to each wall jack.
+    // (The cords' colour shows their VLAN: blue data, yellow voice, red cameras.)
+    ...drops.map((d, i) => cable('n-sw', `P${(i + 1) * 2}`, 'n-pp', `PP${i + 1}`, { length: '1 ft', color: d.vlan === '20' ? '#eab308' : d.vlan === '30' ? '#dc2626' : '#2563eb' })),
+    ...drops.map((d, i) => cable('n-pp', `PP${i + 1}`, d.id, d.nic, { vlan: d.vlan, length: d.len })),
+    cable('n-sw', 'P18', 'n-srv', 'NIC1', { length: '3 ft' }),
+    cable('n-sw', 'P20', 'n-nas', 'NIC1', { length: '3 ft' }),
+    cable('n-sw', 'P22', 'n-ups', 'NMC', { length: '3 ft' }),
+  ];
+  const page = newPage('Network', 'network', nodes, edges);
+  const { rack } = planRack('Rack A', nodes.filter((n): n is DeviceNode => n.type === 'device'), (id) => STENCIL_MAP[id], edges.map((e) => ({ a: e.source, b: e.target })), { spare: 6 });
+  rack.location = 'Server closet';
+  return { pages: [page], activePageId: page.id, racks: [rack] };
+}
+
 export const BUILT_IN_TEMPLATES: Template[] = [
   { id: 'tpl-office', name: 'Small office network', description: 'ISP → firewall → PoE switch → access points, workstations, printer and NAS, all cabled.', project: smallOffice() },
+  { id: 'tpl-office-rack', name: 'Office network + rack', description: 'A full office network (firewall, PoE switch, patch panel, desks, APs, camera, phone, server, NAS, UPS) and the same equipment in its rack, patch cords included.', project: officeWithRack() },
   { id: 'tpl-rack', name: 'Server rack', description: 'Firewall, 48-port switch, server, NAS and UPS cabled, and mounted in a 24U rack with cable managers and a PDU.', project: rackRoom() },
   { id: 'tpl-floor', name: 'Office floor plan', description: 'A 40 × 30 ft room drawn to scale: walls, door, window, an access point and a printer.', project: floorPlan() },
 ];

@@ -118,7 +118,8 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
       if (pg.edges.length && !cabled.has(n.id) && !Object.values(n.data.ports ?? {}).some(isDocumented)) {
         add('info', 'Not connected', `${n.data.name} has no cables or port notes`, pg.id, 'node', n.id);
       }
-      if (MANAGED.has(s.category) && s.id !== 'internet' && !ipOf(n.data.ip)) add('info', 'No IP', `${n.data.name} has no management IP`, pg.id, 'node', n.id);
+      // Patch panels are passive: no management IP to note.
+      if (MANAGED.has(s.category) && s.id !== 'internet' && !isPassThrough(n, s) && !ipOf(n.data.ip)) add('info', 'No IP', `${n.data.name} has no management IP`, pg.id, 'node', n.id);
       if (MANAGED.has(s.category) && s.id !== 'internet' && !n.data.serial) add('info', 'No serial', `${n.data.name} has no serial number`, pg.id, 'node', n.id);
     }
 

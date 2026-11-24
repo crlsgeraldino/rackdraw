@@ -704,6 +704,14 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - Exports: the **PDF** gets a front/rear elevation page per rack and a **Rack contents** table; the **CSV** gets a
   RACKS section and rack positions in the device list.
 
+- **Build rack from diagram** (Racks view, or View → **Rack from Diagram**): mounts the diagram page's rack
+  equipment that isn't in a rack yet in a new rack sized to fit (with a few spare units), laid out the way a tech
+  would: firewall / router at the top, each patch panel above the switch it is patched to with a cable manager
+  between, other switches, a blanking panel, servers and storage, the UPS at the bottom and a PDU on the rear. The
+  diagram's cables appear as patch cords straight away.
+- **File → New → Office network + rack**: a complete office (ISP, firewall, PoE switch, patch panel with eight
+  wall-jack runs to APs, PCs, printer, camera and phone, server, NAS, UPS) with VLANs, lengths and port details, and
+  the same equipment in an 18U rack built that way.
 - **Patch panels**: 24-port (1U), **48-port (2U)** and **96-port (4U)**, in rows of 24 numbered left to right, row
   by row; every port is a connection point.
 - Drawn like a real cabinet: steel posts and top cap, silver rails with cage-nut holes and unit numbers, a dark
