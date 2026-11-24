@@ -434,6 +434,19 @@ export class VisioPackage {
         });
         continue;
       }
+      // Visio windows (Window, Window wall / curtain wall): a RackDraw window along the shape's length, as thick as
+      // the wall it sits in (the shape's height, else what its parts draw, else its "Wall thickness").
+      if (/^(window|window wall|curtain wall)\b/i.test(masterName ?? '') && t.w > 0) {
+        let [y0, y1] = t.h > 1e-6 ? [0, t.h] : localYExtent(s);
+        if (!(y1 - y0 > 1e-6)) {
+          const th = realInches(Object.entries(data).find(([k]) => /^wall\s*thickness$/i.test(k.trim()))?.[1] ?? '') ?? 4;
+          [y0, y1] = [-th / 2, th / 2];
+        }
+        const pts = ([[0, y0], [t.w, y0], [0, y1], [t.w, y1]] as [number, number][]).map(([x, y]) => toPx(apply(t.m, x, y)));
+        const wx = Math.min(...pts.map((p) => p[0])), wy = Math.min(...pts.map((p) => p[1]));
+        items.push({ ...base, kind: 'window', x: wx, y: wy, w: Math.max(...pts.map((p) => p[0])) - wx, h: Math.max(...pts.map((p) => p[1])) - wy });
+        continue;
+      }
       // Visio doors (single and double): each swing arc becomes a RackDraw door, measured from how it is drawn
       // (hinge = the arc's centre, in the wall; one end on the wall, the other the open leaf), so flips and
       // rotations come out right without evaluating Visio's formulas.
@@ -718,7 +731,7 @@ export interface VisioPageInfo {
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
 export interface PageItem {
   id: string;
-  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall' | 'door';
+  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall' | 'door' | 'window';
   /** Wall: its thickness on the page; door: the wall it sits in. */
   thicknessPx?: number;
   /** Door: hinge, the leaf's tip when closed (on the wall) and when open, in page px. */
@@ -905,6 +918,28 @@ function styleCell(s: Element, name: string, kind: 'line' | 'fill' | 'text', sty
 type M = [number, number, number, number, number, number]; // SVG matrix(a b c d e f)
 
 /** parent ∘ child: apply the child transform first, then the parent's. */
+/** How far up and down (local y) a shape's visible parts draw, in its own coordinates; [0, 0] when nothing does. */
+function localYExtent(s: Element): [number, number] {
+  let lo = Infinity, hi = -Infinity;
+  const visit = (el: Element, mm: M, w: number, h: number) => {
+    for (const geo of sections(el, 'Geometry')) {
+      if (cell(geo, 'NoShow') === '1') continue;
+      for (const row of children(geo, 'Row')) {
+        if (row.getAttribute('Del') === '1') continue;
+        const rel = /^Rel/.test(row.getAttribute('T') ?? '');
+        const x = num(cell(row, 'X')) * (rel ? w : 1), y = num(cell(row, 'Y')) * (rel ? h : 1);
+        const [, py] = apply(mm, x, y);
+        lo = Math.min(lo, py); hi = Math.max(hi, py);
+      }
+    }
+    const sub = children(el, 'Shapes')[0];
+    if (sub) for (const k of children(sub, 'Shape')) { const tk = xf(k); visit(k, compose(mm, tk.m), tk.w, tk.h); }
+  };
+  const t = xf(s);
+  visit(s, [1, 0, 0, 1, 0, 0], t.w, t.h);
+  return Number.isFinite(lo) ? [lo, hi] : [0, 0];
+}
+
 /**
  * The visible door-swing arcs inside a door shape (geometry of just MoveTo + ArcTo): both ends and both possible
  * centres of each, in the coordinates `m` maps to (the door's parent).

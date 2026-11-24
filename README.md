@@ -739,9 +739,11 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - **Visio doors** (single and double, from the Walls, Shell and Structure stencil) become RackDraw doors: same width,
   hinge side and swing direction, with the doorway cut through the wall; a double door becomes two doors. Doors drawn
   partly open in Visio come in fully open.
+- **Visio windows** (Window, Window wall / curtain wall) become RackDraw windows along their wall, as thick as the
+  wall (from the shape or its *Wall thickness*).
 - Not carried over yet: changing the theme inside RackDraw (Design → Themes uses RackDraw's own themes); Visio room
-  shapes and window walls whose look comes from ShapeSheet formulas come in as pictures; Visio's own window shapes
-  and special doors (garage, revolving, and doors inside stall or washroom groups) come in as pictures.
+  shapes whose look comes from ShapeSheet formulas come in as pictures; garden / bay windows and special doors
+  (garage, revolving, and doors inside stall or washroom groups) come in as pictures.
 
 ## Your own stencils (no code needed)
 

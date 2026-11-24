@@ -119,7 +119,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
 
     // Text RackDraw wrote for a device's label / info box: recreate those on the device instead.
     const pictureNames = new Set(items.filter((i) => i.kind === 'picture').map((i) => i.data.Name || i.name));
-    const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'wall' && i.kind !== 'door' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
+    const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'wall' && i.kind !== 'door' && i.kind !== 'window' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
     const infoFor = new Set(items.filter((i) => ownText(i) && i.name.endsWith(' info')).map((i) => i.name.replace(/\sinfo$/, '')));
 
     for (const it of items) {
@@ -141,6 +141,15 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
             fill: own === 'window' ? it.fill ?? 'transparent' : 'transparent', stroke: (own === 'door' ? it.lineColor : it.stroke) ?? '#374151',
             textColor: '#111827', fontSize: 14, layer: layerId(vp, it.layers),
           },
+        } as AppNode);
+        summary.shapes++;
+        continue;
+      }
+      if (it.kind === 'window') {
+        // A Visio window: a RackDraw window in the same place along its wall.
+        nodes.push({
+          id: `s-${uid()}`, type: 'shape', position: { x: it.x, y: it.y }, width: Math.max(4, it.w), height: Math.max(4, it.h),
+          data: { kind: 'window', text: '', rotation: 0, fill: '#e0f2fe', stroke: '#374151', textColor: '#111827', fontSize: 14, layer: layerId(vp, it.layers) },
         } as AppNode);
         summary.shapes++;
         continue;
