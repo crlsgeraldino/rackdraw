@@ -45,8 +45,10 @@ export interface Prefs {
   fileLinks: Record<string, { path: string; name: string; sig?: string }>;
   /** Client files opened or saved lately (desktop app), newest first: File → Recent and the taskbar list. */
   recentFiles: { path: string; name: string; at: number }[];
+  /** The RackDraw version last used on this computer (What's new shows what came after it). */
+  lastSeenVersion: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {}, fileLinks: {}, recentFiles: [] };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {}, fileLinks: {}, recentFiles: [], lastSeenVersion: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

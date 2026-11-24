@@ -12,6 +12,9 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 
 ## Features
 
+Press **F1** (or the **?** next to the ribbon tabs) in the app for Help: every ribbon tab explained, files and saving,
+and keyboard shortcuts. After each update a **What's new** window lists what changed (also in Help).
+
 **Draw the network**
 - **76 built-in stencils** for every kind of network (PAN, WLAN, LAN, CAN, MAN, WAN), with a filter in the Shapes
   window: front-panel switches (8–48 ports, PoE, core / aggregation), patch panels (24 / 48 / 96, fiber), firewalls,

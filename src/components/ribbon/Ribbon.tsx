@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
-import { openChangeLog, openFind, openPortMap, paletteAction } from '@/lib/events';
+import { openChangeLog, openFind, openHelp, openPortMap, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { desktop, openClientFile, openRecent, saveClient, showFileInFolder, useFileStatus } from '@/lib/fileSave';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
@@ -457,7 +457,8 @@ export function Ribbon() {
             Shape
           </button>
         )}
-        <button className="ml-auto rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" onClick={() => { setPref('ribbonCollapsed', !collapsed); setPeek(false); }} title={collapsed ? 'Pin the ribbon (Ctrl+F1)' : 'Collapse the ribbon (Ctrl+F1)'} aria-label="Collapse ribbon">
+        <button className="ml-auto rounded-md px-2 py-0.5 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" onClick={() => openHelp()} title="Help (F1)" aria-label="Help">?</button>
+        <button className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" onClick={() => { setPref('ribbonCollapsed', !collapsed); setPeek(false); }} title={collapsed ? 'Pin the ribbon (Ctrl+F1)' : 'Collapse the ribbon (Ctrl+F1)'} aria-label="Collapse ribbon">
           <Icon name={collapsed ? 'chevronDown' : 'chevronUp'} size={14} />
         </button>
       </div>

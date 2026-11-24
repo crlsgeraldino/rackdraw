@@ -22,3 +22,6 @@ export const openPortMap = (nodeId?: string) => window.dispatchEvent(new CustomE
 /** Review → Change Log. */
 export const CHANGE_LOG_EVENT = 'netcraft:change-log';
 export const openChangeLog = () => window.dispatchEvent(new Event(CHANGE_LOG_EVENT));
+/** Help (F1, the ? button): detail is the topic to open (see HelpDialog), else Getting started. */
+export const HELP_EVENT = 'netcraft:help';
+export const openHelp = (section?: string) => window.dispatchEvent(new CustomEvent(HELP_EVENT, { detail: section }));
