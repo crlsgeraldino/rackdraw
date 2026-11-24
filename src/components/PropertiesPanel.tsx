@@ -1,6 +1,7 @@
 'use client';
 
-import { openPortMap } from '@/lib/events';
+import { openChangeLog, openPortMap } from '@/lib/events';
+import { changeTime, deviceHistory } from '@/lib/changeLog';
 import { CIRCUIT_KINDS, daysUntil, LIFE_STATES, stateOf, whenText, type CircuitInfo } from '@/lib/lifecycle';
 import { parsePrice } from '@/lib/quote';
 import { subnetUsage } from '@/lib/ipam';
@@ -316,6 +317,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         <LabelEditor nodes={[node]} />
         <InfoBoxEditor nodes={[node]} />
       </Section>
+      <DeviceHistory node={node} />
       <Section title="Size & Position">
       {stencil && (() => {
         const b0 = baseSize(stencil);
@@ -354,6 +356,34 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         </div>
       </Section>
     </>
+  );
+}
+
+/** The device's own entries in the change log (newest first), with a way to the whole log. */
+function DeviceHistory({ node }: { node: DeviceNode }) {
+  const log = useCurrentProject().changeLog;
+  const items = useMemo(() => deviceHistory(log, node.id, node.data.name), [log, node.id, node.data.name]);
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(0, 8);
+  return (
+    <Section title={`History (${items.length})`}>
+      {!items.length ? (
+        <p className="text-[11px] text-gray-500">No changes recorded for this device yet. Edits to its details, ports, cables and rack position show here.</p>
+      ) : (
+        <ul className="space-y-1 text-[11px]">
+          {shown.map((e, i) => (
+            <li key={`${e.at}-${i}`} className="leading-snug">
+              <span className="font-mono text-[10px] text-gray-400">{changeTime(e.at)}</span>{' '}
+              <span className="text-gray-700">{e.kind === 'cable' ? `${e.target}: ${e.detail}` : e.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-1.5 flex gap-3 text-[11px]">
+        {items.length > 8 && <button type="button" className="text-blue-600 hover:underline" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${items.length}`}</button>}
+        <button type="button" className="text-blue-600 hover:underline" onClick={openChangeLog}>Open the change log</button>
+      </div>
+    </Section>
   );
 }
 

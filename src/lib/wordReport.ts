@@ -1,7 +1,7 @@
 'use client';
 
 import { writeDocx, type DocBlock } from './docx';
-import { bomTableRows, cablePathRows, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, portRows, rackPowerRows, rackRows, renderRack, type PageRenderer } from './export';
+import { bomTableRows, cablePathRows, CHANGE_TABLE, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, PORT_MAP_TABLE, portMapTableRows, portRows, rackPowerRows, rackRows, recentChangeRows, renderRack, type PageRenderer } from './export';
 import { pageAlt, rackAlt } from './altText';
 import type { Project } from './types';
 
@@ -82,6 +82,8 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
   table('Cable paths', ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'], cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]), [0.2, 0.3, 0.2, 0.15, 0.15]);
   table('Bill of materials', ['Section', 'Qty', 'Unit', 'Item', 'Detail'], bomTableRows(p).bom, [0.15, 0.07, 0.06, 0.35, 0.37]);
   table('Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], bomTableRows(p).capacity, [0.18, 0.24, 0.07, 0.07, 0.07, 0.12, 0.25]);
+  table('Port maps (ports in use)', PORT_MAP_TABLE, portMapTableRows(p), [0.16, 0.08, 0.22, 0.18, 0.06, 0.07, 0.08, 0.15]);
+  table('Recent changes (90 days)', CHANGE_TABLE, recentChangeRows(p), [0.14, 0.08, 0.28, 0.5]);
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]), [0.09, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.16]);
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'],

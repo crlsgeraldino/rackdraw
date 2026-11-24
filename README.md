@@ -47,7 +47,8 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
   listed (Data → Network Scan).
 - **Change log**: every client records what changed and when (devices added or removed, IPs, serials, warranty
   and port details, cables connected or removed, rack moves, the IP plan), plus notes of your own such as ticket
-  numbers; filter, search, save as CSV (Review → Change Log). It is saved with the client.
+  numbers; filter, search, save as CSV (Review → Change Log). It is saved with the client. Each device shows its
+  own history in Shape Data, and the PDF, Word and printed reports include the last 90 days and the port maps.
 - **Port maps**: every port of a switch, patch panel, firewall or router on its own face, coloured by VLAN and
   state, with where each port leads (through patch panels), VLAN, speed, PoE, status and cable label; printed one
   sheet per device, copied to Excel or saved as CSV.
