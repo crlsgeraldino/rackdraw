@@ -596,7 +596,7 @@ function networkTypes(): Template['project'] {
 }
 
 export const BUILT_IN_TEMPLATES: Template[] = [
-  { id: 'tpl-office', name: 'Small office network', description: 'ISP → firewall → PoE switch → access points, workstations, printer and NAS, all cabled.', project: smallOffice() },
+  { id: 'tpl-office', name: 'Basic office diagram (no rack)', description: 'ISP → firewall → PoE switch → access points, workstations, printer and NAS, all cabled: a quick one-page sketch.', project: smallOffice() },
   { id: 'tpl-office-rack', name: 'Small network + rack (up to 25 users)', description: 'One wiring closet: firewall, PoE switch, patch panel, desks, APs, camera, phone, server, NAS and UPS, and the same equipment in its rack, patch cords included.', project: officeWithRack() },
   { id: 'tpl-net-medium', name: 'Medium network (25–150 users)', description: 'Three floors: dual-WAN firewall, 10G core switch, servers and NAS in the MDF, an IDF per floor on an OM4 fiber backbone, PoE access switches and patch panels. One rack per room.', project: mediumNetwork() },
   { id: 'tpl-net-large', name: 'Large network (150+ users, campus)', description: 'HA firewall pair on two ISPs, redundant core pair, virtualization hosts, SAN, backup and OOB management in the data center, and three buildings with dual-homed access stacks over single-mode fiber. One rack per room.', project: largeNetwork() },
