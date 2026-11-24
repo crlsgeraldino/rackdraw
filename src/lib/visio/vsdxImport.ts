@@ -3,7 +3,7 @@
 import { libraryNameFromFile } from '../libraries';
 import { newPage } from '../project';
 import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableEdge, type CableType, type DeviceData, type Layer, type Page, type PortDef, type Project, type StencilDef } from '../types';
-import { canvasDibEncoder, VisioPackage, type PageItem } from './vssx';
+import { canvasDibEncoder, looksLikeEquipment, VisioPackage, type PageItem } from './vssx';
 
 /**
  * "Open a Visio drawing": turns each page of a .vsdx into a RackDraw page. Pictures become devices (their Shape
@@ -27,19 +27,7 @@ const FIELD_ALIASES: [keyof DeviceData, RegExp][] = [
 ];
 const IGNORED = /^(type|status)$/i;
 
-/** Network equipment, by its master's name (Visio's network, rack and computer stencils). */
-const EQUIPMENT = /router|switch|server|firewall|access ?point|\bap\b|wireless|modem|gateway|hub|bridge|nas\b|san\b|storage|ups\b|pdu|patch|rack|pc\b|computer|workstation|laptop|desktop|tablet|phone|printer|copier|scanner|camera|nvr|dvr|projector|controller|load ?balancer|vpn|cloud|internet|isp|ont\b|cable ?modem|fax|terminal|mainframe|kvm|monitor|display|appliance/i;
-/** Shape Data fields that mark a shape as a piece of equipment. */
-const DEVICE_FIELDS = /^(ip|ip ?address|mac|mac ?address|serial|serial ?number|asset ?(tag|number)|product ?number|manufacturer|model|network ?name|host ?name|cable|vlan|from|to)$/i;
-
-/**
- * Is this Visio shape a piece of equipment (a device here, with ports and details) or just part of a drawing
- * (tables, labels, flowchart boxes…), which is kept as a picture of itself?
- */
-const isEquipment = (it: PageItem) =>
-  // RackDraw's own Visio files mark every device with Name, Status and Type.
-  ('Name' in it.data && 'Type' in it.data && 'Status' in it.data)
-  || Object.keys(it.data).some((k) => DEVICE_FIELDS.test(k.trim())) || (it.fields ?? []).some((k) => DEVICE_FIELDS.test(k.trim())) || EQUIPMENT.test(it.masterName ?? '');
+const isEquipment = (it: PageItem) => looksLikeEquipment(it.data, it.fields ?? [], it.masterName);
 
 /** Ports on the four sides, for pictures that have no connection points, so cables can attach. */
 function sidePorts(w: number, h: number): PortDef[] {
@@ -147,12 +135,13 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         if (zone) {
           node = { id: `z-${uid()}`, type: 'zone', position: { x: it.x, y: it.y }, zIndex: -1, style: { width: it.w, height: it.h }, data: { title: it.text.split('\n')[0] || 'Zone', color: it.stroke ?? '#3b82f6' } };
         } else {
-          const kind = it.kind === 'ellipse' ? 'ellipse' : it.kind === 'text' ? 'text' : (it.rounding ?? 0) > 2 ? 'rounded' : 'rect';
+          const kind = it.kind === 'ellipse' ? 'ellipse' : it.kind === 'diamond' ? 'diamond' : it.kind === 'text' ? 'text' : (it.rounding ?? 0) > 2 ? 'rounded' : 'rect';
           node = {
             id: `s-${uid()}`, type: 'shape', position: { x: it.x, y: it.y }, width: Math.max(20, it.w), height: Math.max(14, it.h),
             data: {
               kind, text: it.text, fill: it.fill ?? 'transparent', stroke: it.stroke ?? 'transparent', textColor: it.textColor,
               fontSize: Math.max(8, Math.min(48, Math.round(it.fontPx))), dashed: it.dashed || undefined, rotation: 0,
+              align: it.align, valign: it.valign, bold: it.bold || undefined,
               layer: layerId(vp, it.layers),
             },
           };

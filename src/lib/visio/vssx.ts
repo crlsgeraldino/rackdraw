@@ -329,7 +329,12 @@ export class VisioPackage {
       // Every Shape Data field name (even empty ones) and the master's name: what kind of thing the shape is.
       const fields = prop ? children(prop, 'Row').map((row) => cell(row, 'Label') || row.getAttribute('N') || '').filter(Boolean) : [];
       const masterName = s.getAttribute('Master') ? this.allMasters.get(s.getAttribute('Master')!)?.name : undefined;
-      const base = { id, name, text, data, ...bbox, textColor, fontPx, layers, container, fields, masterName };
+      // Text alignment and weight, as the shape (or its text style) sets them.
+      const ha = num(paraCell(s, 'HorzAlign', this.styles), 1), va = num(styleCell(s, 'VerticalAlign', 'text', this.styles), 1);
+      const align = ha === 0 ? 'left' as const : ha === 2 ? 'right' as const : undefined;
+      const valign = va === 0 ? 'top' as const : va === 2 ? 'bottom' as const : undefined;
+      const bold = (num(charRow ? cell(charRow, 'Style') : null) & 1) === 1;
+      const base = { id, name, text, data, ...bbox, textColor, fontPx, layers, container, fields, masterName, align, valign, bold };
 
       const geos = sections(s, 'Geometry').filter((g) => cell(g, 'NoShow') !== '1');
       const sub = s.getElementsByTagNameNS(NS, 'Shapes')[0];
@@ -352,14 +357,15 @@ export class VisioPackage {
         continue;
       }
 
-      // Plain boxes, ellipses and text: kept as editable drawing shapes.
-      const simple = !hasKids && !foreign && !masterId && !Object.keys(data).length;
+      // Plain boxes, ellipses, diamonds and text, including copies of simple masters (flowchart and basic shapes):
+      // kept as editable drawing shapes. Equipment and anything carrying data stays a picture / device.
+      const simple = !hasKids && !foreign && !Object.keys(data).length && (!masterId || !looksLikeEquipment(data, fields, masterName));
       if (simple && geos.length === 0 && text) {
         items.push({ ...base, kind: 'text' });
         continue;
       }
       if (simple && geos.length === 1 && Math.abs(num(cell(s, 'Angle'))) < 1e-6) {
-        const kind = isRect(geos[0], t.w, t.h) ? 'box' : isEllipse(geos[0]) ? 'ellipse' : null;
+        const kind = isRect(geos[0], t.w, t.h) ? 'box' : isEllipse(geos[0]) ? 'ellipse' : isDiamond(geos[0], t.w, t.h) ? 'diamond' : null;
         if (kind) {
           items.push({ ...base, kind, fill: cell(geos[0], 'NoFill') === '1' ? null : fillColor, stroke: cell(geos[0], 'NoLine') === '1' ? null : lineColor, dashed: linePattern > 1, rounding: num(get('Rounding', 'line')) * PX, fillTransparency: num(get('FillForegndTrans', 'fill')) });
           continue;
@@ -504,6 +510,32 @@ function isRect(geo: Element, w: number, h: number) {
   return pts.every(([x, y]) => (near(x, 0) || near(x, w)) && (near(y, 0) || near(y, h)));
 }
 
+/** A four-sided outline through the middles of the box's sides (a flowchart Decision). */
+function isDiamond(geo: Element, w: number, h: number) {
+  const rows = children(geo, 'Row').filter((r) => r.getAttribute('Del') !== '1');
+  if (rows.length < 4 || rows.length > 5) return false;
+  if (!rows.every((r) => ['MoveTo', 'LineTo', 'RelMoveTo', 'RelLineTo'].includes(r.getAttribute('T') ?? ''))) return false;
+  const pts = rows.map((r) => { const rel = (r.getAttribute('T') ?? '').startsWith('Rel'); return [num(cell(r, 'X')) * (rel ? w : 1), num(cell(r, 'Y')) * (rel ? h : 1)]; });
+  const near = (a: number, b: number) => Math.abs(a - b) < Math.max(w, h) * 0.02 + 1e-6;
+  const on = ([x, y]: number[]) => (near(x, w / 2) && (near(y, 0) || near(y, h))) || (near(y, h / 2) && (near(x, 0) || near(x, w)));
+  return pts.every(on) && new Set(pts.map(([x, y]) => `${Math.round(x * 100)},${Math.round(y * 100)}`)).size === 4;
+}
+
+/** Network equipment, by its master's name (Visio's network, rack and computer stencils). */
+const EQUIPMENT = /router|switch|server|firewall|access ?point|\bap\b|wireless|modem|gateway|hub|bridge|nas\b|san\b|storage|ups\b|pdu|patch|rack|pc\b|computer|workstation|laptop|desktop|tablet|phone|printer|copier|scanner|camera|nvr|dvr|projector|controller|load ?balancer|vpn|cloud|internet|isp|ont\b|cable ?modem|fax|terminal|mainframe|kvm|monitor|display|appliance/i;
+/** Shape Data fields that mark a shape as a piece of equipment. */
+const DEVICE_FIELDS = /^(ip|ip ?address|mac|mac ?address|serial|serial ?number|asset ?(tag|number)|product ?number|manufacturer|model|network ?name|host ?name|cable|vlan|from|to)$/i;
+
+/**
+ * Is a Visio shape a piece of equipment (a device in RackDraw, with ports and details) rather than part of a
+ * drawing? By its Shape Data (RackDraw's own Name/Status/Type, or device-type fields) or its master's name.
+ */
+export function looksLikeEquipment(data: Record<string, string>, fields: string[], masterName?: string) {
+  return ('Name' in data && 'Type' in data && 'Status' in data)
+    || Object.keys(data).some((k) => DEVICE_FIELDS.test(k.trim())) || fields.some((k) => DEVICE_FIELDS.test(k.trim()))
+    || EQUIPMENT.test(masterName ?? '');
+}
+
 function isEllipse(geo: Element) {
   const rows = children(geo, 'Row').filter((r) => r.getAttribute('Del') !== '1');
   return rows.length === 1 && rows[0].getAttribute('T') === 'Ellipse';
@@ -526,7 +558,10 @@ export interface VisioPageInfo {
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
 export interface PageItem {
   id: string;
-  kind: 'picture' | 'box' | 'ellipse' | 'text' | 'line';
+  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line';
+  align?: 'left' | 'right';
+  valign?: 'top' | 'bottom';
+  bold?: boolean;
   name: string;
   text: string;
   /** Shape Data (label → value). */
