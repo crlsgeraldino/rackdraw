@@ -306,7 +306,10 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             break;
           }
           if (n.data.variant === 'wall') {
-            front.push({ kind: 'line', name: 'Wall', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: '#4B5563', lineWeightPt: pt(n.data.thickness ?? 8) });
+            // "Wall thickness" (real-world on a scaled page) lets Visio users see it and RackDraw reopen it as a wall.
+            const th = n.data.thickness ?? 8;
+            const thick = pg.scale ? (pg.scale.unit === 'm' ? `${Math.round(th * pg.scale.perPx * 1000) / 10} cm` : `${Math.round(th * pg.scale.perPx * 12 * 10) / 10} in.`) : `${Math.round((th / 96) * 100) / 100} in.`;
+            front.push({ kind: 'line', name: 'Wall', points: [{ x: X(a.x), y: Y(a.y) }, { x: X(z.x), y: Y(z.y) }], line: '#4B5563', lineWeightPt: pt(th), data: [['Wall thickness', thick]] });
             if (n.data.showLength && pg.scale) {
               // The wall's length beside it.
               const L = Math.hypot(n.data.dx, n.data.dy) || 1, ox = (-n.data.dy / L) * ((n.data.thickness ?? 8) / 2 + 10), oy = (n.data.dx / L) * ((n.data.thickness ?? 8) / 2 + 10);
@@ -405,7 +408,9 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       }
     }
 
-    pages.push({ name: pg.name, width: inch(pb.w), height: inch(pb.h), shapes: [...back, ...zones, ...cables, ...front, ...texts], layers: vLayers, background: pg.background });
+    // A floor plan with a drawing scale is saved as a scaled Visio page: real inches per paper inch (96 px each).
+    const drawingScale = pg.scale ? { realPerPaper: (pg.scale.unit === 'm' ? pg.scale.perPx / 0.0254 : pg.scale.perPx * 12) * 96, unit: pg.scale.unit } : undefined;
+    pages.push({ name: pg.name, width: inch(pb.w), height: inch(pb.h), shapes: [...back, ...zones, ...cables, ...front, ...texts], layers: vLayers, background: pg.background, drawingScale });
   }
   // Background pages by index.
   project.pages.forEach((pg, i) => {

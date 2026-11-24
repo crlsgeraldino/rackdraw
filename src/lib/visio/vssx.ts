@@ -422,8 +422,14 @@ export class VisioPackage {
       const thickText = Object.entries(data).find(([k]) => /^wall\s*thickness$/i.test(k.trim()))?.[1];
       if ((oneD || lineGeo) && (thickText != null || (/\bwall\b/i.test(masterName ?? '') && !/window/i.test(masterName ?? '')))) {
         const thickIn = (thickText != null ? realInches(thickText) : null) ?? (t.h > 0 ? t.h : 4);
+        // Visio's walls run along their width (centre line half-way up their thickness); a plain line wall (as
+        // RackDraw saves them) may have no width at all, so use its own end points then.
+        const ends: [number, number][] = t.w >= t.h && t.w > 1e-9
+          ? [apply(t.m, 0, t.h / 2), apply(t.m, t.w, t.h / 2)]
+          : lineGeo && lineGeo.length >= 2 ? [apply(t.m, ...lineGeo[0]), apply(t.m, ...lineGeo[lineGeo.length - 1])]
+          : [[num(cell(s, 'BeginX')), num(cell(s, 'BeginY'))], [num(cell(s, 'EndX')), num(cell(s, 'EndY'))]];
         items.push({
-          ...base, kind: 'wall', points: [toPx(apply(t.m, 0, t.h / 2)), toPx(apply(t.m, t.w, t.h / 2))],
+          ...base, kind: 'wall', points: ends.map(toPx),
           thicknessPx: Math.max(2, thickIn * PX * sc), lineColor: lineColor ?? '#000000',
         });
         continue;

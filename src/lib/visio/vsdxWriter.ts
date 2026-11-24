@@ -81,6 +81,11 @@ export interface VPage {
   background?: boolean;
   /** Index (in VDocument.pages) of the background page shown behind this one. */
   backPage?: number;
+  /**
+   * A scaled drawing (floor plan): how many real inches one paper inch stands for (48 at 1/4" = 1'), and the unit
+   * Visio shows. Shapes are still given in paper inches; the writer stores them in real-world units, as Visio does.
+   */
+  drawingScale?: { realPerPaper: number; unit: 'ft' | 'm' };
 }
 
 export interface VLayer {
@@ -271,6 +276,20 @@ const DOC_XML = `${XML}<VisioDocument xmlns="${NS}" xmlns:r="${R}" xml:space="pr
   `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', 1)}</Row></Section>` +
   '</StyleSheet></StyleSheets></VisioDocument>';
 
+/**
+ * A shape in real-world units for a scaled page: positions, sizes, points, connection points and corner rounding
+ * grow by `k`; line weights, text sizes and text margins stay paper sizes (as Visio keeps them).
+ */
+function scaleShape(s: VShape, k: number): VShape {
+  const box = (b: VBox): VBox => ({ x: b.x * k, y: b.y * k, w: b.w * k, h: b.h * k });
+  const r = 'rounding' in s && s.rounding !== undefined ? { rounding: s.rounding * k } : {};
+  switch (s.kind) {
+    case 'image': return { ...s, box: box(s.box), ports: s.ports?.map((p) => ({ ...p, x: p.x * k, y: p.y * k })) };
+    case 'line': return { ...s, ...r, points: s.points.map((p) => ({ x: p.x * k, y: p.y * k })) };
+    default: return { ...s, ...r, box: box(s.box) };
+  }
+}
+
 /** Builds the .vsdx file. */
 export function writeVsdx(doc: VDocument): Uint8Array {
   const files: Record<string, Uint8Array> = {};
@@ -278,7 +297,9 @@ export function writeVsdx(doc: VDocument): Uint8Array {
   const pageEntries: string[] = [];
   const pageRels: { id: string; type: string; target: string }[] = [];
   const overrides: string[] = [];
-  doc.pages.forEach((page, i) => {
+  doc.pages.forEach((given, i) => {
+    const k = given.drawingScale?.realPerPaper ?? 1;
+    const page = k === 1 ? given : { ...given, width: given.width * k, height: given.height * k, shapes: given.shapes.map((s) => scaleShape(s, k)) };
     const out = pageXml(page);
     const file = `page${i + 1}.xml`;
     files[`visio/pages/${file}`] = strToU8(out.xml);
@@ -289,9 +310,12 @@ export function writeVsdx(doc: VDocument): Uint8Array {
       `<Page ID="${i}" NameU="${page.background ? 'Background' : 'Page'}-${i + 1}" Name="${esc(page.name || `Page-${i + 1}`)}" ViewScale="-1"` +
       `${page.background ? ' Background="1"' : ''}${page.backPage !== undefined ? ` BackPage="${page.backPage}"` : ''}>` +
       `<PageSheet LineStyle="0" FillStyle="0" TextStyle="0">${cell('PageWidth', page.width)}${cell('PageHeight', page.height)}` +
-      `${cell('PageScale', 1, ' U="IN_F"')}${cell('DrawingScale', 1, ' U="IN_F"')}${cell('DrawingSizeType', 0)}${cell('DrawingScaleType', 0)}` +
+      (k === 1
+        ? `${cell('PageScale', 1, ' U="IN_F"')}${cell('DrawingScale', 1, ' U="IN_F"')}${cell('DrawingSizeType', 0)}${cell('DrawingScaleType', 0)}`
+        // One paper inch = k real inches; custom drawing scale (DrawingScaleType 3), shown in feet or metres.
+        : `${cell('PageScale', 1, ' U="IN"')}${cell('DrawingScale', k, given.drawingScale?.unit === 'm' ? ' U="M"' : ' U="FT"')}${cell('DrawingSizeType', 0)}${cell('DrawingScaleType', 3)}`) +
       `${cell('PageLeftMargin', 0.25)}${cell('PageRightMargin', 0.25)}${cell('PageTopMargin', 0.25)}${cell('PageBottomMargin', 0.25)}` +
-      `${cell('PrintPageOrientation', page.width >= page.height ? 2 : 1)}${layersXml(page.layers)}</PageSheet><Rel r:id="rId${i + 1}"/></Page>`,
+      `${cell('PrintPageOrientation', given.width >= given.height ? 2 : 1)}${layersXml(page.layers)}</PageSheet><Rel r:id="rId${i + 1}"/></Page>`,
     );
   });
   files['visio/pages/pages.xml'] = strToU8(`${XML}<Pages xmlns="${NS}" xmlns:r="${R}" xml:space="preserve">${pageEntries.join('')}</Pages>`);

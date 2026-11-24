@@ -226,7 +226,8 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
     // A scaled Visio page (floor plan) opens as a floor-plan page with the same drawing scale, so lengths, wall
     // lengths and room areas read in real units.
     const scaled = vp.scale != null && Math.abs(vp.scale - 1) > 1e-6;
-    const pg = newPage(vp.name, scaled ? 'floorplan' : 'network', nodes, edges);
+    const hasWalls = nodes.some((n) => n.type === 'measure' && n.data.variant === 'wall');
+    const pg = newPage(vp.name, scaled || hasWalls ? 'floorplan' : 'network', nodes, edges);
     if (scaled) {
       const realInPerPx = 1 / (96 * vp.scale!);
       pg.scale = vp.realUnit === 'm' ? { perPx: realInPerPx * 0.0254, unit: 'm' } : { perPx: realInPerPx / 12, unit: 'ft' };
