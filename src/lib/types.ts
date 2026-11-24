@@ -161,6 +161,12 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
   assetTag?: string;
   /** Typical power draw in watts, for rack power totals. */
   powerW?: number;
+  /** Lifecycle dates (YYYY-MM-DD): Data → Lifecycle, Check Diagram, Design → Devices by Warranty. */
+  purchaseDate?: string;
+  warrantyEnd?: string;
+  endOfLife?: string;
+  /** ISP / carrier circuit this device stands for (Internet, modem / ONT, router…). */
+  circuit?: import('./lifecycle').CircuitInfo;
   status?: DeviceStatus;
   /** Layer id (see Project.layers). */
   layer?: string;
@@ -506,7 +512,7 @@ export interface Layer {
   active?: boolean;
 }
 
-export type DeviceColorBy = 'none' | 'status' | 'location' | 'model' | 'layer';
+export type DeviceColorBy = 'none' | 'status' | 'location' | 'model' | 'layer' | 'warranty';
 export type CableColorBy = 'type' | 'vlan';
 
 export interface DisplaySettings {

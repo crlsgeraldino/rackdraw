@@ -156,14 +156,20 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
                     <table className="w-full text-sm">
                       <tbody>
                         {s.rows.map((r) => {
-                          const price = book[r.key];
+                          const price = r.price ?? book[r.key];
                           return (
                             <tr key={r.key} className="border-b border-gray-100">
                               <td className="w-16 py-1 pr-3 text-right font-semibold tabular-nums text-gray-900">{r.qty.toLocaleString()}</td>
                               <td className="w-10 py-1 pr-3 text-xs text-gray-500">{r.unit}</td>
                               <td className="py-1 pr-3 text-gray-800">{r.item}</td>
                               <td className="py-1 pr-3 text-xs text-gray-500">{r.detail}</td>
-                              <td className="w-28 py-1 pr-2 text-right"><PriceInput value={price} label={r.item} onSave={(v) => savePrice(r.key, v)} /></td>
+                              <td className="w-28 py-1 pr-2 text-right">
+                                {r.price !== undefined
+                                  ? <span className="text-xs text-gray-500" title="The monthly cost recorded on the circuit (Shape Data → Circuit)">{cur(r.price)}</span>
+                                  : r.key.startsWith('circuit|')
+                                    ? <span className="text-[11px] text-amber-700" title="Select the device and fill in Circuit → Monthly cost in Shape Data">set on the circuit</span>
+                                    : <PriceInput value={price} label={r.item} onSave={(v) => savePrice(r.key, v)} />}
+                              </td>
                               <td className="w-28 py-1 text-right tabular-nums text-gray-800">{price !== undefined ? cur(price * r.qty) : ''}</td>
                             </tr>
                           );

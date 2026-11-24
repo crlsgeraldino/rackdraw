@@ -51,6 +51,7 @@ const statusCol: Col = {
 const DEVICE_COLS: Col[] = [
   text('name', 'Name', 150), text('model', 'Model', 130), text('ip', 'IP', 110, true), text('mac', 'MAC', 130, true),
   text('serial', 'Serial', 110, true), text('location', 'Location', 110), statusCol, text('assetTag', 'Asset tag', 90),
+  text('purchaseDate', 'Purchased', 95, true), text('warrantyEnd', 'Warranty ends', 105, true), text('endOfLife', 'End of life', 95, true),
 ];
 
 /* ---------- cables ---------- */

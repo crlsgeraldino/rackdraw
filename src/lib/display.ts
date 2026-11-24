@@ -2,6 +2,7 @@
  * Data-driven colors ("data graphics"): devices colored by status, location, model or layer, cables by type or VLAN,
  * with a legend. Colors for free-text values come from a fixed palette in sorted order, so they are stable.
  */
+import { LIFE_STATES, warrantyState } from './lifecycle';
 import { allDevices } from './project';
 import { CABLE_STYLES, DEVICE_STATUSES, type CableData, type CableType, type DeviceNode, type DisplaySettings, type Project } from './types';
 
@@ -45,6 +46,13 @@ export function displayColors(p: Project): DisplayColors {
     device = (n) => by.get(n.data.status ?? 'active') ?? NONE;
     const used = new Set(devices.map((n) => n.data.status ?? 'active'));
     deviceLegend = DEVICE_STATUSES.filter((x) => used.has(x.value)).map((x) => ({ label: x.label, color: x.color, dashed: x.value === 'planned' }));
+  } else if (s.deviceColor === 'warranty') {
+    deviceTitle = 'Warranty';
+    const by = new Map(LIFE_STATES.map((x) => [x.value, x.color]));
+    const today = new Date();
+    device = (n) => by.get(warrantyState(n.data, today)) ?? NONE;
+    const used = new Set(devices.map((n) => warrantyState(n.data, today)));
+    deviceLegend = LIFE_STATES.filter((x) => used.has(x.value)).map((x) => ({ label: x.value === 'unknown' ? 'No warranty date' : x.label, color: x.color }));
   } else if (s.deviceColor !== 'none') {
     const field = s.deviceColor;
     deviceTitle = field === 'layer' ? 'Layer' : field === 'location' ? 'Location' : 'Model';

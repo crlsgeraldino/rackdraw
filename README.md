@@ -756,6 +756,20 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
     single-mode fiber. Four racks (a 32U data center rack and an 18U rack per building).
   - Every drop is traced end to end (endpoint → patch panel → access switch → fiber panels → core), with wall jacks,
     lengths, VLANs (1 / 10 data / 20 voice / 30 cameras), port speeds and PoE filled in.
+- **Lifecycle & circuits** (Data → **Lifecycle**):
+  - Every device has **Purchased**, **Warranty / support ends** and **End of life** dates (Shape Data → Lifecycle,
+    and Device Table columns), each showing how long is left.
+  - The Lifecycle window lists what needs attention first (expired, then expiring within 90 days), with All devices
+    and No dates yet filters; **Show** jumps to the device. CSV / Excel.
+  - **Check Diagram** flags devices out of warranty or past end of life (warnings), and warranties, end of life and
+    circuit contracts ending within 90 days (info).
+  - Design → Devices by **Warranty** colours devices expired / expiring / covered / no date.
+  - **Circuits**: the Internet cloud, modem / ONT, router, SD-WAN, LTE, satellite, MPLS… of a site have a Circuit
+    section: carrier, circuit ID, type, bandwidth, static IPs, support phone, account number, contract end and
+    monthly cost. The Circuits tab lists them with the monthly total, and the quote's monthly recurring charges use
+    each circuit's own cost (one line per circuit instead of a generic "Internet circuit").
+  - The PDF, Word report and CSV include the Lifecycle and Circuits tables. The Medium network template has sample
+    circuits and dates (set relative to the day the client is created).
 - **IP plan** (Data → **IP Plan**): the client's VLANs and subnets.
   - Each VLAN: number, name, subnet (CIDR, e.g. `10.0.10.0/24`), gateway, DHCP range, a colour and notes. **Add VLANs
     used in the diagram** fills in the VLAN numbers already on cables and ports (1 Management, 10 Data, 20 Voice,

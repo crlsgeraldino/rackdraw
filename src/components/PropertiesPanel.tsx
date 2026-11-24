@@ -1,5 +1,7 @@
 'use client';
 
+import { CIRCUIT_KINDS, daysUntil, LIFE_STATES, stateOf, whenText, type CircuitInfo } from '@/lib/lifecycle';
+import { parsePrice } from '@/lib/quote';
 import { subnetUsage } from '@/lib/ipam';
 import { pathLength, tracePath } from '@/lib/trace';
 import { HeaderFooterEditor } from './HeaderFooterEditor';
@@ -23,7 +25,7 @@ import { realLength, SET_SCALE_EVENT } from '@/lib/units';
 import type { LengthUnit } from '@/lib/types';
 import { insertPdfBackdrop } from '@/lib/insertPdf';
 
-function Field({ label, value, onChange, mono, area, list, after }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean; list?: string; after?: React.ReactNode }) {
+function Field({ label, value, onChange, mono, area, list, after, type }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean; list?: string; after?: React.ReactNode; type?: string }) {
   const snapshot = useDiagram((s) => s.snapshot);
   const cls = `w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500 ${mono ? 'font-mono' : ''}`;
   return (
@@ -32,9 +34,62 @@ function Field({ label, value, onChange, mono, area, list, after }: { label: str
       {area ? (
         <textarea className={cls} rows={3} value={value ?? ''} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input className={cls} value={value ?? ''} list={list} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
+        <input className={cls} type={type} value={value ?? ''} list={list} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
       )}
     </label>
+  );
+}
+
+/** Purchase, warranty and end-of-life dates, with how long is left. */
+function LifecycleSection({ node }: { node: DeviceNode }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const d = node.data;
+  const note = (date?: string) => {
+    const days = daysUntil(date);
+    if (days === undefined) return null;
+    const st = LIFE_STATES.find((x) => x.value === stateOf(days))!;
+    return <span className="text-[10px] font-medium" style={{ color: st.color }}>{days < 0 ? `ended ${whenText(days)}` : whenText(days)}</span>;
+  };
+  const set = (k: 'purchaseDate' | 'warrantyEnd' | 'endOfLife') => (v: string) => update(node.id, { [k]: v || undefined });
+  return (
+    <Section title="Lifecycle">
+      <Field label="Purchased" type="date" value={d.purchaseDate} onChange={set('purchaseDate')} />
+      <Field label="Warranty / support ends" type="date" value={d.warrantyEnd} onChange={set('warrantyEnd')} after={note(d.warrantyEnd)} />
+      <Field label="End of life (vendor)" type="date" value={d.endOfLife} onChange={set('endOfLife')} after={note(d.endOfLife)} />
+    </Section>
+  );
+}
+
+/** Devices that usually stand for an ISP / carrier circuit (their Shape Data shows the Circuit section). */
+const CIRCUIT_STENCILS = /^(internet|modem|router|sdwan|lte-router|satellite|metro-ntu|mpls-cloud|carrier-cloud|csu-dsu|microwave|cloud-service)$/;
+
+/** ISP / carrier circuit: carrier, circuit ID, bandwidth, support phone, contract end, monthly cost (goes to the quote). */
+function CircuitSection({ node }: { node: DeviceNode }) {
+  const update = useDiagram((s) => s.updateNodeData);
+  const c = node.data.circuit ?? {};
+  const set = (k: keyof CircuitInfo) => (v: string) => {
+    const next: CircuitInfo = { ...c, [k]: k === 'monthlyCost' ? (v.trim() === '' ? undefined : parsePrice(v)) : v || undefined };
+    update(node.id, { circuit: Object.values(next).some((x) => x !== undefined && x !== '') ? next : undefined });
+  };
+  const days = daysUntil(c.contractEnd);
+  return (
+    <Section title="Circuit">
+      <Field label="Carrier / ISP" value={c.carrier} onChange={set('carrier')} />
+      <Field label="Circuit ID" value={c.circuitId} onChange={set('circuitId')} mono />
+      <div className="flex gap-2">
+        <div className="flex-1"><Field label="Type" value={c.kind} onChange={set('kind')} list="rd-circuit-kinds" /></div>
+        <div className="flex-1"><Field label="Bandwidth" value={c.bandwidth} onChange={set('bandwidth')} /></div>
+      </div>
+      <datalist id="rd-circuit-kinds">{CIRCUIT_KINDS.map((k) => <option key={k} value={k} />)}</datalist>
+      <Field label="Static IPs" value={c.staticIps} onChange={set('staticIps')} mono />
+      <Field label="Support phone" value={c.supportPhone} onChange={set('supportPhone')} mono />
+      <Field label="Account number" value={c.accountNumber} onChange={set('accountNumber')} mono />
+      <div className="flex gap-2">
+        <div className="flex-1"><Field label="Contract ends" type="date" value={c.contractEnd} onChange={set('contractEnd')} after={days !== undefined ? <span className="text-[10px]" style={{ color: LIFE_STATES.find((x) => x.value === stateOf(days))!.color }}>{whenText(days)}</span> : null} /></div>
+        <div className="flex-1"><Field label="Monthly cost" value={c.monthlyCost === undefined ? '' : String(c.monthlyCost)} onChange={set('monthlyCost')} mono /></div>
+      </div>
+      <Field label="Circuit notes" value={c.notes} onChange={set('notes')} area />
+    </Section>
   );
 }
 
@@ -212,6 +267,8 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       ) : null}
       <Field label="Notes" value={d.notes} onChange={set('notes')} area />
       </Section>
+      <LifecycleSection node={node} />
+      {(stencil && (CIRCUIT_STENCILS.test(stencil.id) || stencil.category === 'WAN' || stencil.category === 'Carrier') || d.circuit) && <CircuitSection node={node} />}
       {stencil && stencil.ports.length > 0 && (
         <Section title={`Ports (${stencil.ports.length})`}>
           <PortList node={node} ports={stencil.ports} peer={peer} />

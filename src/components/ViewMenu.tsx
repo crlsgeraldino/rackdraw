@@ -14,6 +14,7 @@ const DEVICE_OPTIONS: { value: DeviceColorBy; label: string }[] = [
   { value: 'location', label: 'Location' },
   { value: 'model', label: 'Model' },
   { value: 'layer', label: 'Layer' },
+  { value: 'warranty', label: 'Warranty (expired / expiring / covered)' },
 ];
 const CABLE_OPTIONS: { value: CableColorBy; label: string }[] = [
   { value: 'type', label: 'Cable type' },

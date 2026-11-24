@@ -1,4 +1,5 @@
 import { ipOf, ipPlanProblems } from './ipam';
+import { lifecycleProblems } from './lifecycle';
 import { resolveLink } from './links';
 import { isPassThrough } from './trace';
 import { isDocumented, type AppNode, type DeviceNode, type Project, type StencilDef } from './types';
@@ -71,6 +72,8 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
     if (pr.deviceId) add(pr.severity, pr.rule, pr.message, pageOf.get(pr.deviceId) ?? p.pages[0].id, 'node', pr.deviceId);
     else add(pr.severity, pr.rule, pr.message, p.pages[0].id, 'node', '');
   }
+  // Lifecycle: out of warranty, past end of life, expiring soon, circuit contracts ending.
+  for (const pr of lifecycleProblems(p)) add(pr.severity, pr.rule, pr.message, pageOf.get(pr.deviceId) ?? p.pages[0].id, 'node', pr.deviceId);
   const definedVlans = new Set((p.vlans ?? []).map((v) => v.vlan.trim()).filter(Boolean));
 
   for (const pg of p.pages) {

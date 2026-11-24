@@ -161,6 +161,9 @@ function officeWithRack(): Template['project'] {
 }
 
 
+/** A date `days` from today (YYYY-MM-DD): template lifecycle dates stay meaningful whenever a client is created. */
+const dateIn = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+
 /** A VLAN of a template's IP plan. */
 const vl = (vlan: string, name: string, subnet: string, gateway: string, color: string, dhcp?: [string, string], notes?: string): VlanDef =>
   ({ id: `v-${vlan}`, vlan, name, subnet, gateway, color, ...(dhcp ? { dhcpStart: dhcp[0], dhcpEnd: dhcp[1] } : {}), ...(notes ? { notes } : {}) });
@@ -235,11 +238,11 @@ function mediumNetwork(): Template['project'] {
   const edges: CableEdge[] = [];
   const loc = { location: 'MDF' };
   nodes.push(
-    dev({ id: 'n-isp1', stencil: 'internet', name: 'ISP 1 (fiber 1 Gbps)', x: 220, y: -620 }),
-    dev({ id: 'n-isp2', stencil: 'internet', name: 'ISP 2 (cable, backup)', x: 560, y: -620 }),
+    dev({ id: 'n-isp1', stencil: 'internet', name: 'ISP 1 (fiber 1 Gbps)', x: 220, y: -620, extra: { circuit: { carrier: 'Fiber ISP', circuitId: 'DIA-0001', kind: 'DIA (dedicated Internet)', bandwidth: '1 Gbps', staticIps: '203.0.113.8/29', contractEnd: dateIn(400) } } }),
+    dev({ id: 'n-isp2', stencil: 'internet', name: 'ISP 2 (cable, backup)', x: 560, y: -620, extra: { circuit: { carrier: 'Cable ISP', circuitId: 'BB-0002', kind: 'Broadband', bandwidth: '500 / 50 Mbps', contractEnd: dateIn(45) } } }),
     dev({ id: 'n-ont', stencil: 'modem', name: 'Fiber ONT', x: 220, y: -500 }),
     dev({ id: 'n-cm', stencil: 'modem', name: 'Cable modem', x: 560, y: -500, extra: { model: 'DOCSIS 3.1 cable modem' } }),
-    dev({ id: 'n-fw', stencil: 'sonicwall-tz570-670', name: 'Firewall', x: 140, y: -370, extra: { ...loc, ip: '10.10.0.1' } }),
+    dev({ id: 'n-fw', stencil: 'sonicwall-tz570-670', name: 'Firewall', x: 140, y: -370, extra: { ...loc, ip: '10.10.0.1', purchaseDate: dateIn(-1400), warrantyEnd: dateIn(60), endOfLife: dateIn(700) } }),
   );
   edges.push(
     cable('n-isp1', 'WAN', 'n-ont', 'UPLINK', { cable: 'Fiber' }),
@@ -258,9 +261,9 @@ function mediumNetwork(): Template['project'] {
   // The MDF zone is wider: core switch and servers sit to the right of the closet.
   (nodes.find((n) => n.id === 'z-mdf') as { style: { width: number } }).style.width = 1420;
   nodes.push(
-    dev({ id: 'n-core', stencil: 'switch-core-24sfp', name: 'Core switch', x: 880, y: 0, extra: { ...loc, ip: '10.10.0.2', model: '24× 10G SFP+ L3 core switch' } }),
-    dev({ id: 'n-h1', stencil: 'server', name: 'Host-1', x: 900, y: 200, extra: { ...loc, ip: '10.10.0.21', model: 'Hyper-V host' } }),
-    dev({ id: 'n-h2', stencil: 'server', name: 'Host-2', x: 1040, y: 200, extra: { ...loc, ip: '10.10.0.22', model: 'Hyper-V host' } }),
+    dev({ id: 'n-core', stencil: 'switch-core-24sfp', name: 'Core switch', x: 880, y: 0, extra: { ...loc, ip: '10.10.0.2', model: '24× 10G SFP+ L3 core switch', purchaseDate: dateIn(-300), warrantyEnd: dateIn(1525) } }),
+    dev({ id: 'n-h1', stencil: 'server', name: 'Host-1', x: 900, y: 200, extra: { ...loc, ip: '10.10.0.21', model: 'Hyper-V host', purchaseDate: dateIn(-1900), warrantyEnd: dateIn(-75), endOfLife: dateIn(500) } }),
+    dev({ id: 'n-h2', stencil: 'server', name: 'Host-2', x: 1040, y: 200, extra: { ...loc, ip: '10.10.0.22', model: 'Hyper-V host', purchaseDate: dateIn(-700), warrantyEnd: dateIn(1125) } }),
     dev({ id: 'n-nas', stencil: 'nas', name: 'Backup NAS', x: 1180, y: 200, extra: { ...loc, ip: '10.10.0.30' } }),
   );
   edges.push(

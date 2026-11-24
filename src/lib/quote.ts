@@ -65,7 +65,7 @@ export function priceQuote(sections: BomSection[], work: WorkCounts, prices: Rec
   const set = { ...QUOTE_DEFAULTS, ...s };
   const lines: QuoteLine[] = sections.flatMap((sec) =>
     sec.rows.map((r) => {
-      const price = prices[r.key];
+      const price = r.price ?? prices[r.key];
       return { section: sec.title, key: r.key, item: r.item, detail: r.detail, qty: r.qty, unit: r.unit, price, amount: price !== undefined ? price * r.qty : 0, monthly: sec.title === 'Circuits & services' };
     }),
   );

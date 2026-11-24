@@ -1,7 +1,7 @@
 'use client';
 
 import { writeDocx, type DocBlock } from './docx';
-import { connectionRows, deviceRows, ipPlanRows, portRows, rackRows, renderRack, type PageRenderer } from './export';
+import { connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, portRows, rackRows, renderRack, type PageRenderer } from './export';
 import { pageAlt, rackAlt } from './altText';
 import type { Project } from './types';
 
@@ -70,6 +70,11 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
     const ip = ipPlanRows(p);
     table('IP plan', ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free'], ip.plan.map((r) => [r.vlan, r.name, r.subnet, r.gateway, r.dhcp, r.use, r.next]), [0.07, 0.15, 0.15, 0.12, 0.2, 0.2, 0.11]);
     table('IP addresses', ['IP', 'Device', 'VLAN', 'Check'], ip.ips.map((r) => [r.ip, r.device, r.vlan, r.check]), [0.15, 0.35, 0.25, 0.25]);
+  }
+  {
+    const lc = lifecycleTableRows(p);
+    table('Lifecycle', ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'End of life', 'State'], lc.devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state]), [0.17, 0.17, 0.12, 0.1, 0.16, 0.16, 0.12]);
+    table('Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends'], lc.circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd]), [0.16, 0.16, 0.14, 0.16, 0.1, 0.14, 0.14]);
   }
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]), [0.09, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.16]);

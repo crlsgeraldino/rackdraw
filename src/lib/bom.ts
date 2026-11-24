@@ -3,6 +3,7 @@
  * cable runs and patch cords by type and length, transceivers for fiber / copper SFP ports, wall-end terminations,
  * racks and rack accessories, and the circuits and services the sites need. Plus port capacity per switch.
  */
+import { circuitName } from './lifecycle';
 import { lengthFt } from './length';
 import { allDevices } from './project';
 import { isPassThrough } from './trace';
@@ -13,6 +14,8 @@ type Stencils = (id: string) => StencilDef | undefined;
 export interface BomRow {
   /** Identifies the item in the price book (same item, same price, in every client). */
   key: string;
+  /** A price that comes with the item itself (a circuit's monthly cost), instead of the price book. */
+  price?: number;
   item: string;
   detail: string;
   qty: number;
@@ -94,10 +97,19 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
   const equip = new Map<string, { key: string; item: string; detail: string; qty: number }>();
   const work: WorkCounts = { copperRuns: 0, fiberRuns: 0, rackDevices: 0, endpoints: 0, racks: (p.racks ?? []).length, cords: 0 };
   const services = new Map<string, number>();
+  // Circuits recorded on devices (Shape Data → Circuit) are listed one by one with their own monthly cost; they
+  // replace the generic "Internet circuit" lines of the Internet clouds they stand for.
+  const circuits = devices.filter((d) => d.data.circuit && Object.values(d.data.circuit).some((v) => v !== undefined && v !== ''));
+  let covered = circuits.filter((d) => !SERVICES[d.data.stencilId]).length;
   for (const d of devices) {
     const s = st(d);
     const sid = d.data.stencilId;
-    if (SERVICES[sid]) { count(services, SERVICES[sid]); continue; }
+    if (SERVICES[sid]) {
+      if (circuits.includes(d)) continue;
+      if (sid === 'internet' && covered > 0) { covered--; continue; }
+      count(services, SERVICES[sid]);
+      continue;
+    }
     if (NOT_EQUIPMENT.has(sid)) continue;
     const item = s?.name ?? sid;
     const model = d.data.model?.trim() || s?.defaults?.model || '';
@@ -217,7 +229,17 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
       ],
     },
     { title: 'Racks & accessories', rows: [...racks, ...accessories].map(([item, n]) => ({ key: `rack|${item}`, item, detail: '', qty: n, unit: 'each' })) },
-    { title: 'Circuits & services', rows: [...services, ...air].map(([item, n]) => ({ key: `svc|${item}`, item, detail: 'monthly', qty: n, unit: 'each' })) },
+    {
+      title: 'Circuits & services',
+      rows: [
+        ...circuits.map((d) => ({
+          key: `circuit|${d.id}`, item: circuitName(d.data.circuit!, d.data.name),
+          detail: ['monthly', d.data.circuit!.contractEnd && `contract to ${d.data.circuit!.contractEnd}`, `on ${d.data.name}`].filter(Boolean).join(' · '),
+          qty: 1, unit: 'each', ...(d.data.circuit!.monthlyCost !== undefined ? { price: d.data.circuit!.monthlyCost } : {}),
+        })),
+        ...[...services, ...air].map(([item, n]) => ({ key: `svc|${item}`, item, detail: 'monthly', qty: n, unit: 'each' })),
+      ],
+    },
   ].filter((s) => s.rows.length);
 
   /* Port capacity of switches, firewalls and panels. */

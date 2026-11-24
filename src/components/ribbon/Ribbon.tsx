@@ -13,6 +13,7 @@ import { exportWordReport } from '@/lib/wordReport';
 import { exportDeck } from '@/lib/deck';
 import { BomDialog } from '../BomDialog';
 import { IpPlanDialog } from '../IpPlanDialog';
+import { LifecycleDialog } from '../LifecycleDialog';
 import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
@@ -1395,7 +1396,7 @@ export async function editScreenTip() {
 }
 
 const DEVICE_COLOR: { value: DeviceColorBy; label: string }[] = [
-  { value: 'none', label: 'No colour' }, { value: 'status', label: 'Status' }, { value: 'location', label: 'Location' }, { value: 'model', label: 'Model' }, { value: 'layer', label: 'Layer' },
+  { value: 'none', label: 'No colour' }, { value: 'status', label: 'Status' }, { value: 'location', label: 'Location' }, { value: 'model', label: 'Model' }, { value: 'layer', label: 'Layer' }, { value: 'warranty', label: 'Warranty' },
 ];
 
 /** Mixes a colour with white: amount 0 = the colour, 1 = white. */
@@ -1884,12 +1885,14 @@ function DataTab() {
   const [reports, setReports] = useState(false);
   const [bom, setBom] = useState(false);
   const [ipPlan, setIpPlan] = useState(false);
+  const [lifecycle, setLifecycle] = useState(false);
   const [defining, setDefining] = useState(false);
   return (
     <>
       {reports && <ReportDialog onClose={() => setReports(false)} />}
       {bom && <BomDialog onClose={() => setBom(false)} />}
       {ipPlan && <IpPlanDialog onClose={() => setIpPlan(false)} />}
+      {lifecycle && <LifecycleDialog onClose={() => setLifecycle(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Show/Hide">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
@@ -1910,8 +1913,9 @@ function DataTab() {
       <Group label="Data Graphics">
         <DataGraphicsMenu />
       </Group>
-      <Group label="IP Plan">
+      <Group label="Planning">
         <Big icon="ipPlan" label="IP Plan" onClick={() => setIpPlan(true)} title="VLANs and subnets of this client: gateway, DHCP range, how full each subnet is, the next free IP, and every device IP checked against them" />
+        <Big icon="lifecycle" label="Lifecycle" onClick={() => setLifecycle(true)} title="Warranties and end-of-life dates (what to renew or replace in the next 90 days), and the client's ISP / carrier circuits with their monthly cost" />
       </Group>
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />

@@ -3,6 +3,7 @@ import { patchRows, rackCables, rackPortStates } from './rackPatching';
 import { allPaths, pathLength, type TraceHop } from './trace';
 import { billOfMaterials, bomRows } from './bom';
 import { deviceIps, ipPlanProblems, subnetUsage, vlanOfIp } from './ipam';
+import { circuitRows, LIFE_STATES, lifecycleRows, whenText } from './lifecycle';
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { createElement } from 'react';
@@ -141,6 +142,16 @@ export function portRows(p: Project) {
         }));
     });
   });
+}
+
+/** Data → Lifecycle as table rows: devices with a date (most urgent first), and circuits. */
+export function lifecycleTableRows(p: Project) {
+  const rank = { expired: 0, soon: 1, ok: 2, unknown: 3 };
+  return {
+    devices: lifecycleRows(p).filter((r) => r.purchase || r.warrantyEnd || r.endOfLife).sort((a, b) => rank[a.state] - rank[b.state] || a.device.localeCompare(b.device))
+      .map((r) => ({ device: r.device, model: r.model, serial: r.serial, purchase: r.purchase, warranty: [r.warrantyEnd, whenText(r.warrantyDays) && `(${whenText(r.warrantyDays)})`].filter(Boolean).join(' '), eol: [r.endOfLife, whenText(r.eolDays) && `(${whenText(r.eolDays)})`].filter(Boolean).join(' '), state: LIFE_STATES.find((x) => x.value === r.state)!.label })),
+    circuits: circuitRows(p).map((c) => ({ device: c.device, carrier: c.carrier ?? '', circuitId: c.circuitId ?? '', kind: c.kind ?? '', bandwidth: c.bandwidth ?? '', support: c.supportPhone ?? '', contractEnd: c.contractEnd ?? '', monthly: c.monthlyCost ?? '' })),
+  };
 }
 
 /** Data → IP Plan as table rows: each VLAN / subnet with its use, and every device IP with its VLAN. */
@@ -464,6 +475,13 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
       ip.plan.map((r) => [r.vlan, r.name, r.subnet, r.gateway, r.dhcp, r.use, r.next, r.notes]));
     table('IP addresses', ['IP', 'Device', 'VLAN', 'Check'], [0.15, 0.35, 0.25, 0.25].map((f) => f * avail), ip.ips.map((r) => [r.ip, r.device, r.vlan, r.check]));
   }
+  {
+    const lc = lifecycleTableRows(p);
+    table('Lifecycle', ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'End of life', 'State'], [0.17, 0.17, 0.12, 0.1, 0.16, 0.16, 0.12].map((f) => f * avail),
+      lc.devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state]));
+    table('Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends'], [0.16, 0.16, 0.14, 0.16, 0.1, 0.14, 0.14].map((f) => f * avail),
+      lc.circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd]));
+  }
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
@@ -556,6 +574,12 @@ export function exportCsv(p: Project) {
     [],
     ['IP ADDRESSES'], ['IP', 'Device', 'VLAN', 'Check'],
     ...ipPlanRows(p).ips.map((r) => [r.ip, r.device, r.vlan, r.check]),
+    [],
+    ['LIFECYCLE'], ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'End of life', 'State'],
+    ...lifecycleTableRows(p).devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state]),
+    [],
+    ['CIRCUITS'], ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends', 'Monthly cost'],
+    ...lifecycleTableRows(p).circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd, r.monthly]),
     [],
     ['BILL OF MATERIALS'], ['Section', 'Item', 'Detail', 'Qty', 'Unit'],
     ...bomRows(billOfMaterials(p, getStencil).sections),
