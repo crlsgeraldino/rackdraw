@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { PortDef, StencilDef } from './types';
+import type { NetworkScope, PortDef, StencilDef } from './types';
 
 /* ------------------------------------------------------------------ */
 /*  Stencil catalog                                                    */
@@ -149,7 +149,86 @@ export const STENCILS: StencilDef[] = [
   icon('phone', 'VoIP phone', 'Endpoints', [{ id: 'LAN', label: 'LAN', side: 'top', kind: 'rj45' }, { id: 'PC', label: 'PC passthrough', side: 'bottom', kind: 'rj45' }]),
   icon('camera', 'IP camera', 'Endpoints', [{ id: 'ETH', label: 'PoE', side: 'top', kind: 'rj45' }]),
   icon('ups', 'UPS', 'Servers', [{ id: 'NMC', label: 'Network card', side: 'top', kind: 'rj45' }, { id: 'USB', label: 'USB', side: 'right', kind: 'usb' }], undefined, 2),
+  // Switching (more sizes)
+  switchStencil('switch-16-poe', 'Switch 16-port PoE + 2 SFP', 16, 2, true),
+  switchStencil('switch-24', 'Switch 24-port + 4 SFP', 24, 4, false),
+  // PAN: devices around one person
+  icon('smartphone', 'Smartphone', 'Personal', [{ id: 'WIFI', label: 'Wi-Fi / cellular', side: 'top' }, { id: 'BT', label: 'Bluetooth', side: 'right' }, { id: 'USB', label: 'USB-C', side: 'bottom', kind: 'usb' }]),
+  icon('tablet', 'Tablet', 'Personal', [{ id: 'WIFI', label: 'Wi-Fi', side: 'top' }, { id: 'BT', label: 'Bluetooth', side: 'right' }, { id: 'USB', label: 'USB-C', side: 'bottom', kind: 'usb' }]),
+  icon('smartwatch', 'Smartwatch / wearable', 'Personal', [{ id: 'BT', label: 'Bluetooth', side: 'left' }]),
+  icon('headset', 'Headset / earbuds', 'Personal', [{ id: 'BT', label: 'Bluetooth', side: 'left' }, { id: 'USB', label: 'USB', side: 'bottom', kind: 'usb' }]),
+  icon('keyboard-mouse', 'Wireless keyboard / mouse', 'Personal', [{ id: 'BT', label: 'Bluetooth / 2.4 GHz', side: 'top' }]),
+  icon('bt-adapter', 'Bluetooth / USB adapter', 'Personal', [{ id: 'BT', label: 'Bluetooth', side: 'left' }, { id: 'USB', label: 'USB', side: 'right', kind: 'usb' }]),
+  icon('usb-hub', 'USB hub / dock', 'Personal', [{ id: 'HOST', label: 'Host', side: 'top', kind: 'usb' }, { id: 'U1', label: 'USB 1', side: 'left', kind: 'usb' }, { id: 'U2', label: 'USB 2', side: 'right', kind: 'usb' }, { id: 'ETH', label: 'Ethernet', side: 'bottom', kind: 'rj45' }]),
+  icon('hotspot', 'Mobile hotspot', 'Personal', [{ id: 'CELL', label: 'Cellular', side: 'top' }, { id: 'WIFI', label: 'Wi-Fi', side: 'bottom' }]),
+  // WLAN
+  icon('ap-outdoor', 'Outdoor access point', 'Wireless', [{ id: 'ETH', label: 'PoE uplink', side: 'top', kind: 'rj45' }, { id: 'WIFI', label: 'Wireless', side: 'bottom' }], { model: 'Outdoor Wi-Fi 6 AP (IP67)' }),
+  icon('mesh-node', 'Mesh Wi-Fi node', 'Wireless', [{ id: 'ETH', label: 'Ethernet', side: 'top', kind: 'rj45' }, { id: 'MESH', label: 'Mesh backhaul', side: 'right' }, { id: 'WIFI', label: 'Wireless', side: 'bottom' }]),
+  icon('wifi-router', 'Wi-Fi router (SOHO)', 'Wireless', [{ id: 'WAN', label: 'WAN', side: 'top', kind: 'rj45' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }, { id: 'WIFI', label: 'Wireless', side: 'right' }]),
+  icon('range-extender', 'Wi-Fi range extender', 'Wireless', [{ id: 'WIFI', label: 'Wireless', side: 'left' }, { id: 'ETH', label: 'Ethernet', side: 'bottom', kind: 'rj45' }]),
+  icon('wlc', 'Wireless LAN controller', 'Wireless', [{ id: 'UPLINK', label: 'Uplink', side: 'top', kind: 'sfp' }, { id: 'MGMT', label: 'Management', side: 'bottom', kind: 'rj45' }], { model: 'WLAN controller' }, 1),
+  icon('wireless-bridge', 'Wireless bridge (point-to-point)', 'Wireless', [{ id: 'ETH', label: 'PoE / data', side: 'bottom', kind: 'rj45' }, { id: 'AIR', label: 'Radio link', side: 'right' }], { model: '5 / 60 GHz PtP bridge' }),
+  icon('antenna', 'Antenna (sector / omni)', 'Wireless', [{ id: 'RF', label: 'RF', side: 'bottom' }, { id: 'AIR', label: 'Over the air', side: 'right' }]),
+  // LAN infrastructure
+  icon('kvm', 'KVM switch', 'Infrastructure', [{ id: 'NET', label: 'IP / network', side: 'top', kind: 'rj45' }, { id: 'CONSOLE', label: 'Console', side: 'bottom', kind: 'usb' }], { model: '8-port KVM over IP' }, 1),
+  icon('console-server', 'Console server', 'Infrastructure', [{ id: 'NET', label: 'Network', side: 'top', kind: 'rj45' }, { id: 'SERIAL', label: 'Serial ports', side: 'bottom', kind: 'console' }, { id: 'CELL', label: 'LTE out-of-band', side: 'right' }], { model: '16-port console server' }, 1),
+  icon('pdu-network', 'Switched PDU (metered)', 'Infrastructure', [{ id: 'NET', label: 'Network card', side: 'top', kind: 'rj45' }], { model: 'Switched, metered PDU' }, 1),
+  icon('ip-pbx', 'IP PBX / voice gateway', 'Infrastructure', [{ id: 'ETH', label: 'LAN', side: 'top', kind: 'rj45' }, { id: 'TRUNK', label: 'SIP / PRI / FXO trunk', side: 'bottom' }], { model: 'IP PBX / SBC' }, 1),
+  icon('load-balancer', 'Load balancer / ADC', 'Infrastructure', [{ id: 'VIP', label: 'Front end (VIP)', side: 'top', kind: 'sfp' }, { id: 'POOL', label: 'Server pool', side: 'bottom', kind: 'sfp' }, { id: 'MGMT', label: 'Management', side: 'left', kind: 'rj45' }], { model: 'Application delivery controller' }, 1),
+  icon('tape-library', 'Tape library / backup appliance', 'Servers', [{ id: 'NIC1', label: 'NIC / FC', side: 'top', kind: 'sfp' }, { id: 'MGMT', label: 'Management', side: 'left', kind: 'rj45' }], undefined, 2),
+  // Security
+  icon('nvr', 'NVR (video recorder)', 'Security', [{ id: 'NIC1', label: 'Network', side: 'top', kind: 'rj45' }, { id: 'CAMS', label: 'Camera PoE ports', side: 'bottom', kind: 'rj45' }], { model: '16-channel NVR' }, 2),
+  icon('access-control', 'Access control panel', 'Security', [{ id: 'ETH', label: 'Network', side: 'top', kind: 'rj45' }, { id: 'READER', label: 'Readers / locks', side: 'bottom' }]),
+  icon('badge-reader', 'Badge / card reader', 'Security', [{ id: 'WIEGAND', label: 'Wiegand / OSDP', side: 'top' }]),
+  icon('alarm-panel', 'Alarm / sensor panel', 'Security', [{ id: 'ETH', label: 'Network', side: 'top', kind: 'rj45' }, { id: 'CELL', label: 'Cellular backup', side: 'right' }]),
+  // Endpoints
+  icon('display', 'Display / smart TV', 'Endpoints', [{ id: 'ETH', label: 'Ethernet', side: 'top', kind: 'rj45' }, { id: 'WIFI', label: 'Wi-Fi', side: 'right' }]),
+  icon('iot-device', 'IoT sensor / gateway', 'Endpoints', [{ id: 'ETH', label: 'Ethernet', side: 'top', kind: 'rj45' }, { id: 'RADIO', label: 'Zigbee / LoRa / BLE', side: 'right' }]),
+  icon('pos-terminal', 'POS terminal', 'Endpoints', [{ id: 'ETH', label: 'Ethernet', side: 'top', kind: 'rj45' }, { id: 'USB', label: 'USB (scanner, drawer)', side: 'right', kind: 'usb' }]),
+  icon('conference', 'Conference room system', 'Endpoints', [{ id: 'ETH', label: 'Ethernet', side: 'top', kind: 'rj45' }, { id: 'USB', label: 'USB camera / mic', side: 'right', kind: 'usb' }]),
+  // Cabling parts
+  icon('wall-jack', 'Wall jack / keystone faceplate', 'Cabling', [{ id: 'JACK', label: 'Jack', side: 'top', kind: 'rj45' }], { model: 'Cat6 keystone faceplate' }),
+  icon('poe-injector', 'PoE injector', 'Cabling', [{ id: 'DATA', label: 'Data in', side: 'left', kind: 'rj45' }, { id: 'POE', label: 'PoE out', side: 'right', kind: 'rj45' }], { model: '802.3at PoE+ injector' }),
+  icon('media-converter', 'Media converter (copper ↔ fiber)', 'Cabling', [{ id: 'RJ45', label: 'Copper', side: 'left', kind: 'rj45' }, { id: 'SFP', label: 'Fiber', side: 'right', kind: 'sfp' }]),
+  icon('sfp-module', 'SFP / SFP+ transceiver', 'Cabling', [{ id: 'HOST', label: 'Switch port', side: 'left', kind: 'sfp' }, { id: 'LINE', label: 'Fiber / copper', side: 'right', kind: 'sfp' }], { model: '10GBASE-SR SFP+' }),
+  icon('splice-closure', 'Fiber splice closure', 'Cabling', [{ id: 'F1', label: 'Trunk A', side: 'left' }, { id: 'F2', label: 'Trunk B', side: 'right' }], { model: 'Outdoor fiber splice closure' }),
+  icon('optical-splitter', 'Optical splitter (PON)', 'Cabling', [{ id: 'IN', label: 'In (from OLT)', side: 'top' }, { id: 'OUT1', label: 'Out 1', side: 'bottom' }, { id: 'OUT2', label: 'Out 2', side: 'left' }, { id: 'OUT3', label: 'Out 3', side: 'right' }], { model: '1:8 PLC splitter' }),
+  // MAN / carrier
+  icon('metro-ntu', 'Metro Ethernet NTU / demarc', 'Carrier', [{ id: 'NETWORK', label: 'Carrier side', side: 'top', kind: 'sfp' }, { id: 'UNI', label: 'Customer (UNI)', side: 'bottom', kind: 'rj45' }], { model: 'Carrier Ethernet NTU' }, 1),
+  icon('olt', 'GPON OLT', 'Carrier', [{ id: 'UPLINK', label: 'Uplink', side: 'top', kind: 'sfp' }, { id: 'PON', label: 'PON port', side: 'bottom', kind: 'sfp' }], { model: 'GPON / XGS-PON OLT' }, 1),
+  icon('dwdm', 'DWDM / CWDM mux', 'Carrier', [{ id: 'LINE', label: 'Line fiber', side: 'top', kind: 'sfp' }, { id: 'CH1', label: 'Channel 1', side: 'bottom', kind: 'sfp' }, { id: 'CH2', label: 'Channel 2', side: 'right', kind: 'sfp' }, { id: 'CH3', label: 'Channel 3', side: 'left', kind: 'sfp' }], { model: '8-channel CWDM mux' }, 1),
+  icon('microwave', 'Microwave radio link', 'Carrier', [{ id: 'IDU', label: 'Indoor unit / PoE', side: 'bottom', kind: 'rj45' }, { id: 'RF', label: 'Radio path', side: 'right' }], { model: 'Licensed microwave backhaul' }),
+  icon('carrier-cloud', 'Metro / carrier network', 'Carrier', [{ id: 'A', label: 'Site A', side: 'top' }, { id: 'B', label: 'Site B', side: 'bottom' }, { id: 'C', label: 'Site C', side: 'left' }, { id: 'D', label: 'Site D', side: 'right' }]),
+  icon('building', 'Building / site', 'Carrier', [{ id: 'N', label: 'North', side: 'top' }, { id: 'S', label: 'South', side: 'bottom' }, { id: 'W', label: 'West', side: 'left' }, { id: 'E', label: 'East', side: 'right' }]),
+  // WAN
+  icon('sdwan', 'SD-WAN edge', 'WAN', [{ id: 'WAN1', label: 'WAN 1', side: 'top', kind: 'rj45' }, { id: 'WAN2', label: 'WAN 2 / LTE', side: 'right', kind: 'rj45' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }], { model: 'SD-WAN edge appliance' }, 1),
+  icon('vpn-concentrator', 'VPN concentrator', 'WAN', [{ id: 'OUTSIDE', label: 'Outside', side: 'top', kind: 'rj45' }, { id: 'INSIDE', label: 'Inside', side: 'bottom', kind: 'rj45' }], { model: 'IPsec / SSL VPN gateway' }, 1),
+  icon('wan-optimizer', 'WAN optimizer', 'WAN', [{ id: 'WAN', label: 'WAN', side: 'top', kind: 'rj45' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }], undefined, 1),
+  icon('lte-router', 'Cellular router (4G / 5G)', 'WAN', [{ id: 'CELL', label: 'Cellular', side: 'top' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }, { id: 'WAN', label: 'Ethernet WAN', side: 'right', kind: 'rj45' }]),
+  icon('satellite', 'Satellite terminal', 'WAN', [{ id: 'SKY', label: 'Satellite link', side: 'top' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }]),
+  icon('csu-dsu', 'CSU / DSU (T1 / E1)', 'WAN', [{ id: 'LINE', label: 'Telco line', side: 'top' }, { id: 'SERIAL', label: 'Serial / DTE', side: 'bottom', kind: 'console' }], undefined, 1),
+  icon('mpls-cloud', 'MPLS / private WAN', 'WAN', [{ id: 'A', label: 'Site A', side: 'top' }, { id: 'B', label: 'Site B', side: 'bottom' }, { id: 'C', label: 'Site C', side: 'left' }, { id: 'D', label: 'Site D', side: 'right' }]),
+  icon('cloud-service', 'Cloud (IaaS / SaaS)', 'WAN', [{ id: 'NET', label: 'Internet / ExpressRoute', side: 'bottom' }, { id: 'VPN', label: 'Site-to-site VPN', side: 'left' }]),
+  icon('remote-user', 'Remote user (VPN client)', 'WAN', [{ id: 'VPN', label: 'VPN / Internet', side: 'top' }]),
 ];
+
+/** Which kinds of network each built-in stencil is used in (Shapes window → PAN / WLAN / LAN / CAN / MAN / WAN). */
+const NETWORKS: Record<string, NetworkScope[]> = {
+  'sonicwall-tz570-670': ['LAN', 'CAN', 'WAN'], firewall: ['LAN', 'CAN', 'WAN'], router: ['WAN', 'MAN', 'LAN'],
+  'switch-24-poe': ['LAN', 'CAN', 'WLAN'], 'switch-48': ['LAN', 'CAN'], 'switch-48-poe': ['LAN', 'CAN', 'WLAN'], 'switch-8': ['LAN'], 'switch-16-poe': ['LAN', 'WLAN'], 'switch-24': ['LAN', 'CAN'],
+  'switch-core-24sfp': ['LAN', 'CAN', 'MAN'], 'patch-panel-24': ['LAN', 'CAN'], 'patch-panel-48': ['LAN', 'CAN'], 'patch-panel-96': ['LAN', 'CAN'], 'patch-panel-fiber-24': ['LAN', 'CAN', 'MAN'],
+  internet: ['WAN', 'MAN'], modem: ['WAN', 'MAN'], 'access-point': ['WLAN', 'LAN'], server: ['LAN'], nas: ['LAN'], san: ['LAN'],
+  workstation: ['LAN'], laptop: ['LAN', 'WLAN', 'PAN'], printer: ['LAN', 'WLAN'], phone: ['LAN'], camera: ['LAN', 'WLAN'], ups: ['LAN'],
+  smartphone: ['PAN', 'WLAN', 'WAN'], tablet: ['PAN', 'WLAN'], smartwatch: ['PAN'], headset: ['PAN'], 'keyboard-mouse': ['PAN'], 'bt-adapter': ['PAN'], 'usb-hub': ['PAN', 'LAN'], hotspot: ['PAN', 'WLAN', 'WAN'],
+  'ap-outdoor': ['WLAN', 'CAN'], 'mesh-node': ['WLAN'], 'wifi-router': ['WLAN', 'LAN', 'WAN'], 'range-extender': ['WLAN'], wlc: ['WLAN', 'LAN', 'CAN'], 'wireless-bridge': ['WLAN', 'CAN', 'MAN'], antenna: ['WLAN', 'CAN', 'MAN'],
+  kvm: ['LAN'], 'console-server': ['LAN', 'WAN'], 'pdu-network': ['LAN'], 'ip-pbx': ['LAN', 'WAN'], 'load-balancer': ['LAN', 'WAN'], 'tape-library': ['LAN'],
+  nvr: ['LAN'], 'access-control': ['LAN', 'CAN'], 'badge-reader': ['LAN', 'CAN'], 'alarm-panel': ['LAN', 'WAN'],
+  display: ['LAN', 'WLAN'], 'iot-device': ['LAN', 'WLAN', 'PAN'], 'pos-terminal': ['LAN'], conference: ['LAN', 'WLAN'],
+  'wall-jack': ['LAN', 'CAN'], 'poe-injector': ['LAN', 'WLAN'], 'media-converter': ['LAN', 'CAN', 'MAN'], 'sfp-module': ['LAN', 'CAN', 'MAN'], 'splice-closure': ['CAN', 'MAN'], 'optical-splitter': ['CAN', 'MAN'],
+  'metro-ntu': ['MAN', 'WAN'], olt: ['MAN', 'CAN'], dwdm: ['MAN'], microwave: ['MAN', 'CAN', 'WAN'], 'carrier-cloud': ['MAN', 'WAN'], building: ['CAN', 'MAN', 'WAN'],
+  sdwan: ['WAN'], 'vpn-concentrator': ['WAN'], 'wan-optimizer': ['WAN'], 'lte-router': ['WAN'], satellite: ['WAN'], 'csu-dsu': ['WAN'], 'mpls-cloud': ['WAN', 'MAN'], 'cloud-service': ['WAN'], 'remote-user': ['WAN', 'PAN'],
+};
+for (const s of STENCILS) s.networks = NETWORKS[s.id];
 
 export const STENCIL_MAP: Record<string, StencilDef> = Object.fromEntries(STENCILS.map((s) => [s.id, s]));
 
@@ -359,6 +438,156 @@ export function IconArt({ id, size = 64 }: { id: string; size?: number }) {
       break;
     case 'san':
       body = (<g {...s}><rect x={10} y={12} width={44} height={18} rx={2} fill="#f3f4f6" /><rect x={10} y={34} width={44} height={18} rx={2} fill="#f3f4f6" /><path d="M16 17 V25 M22 17 V25 M28 17 V25 M34 17 V25 M16 39 V47 M22 39 V47 M28 39 V47 M34 39 V47" /><circle cx={47} cy={21} r={2} fill="#22c55e" stroke="none" /><circle cx={47} cy={43} r={2} fill="#22c55e" stroke="none" /></g>);
+      break;
+    case 'smartphone':
+      body = (<g {...s}><rect x={20} y={6} width={24} height={52} rx={5} fill="#f3f4f6" /><path d="M28 12 H36" /><circle cx={32} cy={51} r={2.5} fill="#1f2937" stroke="none" /><path stroke={accent} d="M30 26 l4 4 l-4 4 V22 l4 4 l-4 4" /></g>);
+      break;
+    case 'tablet':
+      body = (<g {...s}><rect x={10} y={8} width={44} height={50} rx={5} fill="#f3f4f6" /><rect x={15} y={13} width={34} height={38} rx={1} fill="#dbeafe" stroke={accent} /><circle cx={32} cy={54} r={1.8} fill="#1f2937" stroke="none" /></g>);
+      break;
+    case 'smartwatch':
+      body = (<g {...s}><path d="M24 6 H40 L38 16 H26 Z M26 48 H38 L40 58 H24 Z" fill="#e5e7eb" /><rect x={18} y={16} width={28} height={32} rx={7} fill="#f3f4f6" /><path stroke={accent} d="M32 24 V32 L38 36" /></g>);
+      break;
+    case 'headset':
+      body = (<g {...s}><path d="M14 38 V32 a18 18 0 0 1 36 0 V38" fill="none" /><rect x={8} y={34} width={12} height={18} rx={4} fill="#f3f4f6" /><rect x={44} y={34} width={12} height={18} rx={4} fill="#f3f4f6" /><path stroke={accent} d="M20 50 q8 8 16 4" /></g>);
+      break;
+    case 'keyboard-mouse':
+      body = (<g {...s}><rect x={4} y={28} width={40} height={18} rx={3} fill="#f3f4f6" /><path d="M10 34 H38 M10 40 H38" strokeWidth={1.5} /><rect x={48} y={26} width={12} height={20} rx={6} fill="#f3f4f6" /><path d="M54 26 V33" /><path stroke={accent} d="M22 12 a10 10 0 0 1 14 0 M25 17 a5 5 0 0 1 8 0" /></g>);
+      break;
+    case 'bt-adapter':
+      body = (<g {...s}><rect x={8} y={24} width={34} height={16} rx={4} fill="#f3f4f6" /><rect x={42} y={27} width={14} height={10} fill="#e5e7eb" /><path stroke={accent} d="M20 26 l6 6 l-6 6 V26 M20 32 l6 -6" /></g>);
+      break;
+    case 'usb-hub':
+      body = (<g {...s}><rect x={10} y={22} width={44} height={22} rx={5} fill="#f3f4f6" /><rect x={16} y={29} width={8} height={6} fill="#1f2937" stroke="none" /><rect x={28} y={29} width={8} height={6} fill="#1f2937" stroke="none" /><rect x={40} y={29} width={8} height={6} fill="#1f2937" stroke="none" /><path d="M32 22 V12" /></g>);
+      break;
+    case 'hotspot':
+      body = (<g {...s}><rect x={14} y={24} width={36} height={24} rx={6} fill="#f3f4f6" /><path d="M20 42 H26 M28 42 H34" /><path stroke={accent} d="M24 16 a12 12 0 0 1 16 0 M28 20 a6 6 0 0 1 8 0" /></g>);
+      break;
+    case 'ap-outdoor':
+      body = (<g {...s}><rect x={20} y={12} width={24} height={34} rx={4} fill="#f3f4f6" /><path d="M26 6 V12 M38 6 V12 M24 52 H40 M32 46 V52" /><circle cx={32} cy={28} r={3} fill={accent} stroke="none" /><path stroke={accent} d="M10 22 a16 16 0 0 0 0 14 M54 22 a16 16 0 0 1 0 14" /></g>);
+      break;
+    case 'mesh-node':
+      body = (<g {...s}><path d="M18 52 V24 a14 14 0 0 1 28 0 V52 Z" fill="#f3f4f6" /><circle cx={32} cy={30} r={2.5} fill={accent} stroke="none" /><path stroke={accent} d="M8 18 l6 4 M56 18 l-6 4 M8 44 l6 -4 M56 44 l-6 -4" /></g>);
+      break;
+    case 'wifi-router':
+      body = (<g {...s}><rect x={8} y={34} width={48} height={16} rx={4} fill="#f3f4f6" /><path d="M18 34 L14 14 M46 34 L50 14" /><circle cx={16} cy={42} r={1.8} fill="#22c55e" stroke="none" /><circle cx={23} cy={42} r={1.8} fill="#22c55e" stroke="none" /><path stroke={accent} d="M26 22 a8 8 0 0 1 12 0 M29 26 a4 4 0 0 1 6 0" /></g>);
+      break;
+    case 'range-extender':
+      body = (<g {...s}><rect x={18} y={14} width={28} height={36} rx={6} fill="#f3f4f6" /><path d="M26 50 V56 M38 50 V56" /><path stroke={accent} d="M25 30 a10 10 0 0 1 14 0 M28 35 a5 5 0 0 1 8 0" /></g>);
+      break;
+    case 'wlc':
+      body = (<g {...s}><rect x={6} y={24} width={52} height={18} rx={2} fill="#f3f4f6" /><circle cx={14} cy={33} r={2} fill="#22c55e" stroke="none" /><path stroke={accent} d="M24 16 a12 12 0 0 1 16 0 M28 20 a6 6 0 0 1 8 0 M22 33 H50" /></g>);
+      break;
+    case 'wireless-bridge':
+      body = (<g {...s}><ellipse cx={22} cy={32} rx={8} ry={16} fill="#f3f4f6" /><path d="M22 48 V56 M16 56 H28" /><path stroke={accent} d="M36 26 a10 10 0 0 1 0 12 M42 22 a16 16 0 0 1 0 20 M48 18 a22 22 0 0 1 0 28" /></g>);
+      break;
+    case 'antenna':
+      body = (<g {...s}><path d="M32 22 V56 M24 56 H40 M32 22 L22 6 M32 22 L42 6 M26 14 H38" /><path stroke={accent} d="M44 20 a12 12 0 0 1 0 14 M50 16 a18 18 0 0 1 0 22" /></g>);
+      break;
+    case 'kvm':
+      body = (<g {...s}><rect x={6} y={26} width={52} height={14} rx={2} fill="#f3f4f6" /><path d="M12 33 H24" /><rect x={20} y={8} width={24} height={14} rx={1} fill="#dbeafe" stroke={accent} /><path d="M28 46 H36 M24 52 H40" /></g>);
+      break;
+    case 'console-server':
+      body = (<g {...s}><rect x={6} y={24} width={52} height={18} rx={2} fill="#f3f4f6" /><path d="M12 30 H18 M21 30 H27 M30 30 H36 M39 30 H45 M12 36 H18 M21 36 H27 M30 36 H36 M39 36 H45" strokeWidth={2} /><path stroke={accent} d="M14 14 l6 4 l-6 4 M24 22 H32" /></g>);
+      break;
+    case 'pdu-network':
+      body = (<g {...s}><rect x={6} y={24} width={52} height={16} rx={2} fill="#f3f4f6" /><circle cx={16} cy={32} r={3} /><circle cx={28} cy={32} r={3} /><circle cx={40} cy={32} r={3} /><rect x={48} y={28} width={6} height={8} fill="#0ea5e9" stroke="none" /><path stroke={accent} d="M34 8 L28 18 H34 L30 22" /></g>);
+      break;
+    case 'ip-pbx':
+      body = (<g {...s}><rect x={6} y={30} width={52} height={16} rx={2} fill="#f3f4f6" /><circle cx={14} cy={38} r={2} fill="#22c55e" stroke="none" /><path stroke={accent} d="M22 10 q-6 0 -6 6 q0 10 10 10 q6 0 6 -6 l-4 -2 l-2 3 q-5 -2 -6 -6 l3 -2 Z" /></g>);
+      break;
+    case 'load-balancer':
+      body = (<g {...s}><rect x={6} y={26} width={52} height={14} rx={2} fill="#f3f4f6" /><path stroke={accent} d="M32 6 V16 M32 16 L16 22 M32 16 L32 22 M32 16 L48 22 M18 46 V56 M32 46 V56 M46 46 V56" /></g>);
+      break;
+    case 'tape-library':
+      body = (<g {...s}><rect x={8} y={10} width={48} height={44} rx={3} fill="#f3f4f6" /><rect x={14} y={18} width={20} height={10} rx={1} /><rect x={14} y={34} width={20} height={10} rx={1} /><circle cx={45} cy={23} r={5} /><circle cx={45} cy={39} r={5} /></g>);
+      break;
+    case 'nvr':
+      body = (<g {...s}><rect x={6} y={30} width={52} height={20} rx={2} fill="#f3f4f6" /><path d="M14 36 H26 M14 42 H26" /><circle cx={50} cy={40} r={2} fill="#dc2626" stroke="none" /><rect x={20} y={8} width={18} height={12} rx={3} fill="#e5e7eb" /><path d="M38 12 L46 8 V20 L38 16" fill="#e5e7eb" /></g>);
+      break;
+    case 'access-control':
+      body = (<g {...s}><rect x={16} y={8} width={32} height={48} rx={3} fill="#f3f4f6" /><circle cx={32} cy={24} r={6} /><path d="M32 30 V40" /><rect x={28} y={36} width={8} height={10} rx={1} fill={accent} stroke="none" /></g>);
+      break;
+    case 'badge-reader':
+      body = (<g {...s}><rect x={20} y={8} width={24} height={44} rx={5} fill="#f3f4f6" /><circle cx={32} cy={44} r={2} fill="#22c55e" stroke="none" /><path stroke={accent} d="M26 22 a8 8 0 0 1 12 0 M28 27 a4 4 0 0 1 8 0" /></g>);
+      break;
+    case 'alarm-panel':
+      body = (<g {...s}><rect x={12} y={10} width={40} height={44} rx={3} fill="#f3f4f6" /><rect x={18} y={16} width={28} height={8} fill="#dbeafe" stroke={accent} /><path d="M20 32 H24 M30 32 H34 M40 32 H44 M20 40 H24 M30 40 H34 M40 40 H44 M20 48 H24 M30 48 H34 M40 48 H44" /></g>);
+      break;
+    case 'display':
+      body = (<g {...s}><rect x={6} y={12} width={52} height={32} rx={2} fill="#dbeafe" stroke="#1f2937" /><path d="M24 44 L20 52 M40 44 L44 52 M16 52 H48" /></g>);
+      break;
+    case 'iot-device':
+      body = (<g {...s}><circle cx={32} cy={34} r={14} fill="#f3f4f6" /><circle cx={32} cy={34} r={4} fill={accent} stroke="none" /><path stroke={accent} d="M16 14 a22 22 0 0 1 32 0 M22 20 a14 14 0 0 1 20 0" /></g>);
+      break;
+    case 'pos-terminal':
+      body = (<g {...s}><rect x={14} y={10} width={36} height={24} rx={2} fill="#dbeafe" stroke="#1f2937" /><path d="M24 34 L20 44 H44 L40 34" fill="#e5e7eb" /><rect x={10} y={44} width={44} height={10} rx={2} fill="#f3f4f6" /></g>);
+      break;
+    case 'conference':
+      body = (<g {...s}><rect x={8} y={8} width={48} height={28} rx={2} fill="#dbeafe" stroke="#1f2937" /><circle cx={32} cy={4} r={2} fill="#1f2937" stroke="none" /><ellipse cx={32} cy={50} rx={18} ry={5} fill="#f3f4f6" /><circle cx={32} cy={50} r={2} fill={accent} stroke="none" /></g>);
+      break;
+    case 'wall-jack':
+      body = (<g {...s}><rect x={16} y={8} width={32} height={48} rx={4} fill="#fafafa" /><rect x={25} y={18} width={14} height={12} rx={1} fill="#1f2937" stroke="none" /><rect x={25} y={36} width={14} height={12} rx={1} fill="#1f2937" stroke="none" /><circle cx={32} cy={12} r={1.2} /><circle cx={32} cy={52} r={1.2} /></g>);
+      break;
+    case 'poe-injector':
+      body = (<g {...s}><rect x={10} y={20} width={44} height={24} rx={4} fill="#f3f4f6" /><path stroke={accent} d="M34 24 L28 32 H34 L30 40" /><path d="M32 44 V54" /></g>);
+      break;
+    case 'media-converter':
+      body = (<g {...s}><rect x={10} y={20} width={44} height={24} rx={3} fill="#f3f4f6" /><rect x={14} y={27} width={10} height={10} fill="#1f2937" stroke="none" /><rect x={40} y={27} width={10} height={10} fill="#ea580c" stroke="none" /><path stroke={accent} d="M26 32 H38 M34 28 L38 32 L34 36" /></g>);
+      break;
+    case 'sfp-module':
+      body = (<g {...s}><rect x={8} y={24} width={40} height={16} rx={2} fill="#e5e7eb" /><rect x={48} y={26} width={8} height={12} fill="#22d3ee" /><path d="M8 32 H4 M14 28 H40" /></g>);
+      break;
+    case 'splice-closure':
+      body = (<g {...s}><rect x={14} y={16} width={36} height={32} rx={14} fill="#1f2937" stroke="#1f2937" /><path stroke="#ea580c" d="M4 32 H14 M50 32 H60 M20 26 q12 10 24 0 M20 38 q12 -10 24 0" /></g>);
+      break;
+    case 'optical-splitter':
+      body = (<g {...s}><rect x={16} y={20} width={32} height={24} rx={3} fill="#f3f4f6" /><path stroke="#ea580c" d="M32 8 V20 M32 28 L22 40 M32 28 V40 M32 28 L42 40" /></g>);
+      break;
+    case 'metro-ntu':
+      body = (<g {...s}><rect x={6} y={26} width={52} height={14} rx={2} fill="#f3f4f6" /><rect x={10} y={30} width={8} height={6} fill="#ea580c" stroke="none" /><rect x={46} y={30} width={8} height={6} fill="#1f2937" stroke="none" /><path stroke={accent} d="M24 33 H40 M14 26 V12 M8 12 H20" /></g>);
+      break;
+    case 'olt':
+      body = (<g {...s}><rect x={6} y={24} width={52} height={16} rx={2} fill="#f3f4f6" /><path stroke="#ea580c" d="M12 32 H20 M24 32 H32 M36 32 H44" strokeWidth={3} /><path stroke="#ea580c" d="M32 40 V48 M32 48 L20 56 M32 48 L44 56" /></g>);
+      break;
+    case 'dwdm':
+      body = (<g {...s}><rect x={6} y={24} width={52} height={16} rx={2} fill="#f3f4f6" /><path d="M12 32 L24 32" stroke="#ea580c" strokeWidth={3} /><path d="M28 28 L52 28" stroke="#dc2626" /><path d="M28 32 L52 32" stroke="#16a34a" /><path d="M28 36 L52 36" stroke={accent} /></g>);
+      break;
+    case 'microwave':
+      body = (<g {...s}><circle cx={26} cy={30} r={16} fill="#f3f4f6" /><circle cx={26} cy={30} r={6} /><path d="M26 46 V56 M18 56 H34" /><path stroke={accent} d="M46 22 a10 10 0 0 1 0 16 M52 18 a16 16 0 0 1 0 24" /></g>);
+      break;
+    case 'carrier-cloud':
+      body = <g><path {...s} fill="#f5f3ff" stroke="#7c3aed" d="M16 46 a12 12 0 0 1 0-24 a16 16 0 0 1 30-4 a12 12 0 0 1 4 28 Z" /><text x={32} y={38} fontSize={10} textAnchor="middle" fill="#7c3aed" fontFamily="Arial" fontWeight={700}>METRO</text></g>;
+      break;
+    case 'building':
+      body = (<g {...s}><rect x={14} y={10} width={36} height={46} fill="#f3f4f6" /><path d="M20 18 H26 M30 18 H36 M40 18 H44 M20 28 H26 M30 28 H36 M40 28 H44 M20 38 H26 M30 38 H36 M40 38 H44" strokeWidth={3} /><rect x={28} y={44} width={8} height={12} fill="#e5e7eb" /></g>);
+      break;
+    case 'sdwan':
+      body = (<g {...s}><rect x={6} y={30} width={52} height={16} rx={2} fill="#f3f4f6" /><circle cx={14} cy={38} r={2} fill="#22c55e" stroke="none" /><path stroke={accent} d="M20 22 C24 8 40 8 44 22 M40 18 L44 22 L48 17" /><text x={36} y={42} fontSize={8} textAnchor="middle" fill="#1f2937" stroke="none" fontFamily="Arial">SD-WAN</text></g>);
+      break;
+    case 'vpn-concentrator':
+      body = (<g {...s}><rect x={6} y={30} width={52} height={16} rx={2} fill="#f3f4f6" /><rect x={24} y={12} width={16} height={12} rx={2} fill="#d1fae5" stroke="#059669" /><path stroke="#059669" d="M27 12 V8 a5 5 0 0 1 10 0 V12" /></g>);
+      break;
+    case 'wan-optimizer':
+      body = (<g {...s}><rect x={6} y={30} width={52} height={16} rx={2} fill="#f3f4f6" /><path stroke={accent} d="M12 20 H40 L34 14 M52 20 H44" /><path stroke={accent} d="M20 14 L14 20 L20 26" /></g>);
+      break;
+    case 'lte-router':
+      body = (<g {...s}><rect x={8} y={32} width={48} height={18} rx={4} fill="#f3f4f6" /><path d="M16 32 V12 M48 32 V12" /><text x={32} y={45} fontSize={9} textAnchor="middle" fill="#c026d3" stroke="none" fontFamily="Arial" fontWeight={700}>5G</text><path stroke="#c026d3" d="M24 20 a10 10 0 0 1 16 0" /></g>);
+      break;
+    case 'satellite':
+      body = (<g {...s}><path d="M12 40 a22 22 0 0 0 30 -30 Z" fill="#f3f4f6" /><path d="M27 25 L40 12 M24 42 L20 56 M12 56 H32" /><circle cx={42} cy={10} r={3} fill={accent} stroke="none" /><path stroke={accent} d="M48 4 a10 10 0 0 1 10 10" /></g>);
+      break;
+    case 'csu-dsu':
+      body = (<g {...s}><rect x={8} y={26} width={48} height={16} rx={2} fill="#f3f4f6" /><text x={32} y={38} fontSize={8} textAnchor="middle" fill="#1f2937" stroke="none" fontFamily="Arial">T1/E1</text><path d="M32 26 V12" /></g>);
+      break;
+    case 'mpls-cloud':
+      body = <g><path {...s} fill="#fff1f2" stroke="#be123c" d="M16 46 a12 12 0 0 1 0-24 a16 16 0 0 1 30-4 a12 12 0 0 1 4 28 Z" /><text x={32} y={38} fontSize={10} textAnchor="middle" fill="#be123c" fontFamily="Arial" fontWeight={700}>MPLS</text></g>;
+      break;
+    case 'cloud-service':
+      body = <g><path {...s} fill="#ecfeff" stroke="#0891b2" d="M16 46 a12 12 0 0 1 0-24 a16 16 0 0 1 30-4 a12 12 0 0 1 4 28 Z" /><rect x={24} y={28} width={16} height={12} rx={1} fill="none" stroke="#0891b2" strokeWidth={2} /><path d="M27 32 H37 M27 36 H37" stroke="#0891b2" strokeWidth={1.5} /></g>;
+      break;
+    case 'remote-user':
+      body = (<g {...s}><circle cx={24} cy={20} r={8} fill="#f3f4f6" /><path d="M10 50 a14 14 0 0 1 28 0" fill="#f3f4f6" /><rect x={36} y={34} width={18} height={14} rx={2} fill="#d1fae5" stroke="#059669" /><path stroke="#059669" d="M40 34 V30 a5 5 0 0 1 10 0 V34" /></g>);
       break;
     case 'ups':
       body = (<g {...s}><rect x={16} y={10} width={32} height={44} rx={3} fill="#f3f4f6" /><path stroke={accent} d="M34 18 L26 32 H34 L30 46" /></g>);

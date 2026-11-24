@@ -11,7 +11,7 @@ import type { CableData, CableEdge, DeviceNode, Project, StencilDef } from './ty
 /** Patch panels (and other pass-through equipment): a port's two cables continue one another. */
 export function isPassThrough(d: DeviceNode | undefined, stencil?: StencilDef) {
   if (!d) return false;
-  return !!(stencil?.id.startsWith('patch-panel') || /patch\s*panel|keystone|wall\s*(jack|plate)|faceplate|coupler/i.test(`${stencil?.name ?? ''} ${d.data.model ?? ''} ${d.data.name}`));
+  return !!(stencil?.id.startsWith('patch-panel') || /patch\s*panel|keystone|wall\s*(jack|plate)|faceplate|coupler|splice/i.test(`${stencil?.name ?? ''} ${d.data.model ?? ''} ${d.data.name}`));
 }
 
 export interface TraceHop {

@@ -6,7 +6,7 @@ import { DEFAULT_LIBRARY, groupLibraries, resolveLibrary, sameLibrary, type Sten
 import { allNodes } from '@/lib/project';
 import { loadImageFile } from '@/lib/imageImport';
 import { STENCILS, StencilThumb } from '@/lib/stencils';
-import { STENCIL_CATEGORIES, type ShapeKind, type StencilDef } from '@/lib/types';
+import { NETWORK_SCOPES, STENCIL_CATEGORIES, type NetworkScope, type ShapeKind, type StencilDef } from '@/lib/types';
 import { useDiagram } from '@/store/useDiagramStore';
 import { editableCopy } from '@/lib/shapeCopy';
 import { setPref, usePref } from '@/lib/prefs';
@@ -40,7 +40,7 @@ function saveCollapsed(names: string[]) {
   }
 }
 
-const searchText = (s: StencilDef) => `${s.name} ${s.vendor ?? ''} ${s.category}`.toLowerCase();
+const searchText = (s: StencilDef) => `${s.name} ${s.vendor ?? ''} ${s.category} ${s.networks?.join(' ') ?? ''} ${s.defaults?.model ?? ''}`.toLowerCase();
 
 const ink = { fill: '#fff', stroke: '#374151', strokeWidth: 1.5 };
 const SHAPES: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
@@ -69,6 +69,8 @@ function StencilBar({ title, count, open, onToggle, children }: { title: string;
 
 export function Palette() {
   const [q, setQ] = useState('');
+  /** Shapes window filter: only equipment for this kind of network (PAN … WAN). */
+  const [net, setNet] = useState<NetworkScope | null>(null);
   const [editing, setEditing] = useState<StencilDef | null>(null);
   // Device to switch to the edited copy when a built-in shape is edited from the canvas.
   const [editFor, setEditFor] = useState<string | null>(null);
@@ -142,13 +144,14 @@ export function Palette() {
           library: l,
           stencils: !term || l.name.toLowerCase().includes(term) ? l.stencils : l.stencils.filter((s) => searchText(s).includes(term)),
         }))
-        .filter((x) => x.stencils.length),
-    [libraries, term],
+        // A network filter (PAN … WAN) shows built-in equipment only: imported shapes aren't tagged.
+        .filter((x) => x.stencils.length && !net),
+    [libraries, term, net],
   );
   const groups = useMemo(() => {
-    const list = STENCILS.filter((s) => !term || searchText(s).includes(term));
+    const list = STENCILS.filter((s) => (!term || searchText(s).includes(term)) && (!net || s.networks?.includes(net)));
     return STENCIL_CATEGORIES.map((c) => ({ c, items: list.filter((s) => s.category === c) })).filter((g) => g.items.length);
-  }, [term]);
+  }, [term, net]);
 
   const drag = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData(DND_TYPE, id);
@@ -259,6 +262,19 @@ export function Palette() {
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search shapes"
         />
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Show equipment for">
+          {[null, ...NETWORK_SCOPES.map((n) => n.value)].map((n) => (
+            <button
+              key={n ?? 'all'}
+              className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${net === n ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+              title={n ? NETWORK_SCOPES.find((x) => x.value === n)!.title : 'Equipment for every kind of network'}
+              aria-pressed={net === n}
+              onClick={() => setNet(n)}
+            >
+              {n ?? 'All'}
+            </button>
+          ))}
+        </div>
         <Drop
           width={260}
           trigger={(open, isOpen) => (
@@ -332,7 +348,7 @@ export function Palette() {
           </section>
         )}
         {groups.map(({ c, items }) => (
-          <StencilBar key={c} title={c} count={items.length} open={!!term || !isCollapsed(`builtin:${c}`)} onToggle={(o) => setFolderOpen(`builtin:${c}`, o)}>
+          <StencilBar key={c} title={c} count={items.length} open={!!term || !!net || !isCollapsed(`builtin:${c}`)} onToggle={(o) => setFolderOpen(`builtin:${c}`, o)}>
             <div className="grid grid-cols-1 gap-1">{items.map(item)}</div>
           </StencilBar>
         ))}

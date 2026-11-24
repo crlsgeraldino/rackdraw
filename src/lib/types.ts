@@ -18,9 +18,22 @@ export interface PortDef {
   role?: string;
 }
 
-export type StencilCategory = 'Firewalls' | 'Switching' | 'Wireless' | 'Servers' | 'Endpoints' | 'WAN' | 'Layout' | 'Custom';
+export type StencilCategory =
+  | 'Firewalls' | 'Switching' | 'Wireless' | 'Servers' | 'Endpoints' | 'WAN' | 'Layout' | 'Custom'
+  | 'Personal' | 'Carrier' | 'Cabling' | 'Infrastructure' | 'Security';
 
-export const STENCIL_CATEGORIES: StencilCategory[] = ['Firewalls', 'Switching', 'WAN', 'Wireless', 'Servers', 'Endpoints', 'Custom'];
+export const STENCIL_CATEGORIES: StencilCategory[] = ['Firewalls', 'Switching', 'WAN', 'Carrier', 'Wireless', 'Personal', 'Servers', 'Infrastructure', 'Security', 'Endpoints', 'Cabling', 'Custom'];
+
+/** The kinds of network a piece of equipment is used in (the Shapes window filters by them). */
+export type NetworkScope = 'PAN' | 'WLAN' | 'LAN' | 'CAN' | 'MAN' | 'WAN';
+export const NETWORK_SCOPES: { value: NetworkScope; label: string; title: string }[] = [
+  { value: 'PAN', label: 'PAN', title: 'Personal area network: Bluetooth / USB devices around one person (phone, watch, headset, keyboard)' },
+  { value: 'WLAN', label: 'WLAN', title: 'Wireless LAN: access points, controllers, mesh, bridges, antennas' },
+  { value: 'LAN', label: 'LAN', title: 'Local area network: one building (switches, patch panels, servers, endpoints)' },
+  { value: 'CAN', label: 'CAN', title: 'Campus area network: several buildings joined by fiber or wireless bridges' },
+  { value: 'MAN', label: 'MAN', title: 'Metropolitan area network: city-wide carrier links (metro Ethernet, dark fiber, GPON, microwave)' },
+  { value: 'WAN', label: 'WAN', title: 'Wide area network: Internet, MPLS, SD-WAN, VPN, cellular and satellite links between sites' },
+];
 
 export interface StencilDef {
   id: string;
@@ -47,6 +60,8 @@ export interface StencilDef {
   /** Height in rack units when mounted; undefined = not rack-mount (sits on a shelf, 1U by default). */
   rackUnits?: number;
   defaults?: Partial<DeviceData>;
+  /** The kinds of network it is used in (PAN … WAN). */
+  networks?: NetworkScope[];
 }
 
 /** Shareable stencil library file. */
@@ -444,7 +459,9 @@ export type NoteNode = Node<NoteData, 'note'>;
 export type BackdropNode = Node<BackdropData, 'backdrop'>;
 export type AppNode = DeviceNode | ZoneNode | NoteNode | BackdropNode | ShapeNode | MeasureNode;
 
-export type CableType = 'Cat6' | 'Cat5e' | 'Fiber' | 'DAC' | 'WAN' | 'Console' | 'Wireless' | 'VPN' | 'Line';
+export type CableType =
+  | 'Cat6' | 'Cat6a' | 'Cat5e' | 'Fiber' | 'Fiber SM' | 'Fiber MM' | 'DAC' | 'Coax' | 'WAN' | 'MPLS' | 'Serial' | 'Console' | 'USB'
+  | 'Wireless' | 'Bluetooth' | 'Cellular' | 'Microwave' | 'Satellite' | 'VPN' | 'Line';
 
 export type CableRoute = 'step' | 'straight' | 'curved';
 export type CableArrows = 'none' | 'end' | 'start' | 'both';
@@ -636,12 +653,23 @@ export interface Project {
 
 export const CABLE_STYLES: Record<CableType, { color: string; dash?: string; width: number }> = {
   Cat6: { color: '#2563eb', width: 2 },
+  Cat6a: { color: '#1d4ed8', width: 2.2 },
   Cat5e: { color: '#0891b2', width: 2 },
   Fiber: { color: '#ea580c', width: 2.5 },
+  'Fiber SM': { color: '#ca8a04', width: 2.5 },
+  'Fiber MM': { color: '#06b6d4', width: 2.5 },
   DAC: { color: '#4b5563', width: 2.5 },
+  Coax: { color: '#78350f', width: 2.5 },
   WAN: { color: '#dc2626', width: 2.5 },
+  MPLS: { color: '#be123c', dash: '10 3 2 3', width: 2.5 },
+  Serial: { color: '#57534e', dash: '6 2', width: 1.8 },
   Console: { color: '#6b7280', dash: '4 3', width: 1.5 },
+  USB: { color: '#475569', width: 1.5 },
   Wireless: { color: '#7c3aed', dash: '2 4', width: 2 },
+  Bluetooth: { color: '#0284c7', dash: '1 3', width: 2 },
+  Cellular: { color: '#c026d3', dash: '6 3', width: 2 },
+  Microwave: { color: '#9333ea', dash: '12 4', width: 2.5 },
+  Satellite: { color: '#4f46e5', dash: '3 5', width: 2 },
   VPN: { color: '#059669', dash: '8 4', width: 2 },
   Line: { color: '#374151', width: 1.5 },
 };

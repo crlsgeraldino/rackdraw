@@ -210,7 +210,7 @@ function DeviceFace({ x, y, h, device, stencil, ports }: { x: number; y: number;
   const w = INNER_W;
   const kind = stencil?.id ?? '';
   const name = device?.data.name ?? 'Device';
-  const drives = kind === 'server' || kind === 'nas' || kind === 'san';
+  const drives = kind === 'server' || kind === 'nas' || kind === 'san' || kind === 'nvr' || kind === 'tape-library';
   const parts: ReactNode[] = [<Face key="f" x={x} y={y} w={w} h={h} light={drives} />];
   const ink = drives ? '#1f2937' : '#e5e7eb';
 

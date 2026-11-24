@@ -19,7 +19,7 @@ export function rackRole(d: DeviceNode, st?: StencilDef): Role {
   const text = `${st?.id ?? ''} ${st?.name ?? ''} ${st?.category ?? ''} ${d.data.model ?? ''} ${d.data.name}`.toLowerCase();
   if (/patch[\s-]*panel|keystone|fiber panel/.test(text)) return 'panel';
   if (/\bups\b|battery backup/.test(text)) return 'ups';
-  if (/firewall|router|gateway|sonicwall|fortigate|utm|sd-?wan|edge/.test(text)) return 'edge';
+  if (/firewall|router|gateway|sonicwall|fortigate|utm|sd-?wan|edge|vpn|\bntu\b|demarc|csu|wan optimi/.test(text)) return 'edge';
   if (/switch/.test(text)) return 'switch';
   if (/\bnas\b|\bsan\b|storage|backup/.test(text)) return 'storage';
   if (/server|host|hypervisor|nvr/.test(text)) return 'server';

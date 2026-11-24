@@ -369,11 +369,205 @@ function largeNetwork(): Template['project'] {
   return { pages: [page], activePageId: page.id, racks };
 }
 
+/**
+ * One page per kind of network, PAN to WAN, each drawn with the equipment it uses: a reference for techs and a
+ * starting point for each kind of job.
+ */
+function networkTypes(): Template['project'] {
+  const D = (id: string, stencil: string, name: string, x: number, y: number, extra?: Record<string, unknown>) => dev({ id, stencil, name, x, y, extra });
+  const C = cable;
+  const note = (id: string, text: string, x: number, y: number): AppNode =>
+    ({ id, type: 'note', position: { x, y }, style: { width: 520, height: 64 }, data: { text } }) as AppNode;
+
+  const pan = newPage('PAN', 'network', [
+    note('t-pan', 'PAN: personal area network. Bluetooth and USB devices around one person.', 0, -120),
+    D('n-lap', 'laptop', 'Laptop', 220, 0),
+    D('n-dock', 'usb-hub', 'USB-C dock', 220, 150),
+    D('n-bta', 'bt-adapter', 'Bluetooth adapter', 60, 300),
+    D('n-hs', 'headset', 'Headset', -120, 300),
+    D('n-kb', 'keyboard-mouse', 'Keyboard / mouse', 380, 300),
+    D('n-ph', 'smartphone', 'Smartphone', 620, 0),
+    D('n-wt', 'smartwatch', 'Smartwatch', 800, 0),
+    D('n-tab', 'tablet', 'Tablet', 620, 300),
+    D('n-hot', 'hotspot', 'Mobile hotspot', 620, 150),
+  ], [
+    C('n-lap', 'NIC', 'n-dock', 'HOST', { cable: 'USB' }),
+    C('n-dock', 'U1', 'n-bta', 'USB', { cable: 'USB' }),
+    C('n-bta', 'BT', 'n-hs', 'BT', { cable: 'Bluetooth' }),
+    C('n-dock', 'U2', 'n-kb', 'BT', { cable: 'USB', label: '2.4 GHz receiver' }),
+    C('n-ph', 'BT', 'n-wt', 'BT', { cable: 'Bluetooth' }),
+    C('n-ph', 'WIFI', 'n-hot', 'CELL', { cable: 'Cellular', label: 'Tethering' }),
+    C('n-hot', 'WIFI', 'n-tab', 'WIFI', { cable: 'Wireless' }),
+  ]);
+
+  const wlan = newPage('WLAN', 'network', [
+    note('t-wlan', 'WLAN: wireless LAN. PoE switch, controller, indoor / outdoor / mesh APs, a point-to-point bridge, clients.', 0, -160),
+    D('n-wsw', 'switch-24-poe', 'PoE switch', 200, 0, { ip: '10.20.0.2' }),
+    D('n-wlc', 'wlc', 'WLAN controller', 300, -110, { ip: '10.20.0.5' }),
+    D('n-ap1', 'access-point', 'AP-1 Office', 0, 220, { ip: '10.20.0.11' }),
+    D('n-ap2', 'access-point', 'AP-2 Lobby', 180, 220, { ip: '10.20.0.12' }),
+    D('n-apo', 'ap-outdoor', 'AP-3 Patio (outdoor)', 360, 220),
+    D('n-inj', 'poe-injector', 'PoE injector', 560, 220),
+    D('n-brA', 'wireless-bridge', 'Bridge A (roof)', 760, 220),
+    D('n-brB', 'wireless-bridge', 'Bridge B (annex)', 980, 220),
+    D('n-mesh', 'mesh-node', 'Mesh root (annex)', 980, 400),
+    D('n-ext', 'range-extender', 'Range extender', 1160, 400),
+    D('n-c1', 'laptop', 'Laptop', 0, 420),
+    D('n-c2', 'smartphone', 'Phone', 180, 420),
+    D('n-c3', 'tablet', 'Tablet', 980, 580),
+  ], [
+    C('n-wlc', 'UPLINK', 'n-wsw', 'SFP1', { cable: 'DAC' }),
+    C('n-wsw', 'P2', 'n-ap1', 'ETH', { label: 'PoE+' }),
+    C('n-wsw', 'P4', 'n-ap2', 'ETH', { label: 'PoE+' }),
+    C('n-wsw', 'P6', 'n-apo', 'ETH', { label: 'PoE+' }),
+    C('n-wsw', 'P8', 'n-inj', 'DATA'),
+    C('n-inj', 'POE', 'n-brA', 'ETH'),
+    C('n-brA', 'AIR', 'n-brB', 'AIR', { cable: 'Wireless', label: '60 GHz, 450 ft' }),
+    C('n-brB', 'ETH', 'n-mesh', 'ETH'),
+    C('n-mesh', 'MESH', 'n-ext', 'WIFI', { cable: 'Wireless', label: 'Mesh' }),
+    C('n-mesh', 'WIFI', 'n-c3', 'WIFI', { cable: 'Wireless' }),
+    C('n-ap1', 'WIFI', 'n-c1', 'NIC', { cable: 'Wireless' }),
+    C('n-ap2', 'WIFI', 'n-c2', 'WIFI', { cable: 'Wireless' }),
+  ]);
+
+  const lanEnd: [string, string, string, string][] = [
+    ['n-lws', 'workstation', 'Desk PC (via wall jack)', 'NIC'], ['n-lph', 'phone', 'IP phone', 'LAN'], ['n-lpr', 'printer', 'Printer', 'NIC'],
+    ['n-lnvr', 'nvr', 'NVR', 'NIC1'], ['n-ldsp', 'display', 'Lobby display', 'ETH'], ['n-lac', 'access-control', 'Door controller', 'ETH'],
+    ['n-lcf', 'conference', 'Conference room', 'ETH'], ['n-lpos', 'pos-terminal', 'POS terminal', 'ETH'], ['n-liot', 'iot-device', 'IoT gateway', 'ETH'],
+    ['n-lsrv', 'server', 'Server', 'NIC1'], ['n-lcs', 'console-server', 'Console server', 'NET'], ['n-lkvm', 'kvm', 'KVM', 'NET'],
+  ];
+  const lan = newPage('LAN', 'network', [
+    note('t-lan', 'LAN: one building. Firewall, access switch, patch panel and wall jack, and what plugs into the network.', 0, -280),
+    D('n-lfw', 'firewall', 'Firewall', 300, -200, { ip: '10.30.0.1' }),
+    D('n-lsw', 'switch-24-poe', 'Access switch', 140, -60, { ip: '10.30.0.2' }),
+    D('n-lpp', 'patch-panel-24', 'Patch panel', 140, 80),
+    D('n-ljk', 'wall-jack', 'Wall jack 1-01', -60, 300),
+    ...lanEnd.map(([id, st, name], i) => D(id, st, name, -60 + i * 130, i === 0 ? 460 : 300)),
+    D('n-lcam', 'camera', 'Camera', 330, 460),
+    D('n-lbr', 'badge-reader', 'Badge reader', 590, 460),
+    D('n-lups', 'ups', 'UPS', 700, -200),
+  ], [
+    C('n-lfw', 'LAN', 'n-lsw', 'SFP1', { cable: 'DAC' }),
+    C('n-lsw', 'P2', 'n-lpp', 'PP1', { length: '1 ft' }),
+    C('n-lpp', 'PP1', 'n-ljk', 'JACK', { length: '120 ft', label: 'Horizontal run' }),
+    C('n-ljk', 'JACK', 'n-lws', 'NIC', { length: '7 ft' }),
+    ...lanEnd.slice(1).map(([id, , , port], i) => C('n-lsw', `P${(i + 2) * 2}`, id, port)),
+    C('n-lnvr', 'CAMS', 'n-lcam', 'ETH', { label: 'PoE' }),
+    C('n-lac', 'READER', 'n-lbr', 'WIEGAND', { cable: 'Line' }),
+    C('n-lcs', 'SERIAL', 'n-lsw', 'CONSOLE', { cable: 'Console' }),
+    C('n-lups', 'NMC', 'n-lsw', 'P1'),
+  ]);
+
+  const z = (id: string, title: string, x: number, y: number, w: number, h: number, color: string): AppNode =>
+    ({ id, type: 'zone', position: { x, y }, zIndex: -1, style: { width: w, height: h }, data: { title, color, style: 'header' } }) as AppNode;
+  const can = newPage('CAN', 'network', [
+    note('t-can', 'CAN: campus. Buildings joined by single-mode fiber (through a splice closure), a media converter to the gate house, and a wireless bridge to the parking lot.', 0, -260),
+    z('z-ca', 'Building A (main)', -20, -140, 620, 360, '#2563eb'),
+    z('z-cb', 'Building B', 860, -140, 620, 360, '#16a34a'),
+    z('z-cg', 'Gate house', -20, 330, 360, 260, '#d97706'),
+    z('z-cp', 'Parking lot', 420, 330, 560, 260, '#7c3aed'),
+    D('n-ccore', 'switch-core-24sfp', 'Core switch', 20, -60, { ip: '10.40.0.1' }),
+    D('n-cfpa', 'patch-panel-fiber-24', 'Fiber panel A', 20, 60),
+    D('n-csp', 'splice-closure', 'Splice closure (manhole 3)', 680, 80),
+    D('n-cfpb', 'patch-panel-fiber-24', 'Fiber panel B', 900, 60),
+    D('n-cswb', 'switch-48-poe', 'Building B switch', 880, -60, { ip: '10.40.1.1' }),
+    D('n-cmc', 'media-converter', 'Media converter', 40, 420),
+    D('n-cgate', 'access-control', 'Gate controller', 220, 420),
+    D('n-cbra', 'wireless-bridge', 'Bridge (Bldg A roof)', 480, 420),
+    D('n-cbrb', 'wireless-bridge', 'Bridge (light pole)', 680, 420),
+    D('n-cap', 'ap-outdoor', 'Parking AP', 860, 420),
+  ], [
+    C('n-ccore', 'X2', 'n-cfpa', 'PP1', { cable: 'Fiber SM', length: '3 ft' }),
+    C('n-cfpa', 'PP1', 'n-csp', 'F1', { cable: 'Fiber SM', length: '900 ft', label: 'OS2 12-strand' }),
+    C('n-csp', 'F1', 'n-cfpb', 'PP1', { cable: 'Fiber SM', length: '650 ft' }),
+    C('n-cfpb', 'PP1', 'n-cswb', 'SFP1', { cable: 'Fiber SM', length: '3 ft' }),
+    C('n-ccore', 'X4', 'n-cmc', 'SFP', { cable: 'Fiber MM', length: '400 ft' }),
+    C('n-cmc', 'RJ45', 'n-cgate', 'ETH'),
+    C('n-ccore', 'X6', 'n-cbra', 'ETH', { length: '90 ft' }),
+    C('n-cbra', 'AIR', 'n-cbrb', 'AIR', { cable: 'Wireless', label: '5 GHz PtP, 800 ft' }),
+    C('n-cbrb', 'ETH', 'n-cap', 'ETH'),
+  ]);
+
+  const man = newPage('MAN', 'network', [
+    note('t-man', 'MAN: across a city. Metro Ethernet through the carrier, dark fiber with CWDM, licensed microwave, and a GPON fiber-to-the-building network.', 0, -300),
+    D('n-mhq', 'router', 'HQ router', 0, 0, { ip: '10.50.0.1' }),
+    D('n-mcore', 'switch-core-24sfp', 'HQ core', -60, 160, { ip: '10.50.0.2' }),
+    D('n-mntu1', 'metro-ntu', 'Metro NTU (HQ)', 0, -170),
+    D('n-mcar', 'carrier-cloud', 'Metro Ethernet carrier', 400, -200),
+    D('n-mntu2', 'metro-ntu', 'Metro NTU (Branch 1)', 800, -170),
+    D('n-mb1', 'router', 'Branch 1 router', 800, 0),
+    D('n-mdw1', 'dwdm', 'CWDM mux (HQ)', 160, 340),
+    D('n-mdw2', 'dwdm', 'CWDM mux (Branch 2)', 560, 340),
+    D('n-mb2', 'switch-48', 'Branch 2 switch', 760, 320),
+    D('n-mmw1', 'microwave', 'Microwave (HQ roof)', -60, 340),
+    D('n-mmw2', 'microwave', 'Microwave (warehouse)', -60, 560),
+    D('n-mwh', 'switch-8', 'Warehouse switch', 100, 580),
+    D('n-molt', 'olt', 'Municipal OLT', 400, -40),
+    D('n-mspl', 'optical-splitter', 'Splitter 1:8', 400, 100),
+    D('n-mont1', 'modem', 'ONT (library)', 300, 220, { model: 'GPON ONT' }),
+    D('n-mont2', 'modem', 'ONT (city hall)', 500, 220, { model: 'GPON ONT' }),
+  ], [
+    C('n-mhq', 'WAN', 'n-mntu1', 'UNI'),
+    C('n-mntu1', 'NETWORK', 'n-mcar', 'C', { cable: 'Fiber SM' }),
+    C('n-mcar', 'D', 'n-mntu2', 'NETWORK', { cable: 'Fiber SM', label: 'E-Line 1 Gbps' }),
+    C('n-mntu2', 'UNI', 'n-mb1', 'WAN'),
+    C('n-mhq', 'LAN', 'n-mcore', 'X1'),
+    C('n-mcore', 'X2', 'n-mdw1', 'CH1', { cable: 'Fiber SM' }),
+    C('n-mdw1', 'LINE', 'n-mdw2', 'LINE', { cable: 'Fiber SM', label: 'Dark fiber 6.2 mi' }),
+    C('n-mdw2', 'CH1', 'n-mb2', 'SFP1', { cable: 'Fiber SM' }),
+    C('n-mcore', 'X3', 'n-mmw1', 'IDU'),
+    C('n-mmw1', 'RF', 'n-mmw2', 'RF', { cable: 'Microwave', label: '18 GHz, 3.5 mi' }),
+    C('n-mmw2', 'IDU', 'n-mwh', 'SFP1'),
+    C('n-mcar', 'B', 'n-molt', 'UPLINK', { cable: 'Fiber SM' }),
+    C('n-molt', 'PON', 'n-mspl', 'IN', { cable: 'Fiber SM' }),
+    C('n-mspl', 'OUT2', 'n-mont1', 'UPLINK', { cable: 'Fiber SM' }),
+    C('n-mspl', 'OUT3', 'n-mont2', 'UPLINK', { cable: 'Fiber SM' }),
+  ]);
+
+  const wan = newPage('WAN', 'network', [
+    note('t-wan', 'WAN: sites far apart. SD-WAN over Internet + MPLS, LTE backup, a legacy T1, a satellite site, the cloud over site-to-site VPN, and remote users.', 0, -340),
+    D('n-wnet', 'internet', 'Internet', 0, -240),
+    D('n-wmpls', 'mpls-cloud', 'MPLS (carrier)', 480, -240),
+    D('n-wcloud', 'cloud-service', 'Cloud (Azure / AWS)', -320, -40),
+    D('n-whq', 'sdwan', 'HQ SD-WAN edge', 160, -80),
+    D('n-wopt', 'wan-optimizer', 'WAN optimizer', 160, 60),
+    D('n-wcore', 'switch-24-poe', 'HQ core', 80, 200),
+    D('n-wvpn', 'vpn-concentrator', 'VPN gateway', -160, 120),
+    D('n-wb1', 'sdwan', 'Branch 1 SD-WAN edge', 760, -80),
+    D('n-wlte', 'lte-router', 'LTE backup', 960, -80),
+    D('n-wb2r', 'router', 'Branch 2 router', 520, 140),
+    D('n-wcsu', 'csu-dsu', 'CSU/DSU', 520, 0),
+    D('n-wnet2', 'internet', 'Internet (rural)', 1200, -240),
+    D('n-wsat', 'satellite', 'Satellite terminal', 1200, -80),
+    D('n-wsoho', 'wifi-router', 'Site office Wi-Fi router', 1200, 80),
+    D('n-wnet3', 'internet', 'Internet', -320, 300),
+    D('n-wru', 'remote-user', 'Remote user', -320, 440),
+  ], [
+    C('n-wnet', 'WAN', 'n-whq', 'WAN1', { cable: 'WAN', label: 'DIA 1 Gbps' }),
+    C('n-wmpls', 'C', 'n-whq', 'WAN2', { cable: 'MPLS' }),
+    C('n-whq', 'LAN', 'n-wopt', 'WAN'),
+    C('n-wopt', 'LAN', 'n-wcore', 'SFP1'),
+    C('n-wmpls', 'D', 'n-wb1', 'WAN1', { cable: 'MPLS' }),
+    C('n-wlte', 'LAN', 'n-wb1', 'WAN2', { label: 'Backup' }),
+    C('n-wmpls', 'B', 'n-wcsu', 'LINE', { cable: 'WAN', label: 'T1' }),
+    C('n-wcsu', 'SERIAL', 'n-wb2r', 'WAN', { cable: 'Serial' }),
+    C('n-wnet2', 'WAN', 'n-wsat', 'SKY', { cable: 'Satellite' }),
+    C('n-wsat', 'LAN', 'n-wsoho', 'WAN'),
+    C('n-wcloud', 'VPN', 'n-wvpn', 'OUTSIDE', { cable: 'VPN', label: 'Site-to-site IPsec' }),
+    C('n-wvpn', 'INSIDE', 'n-wcore', 'P2'),
+    C('n-wnet3', 'WAN', 'n-wru', 'VPN', { cable: 'VPN', label: 'Client VPN' }),
+  ]);
+
+  const pages = [pan, wlan, lan, can, man, wan];
+  return { pages, activePageId: pages[0].id };
+}
+
 export const BUILT_IN_TEMPLATES: Template[] = [
   { id: 'tpl-office', name: 'Small office network', description: 'ISP → firewall → PoE switch → access points, workstations, printer and NAS, all cabled.', project: smallOffice() },
   { id: 'tpl-office-rack', name: 'Small network + rack (up to 25 users)', description: 'One wiring closet: firewall, PoE switch, patch panel, desks, APs, camera, phone, server, NAS and UPS, and the same equipment in its rack, patch cords included.', project: officeWithRack() },
   { id: 'tpl-net-medium', name: 'Medium network (25–150 users)', description: 'Three floors: dual-WAN firewall, 10G core switch, servers and NAS in the MDF, an IDF per floor on an OM4 fiber backbone, PoE access switches and patch panels. One rack per room.', project: mediumNetwork() },
   { id: 'tpl-net-large', name: 'Large network (150+ users, campus)', description: 'HA firewall pair on two ISPs, redundant core pair, virtualization hosts, SAN, backup and OOB management in the data center, and three buildings with dual-homed access stacks over single-mode fiber. One rack per room.', project: largeNetwork() },
+  { id: 'tpl-net-types', name: 'Network types: PAN, WLAN, LAN, CAN, MAN, WAN', description: 'One page per kind of network, each drawn with the equipment it uses: Bluetooth devices, wireless controllers and bridges, wall jacks and PoE, campus fiber and splices, metro Ethernet, CWDM, microwave and GPON, SD-WAN, MPLS, LTE, T1, satellite, cloud VPN.', project: networkTypes() },
   { id: 'tpl-rack', name: 'Server rack', description: 'Firewall, 48-port switch, server, NAS and UPS cabled, and mounted in a 24U rack with cable managers and a PDU.', project: rackRoom() },
   { id: 'tpl-floor', name: 'Office floor plan', description: 'A 40 × 30 ft room drawn to scale: walls, door, window, an access point and a printer.', project: floorPlan() },
 ];

@@ -722,6 +722,29 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
     single-mode fiber. Four racks (a 32U data center rack and an 18U rack per building).
   - Every drop is traced end to end (endpoint → patch panel → access switch → fiber panels → core), with wall jacks,
     lengths, VLANs (1 / 10 data / 20 voice / 30 cameras), port speeds and PoE filled in.
+- **Equipment for every kind of network (PAN, WLAN, LAN, CAN, MAN, WAN)**: the Shapes window has filter buttons
+  (All · PAN · WLAN · LAN · CAN · MAN · WAN) that show only the built-in equipment used in that kind of network
+  (imported libraries are hidden while a filter is on); searching "MAN" or "WAN" works too. 76 built-in items:
+  - **PAN**: smartphone, tablet, smartwatch, headset, wireless keyboard / mouse, Bluetooth / USB adapter, USB hub /
+    dock, mobile hotspot.
+  - **WLAN**: indoor and outdoor access points, mesh node, SOHO Wi-Fi router, range extender, wireless LAN
+    controller (1U), point-to-point wireless bridge, antenna.
+  - **LAN**: 8 / 16 PoE / 24 / 24 PoE / 48 / 48 PoE switches, patch panels, KVM, console server, switched PDU,
+    IP PBX / voice gateway, load balancer, tape library, NVR, access control panel, badge reader, alarm panel, smart
+    display, IoT gateway, POS terminal, conference room system.
+  - **Cabling parts**: wall jack / keystone faceplate (a pass-through, so paths trace PC → wall jack → patch panel →
+    switch), PoE injector, media converter, SFP transceiver, fiber splice closure (pass-through), optical splitter.
+  - **CAN / MAN**: core switch, fiber panels, Metro Ethernet NTU, GPON OLT, DWDM / CWDM mux, microwave radio,
+    metro carrier network, building / site.
+  - **WAN**: router, firewall, SD-WAN edge, VPN concentrator, WAN optimizer, cellular (4G / 5G) router, satellite
+    terminal, CSU / DSU, MPLS cloud, cloud (IaaS / SaaS), remote user, Internet, modem / ONT.
+- **Cable types** for all of them: Cat6, Cat6a, Cat5e, Fiber, Fiber SM (OS2), Fiber MM (OM3/OM4), DAC, Coax, WAN,
+  MPLS, Serial, Console, USB, Wireless, Bluetooth, Cellular, Microwave, Satellite, VPN, Line.
+- **File → New → Network types: PAN, WLAN, LAN, CAN, MAN, WAN**: one page per kind of network, each drawn and cabled
+  with its equipment (PAN around a laptop and phone; WLAN with controller, APs, injector, bridge and mesh; LAN with a
+  wall-jack run and every kind of endpoint; CAN with campus fiber through a splice closure, a media converter and a
+  wireless bridge; MAN with metro Ethernet, dark fiber + CWDM, microwave and GPON; WAN with SD-WAN over Internet and
+  MPLS, LTE backup, a T1, a satellite site, cloud VPN and remote users).
 - **Equipment for bigger networks**: Switch 48-port PoE + 4 SFP+, Core / aggregation switch (24× SFP+, 4× QSFP28),
   Fiber patch panel 24-port LC (aqua OM4 adapters on the front, splice cassettes on the back), Firewall (1U, WAN /
   LAN / HA / management), Router (1U, dual WAN) and SAN / storage array (2U, two controllers).
