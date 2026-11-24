@@ -1,7 +1,7 @@
 /** Unit tests for the change log. */
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { appendEntries, changeLogCsv, cleanChangeLog, diffProjects, type ChangeEntry } from '../src/lib/changeLog';
+import { appendEntries, changeLogCsv, cleanChangeLog, deviceHistory, diffProjects, type ChangeEntry } from '../src/lib/changeLog';
 import { sanitizeProject } from '../src/lib/sanitize';
 import { BUILT_IN_TEMPLATES, projectFromTemplate, templateFromProject } from '../src/lib/templates';
 import type { AppNode, CableEdge, DeviceNode, Project } from '../src/lib/types';
@@ -73,5 +73,21 @@ describe('change log', () => {
     assert.deepEqual(sanitizeProject(JSON.parse(JSON.stringify(p))).project.changeLog, [good]);
     assert.equal((templateFromProject(p, 'T', '').project as Project).changeLog, undefined);
     assert.ok(changeLogCsv([good]).includes('Ticket 1'));
+  });
+  it('ties entries to devices, so a device keeps its history through a rename', () => {
+    const c = { id: 'c1', source: 'a', sourceHandle: 'P1', target: 'b', targetHandle: 'P2', type: 'cable', data: { cable: 'Cat6' } } as CableEdge;
+    const a = proj([dev('a', 'Core', { ip: '10.0.0.1' }), dev('b', 'IDF')]);
+    const b = proj([dev('a', 'Core', { ip: '10.0.0.2' }), dev('b', 'IDF')], [c]);
+    const r = proj([dev('a', 'Core 1', { ip: '10.0.0.2' }), dev('b', 'IDF')], [c]);
+    let log = appendEntries([], diffProjects(a, b, 1));
+    log = appendEntries(log, diffProjects(b, r, 10 * 60_000));
+    const h = deviceHistory(log, 'a', 'Core 1').map((e) => e.detail);
+    assert.deepEqual(h, ['Name: Core → Core 1', 'Connected (Cat6)', 'IP: 10.0.0.1 → 10.0.0.2']);
+    assert.deepEqual(deviceHistory(log, 'b', 'IDF').map((e) => e.detail), ['Connected (Cat6)']);
+    // Entries from before ids were recorded are found by name.
+    assert.equal(deviceHistory([{ at: 1, kind: 'device', action: 'changed', target: 'IDF', detail: 'IP: — → 1' }], 'b', 'IDF').length, 1);
+    // ids survive a file round trip; junk ids are dropped.
+    assert.deepEqual(cleanChangeLog(JSON.parse(JSON.stringify(log)))?.[0].ids, ['a']);
+    assert.equal(cleanChangeLog([{ at: 1, kind: 'note', action: 'note', target: 'N', detail: 'x', ids: [5] }])?.[0].ids, undefined);
   });
 });

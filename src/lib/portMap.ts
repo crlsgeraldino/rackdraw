@@ -124,6 +124,9 @@ export function portMap(p: Project, nodeId: string, stencil: Stencils): PortMap 
   };
 }
 
+/** A port worth listing when only ports in use are shown: cabled, noted, or with a status, VLAN or notes. */
+export const documentedPort = (r: PortMapRow) => r.cabled || !!r.note || !!r.status || !!r.vlan || !!r.notes;
+
 /** How a port is drawn on the map: colour for its state. */
 export function portFill(r: PortMapRow): { fill: string; stroke: string; text: string } {
   if (r.status === 'disabled') return { fill: '#d1d5db', stroke: '#6b7280', text: '#374151' };
@@ -201,7 +204,7 @@ export const PORT_MAP_CSS = `
 /** Printable sheets, one per device: title, the face, a colour key and the table. */
 export function portMapHtml(maps: PortMap[], client: string, onlyUsed = false): string {
   return maps.map((m) => {
-    const rows = onlyUsed ? m.rows.filter((r) => r.cabled || r.note || r.status || r.vlan || r.notes) : m.rows;
+    const rows = onlyUsed ? m.rows.filter(documentedPort) : m.rows;
     const head = PORT_MAP_COLUMNS.map((c) => `<th>${c}</th>`).join('');
     const body = rows.map((r) => {
       const cells = portMapCells(r).map((c, i) => (i === 3 && c

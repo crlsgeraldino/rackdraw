@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PORT_MAP_EVENT } from '@/lib/events';
 import { downloadBlob, safeName } from '@/lib/export';
-import { PORT_MAP_COLUMNS, PORT_MAP_CSS, portFaceSvg, portFill, portMap, portMapCells, portMapCsv, portMapDevices, portMapHtml, portMapTsv, type PortMap } from '@/lib/portMap';
+import { documentedPort, PORT_MAP_COLUMNS, PORT_MAP_CSS, portFaceSvg, portFill, portMap, portMapCells, portMapCsv, portMapDevices, portMapHtml, portMapTsv, type PortMap } from '@/lib/portMap';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 
 const ROOT_ID = 'rd-portmap-print';
@@ -77,7 +77,7 @@ export function PortMapDialog({ nodeId, onClose }: { nodeId?: string; onClose: (
     }
   };
 
-  const rows = map ? (onlyUsed ? map.rows.filter((r) => r.cabled || r.note || r.status || r.vlan || r.notes) : map.rows) : [];
+  const rows = map ? (onlyUsed ? map.rows.filter(documentedPort) : map.rows) : [];
   const face = map ? portFaceSvg(map, 900) : '';
 
   return (

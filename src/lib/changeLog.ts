@@ -19,6 +19,8 @@ export interface ChangeEntry {
   target: string;
   /** What happened, in words ("IP 10.0.0.5 → 10.0.0.7"). */
   detail: string;
+  /** The devices it is about (a cable: both ends), so a device's history survives renames. */
+  ids?: string[];
 }
 
 /** The newest entries kept per client. */
@@ -60,7 +62,7 @@ const mountsOf = (p: Project) => {
 /** What changed between two versions of a client, as log entries (all stamped `at`). */
 export function diffProjects(a: Project, b: Project, at = Date.now(), stencil?: (id: string) => StencilDef | undefined): ChangeEntry[] {
   const out: ChangeEntry[] = [];
-  const push = (kind: ChangeKind, action: ChangeEntry['action'], target: string, detail: string) => out.push({ at, kind, action, target, detail });
+  const push = (kind: ChangeKind, action: ChangeEntry['action'], target: string, detail: string, ids?: string[]) => out.push({ at, kind, action, target, detail, ...(ids?.length ? { ids } : {}) });
 
   // Pages
   const ap = new Map(a.pages.map((p) => [p.id, p])), bp = new Map(b.pages.map((p) => [p.id, p]));
@@ -75,27 +77,27 @@ export function diffProjects(a: Project, b: Project, at = Date.now(), stencil?: 
   const portOf = (d: DeviceNode | undefined, h?: string | null) => (h ? d?.data.ports?.[h]?.label || (d && stencil?.(d.data.stencilId)?.ports.find((q) => q.id === h)?.label) || h.replace(/^PP?/, '') : '');
   for (const [id, n] of bd) {
     const o = ad.get(id);
-    if (!o) { push('device', 'added', n.data.name, ['Added', n.data.model, n.data.ip].filter(Boolean).join(' · ')); continue; }
+    if (!o) { push('device', 'added', n.data.name, ['Added', n.data.model, n.data.ip].filter(Boolean).join(' · '), [id]); continue; }
     if (o.data === n.data) continue;
     for (const [k, label] of DEVICE_FIELDS) {
-      if (differs(o.data[k], n.data[k])) push('device', 'changed', k === 'name' ? show(o.data.name) : n.data.name, `${label}: ${show(o.data[k])} → ${show(n.data[k])}`);
+      if (differs(o.data[k], n.data[k])) push('device', 'changed', k === 'name' ? show(o.data.name) : n.data.name, `${label}: ${show(o.data[k])} → ${show(n.data[k])}`, [id]);
     }
-    if (differs(o.data.notes?.trim(), n.data.notes?.trim())) push('device', 'changed', n.data.name, 'Notes edited');
+    if (differs(o.data.notes?.trim(), n.data.notes?.trim())) push('device', 'changed', n.data.name, 'Notes edited', [id]);
     for (const [k, label] of CIRCUIT_FIELDS) {
       const x = (o.data.circuit as Record<string, unknown> | undefined)?.[k], y = (n.data.circuit as Record<string, unknown> | undefined)?.[k];
-      if (differs(x, y)) push('device', 'changed', n.data.name, `${label}: ${show(x)} → ${show(y)}`);
+      if (differs(x, y)) push('device', 'changed', n.data.name, `${label}: ${show(x)} → ${show(y)}`, [id]);
     }
     const ox = new Map((o.data.extraFields ?? []).map((f) => [f.label, f.value])), nx = new Map((n.data.extraFields ?? []).map((f) => [f.label, f.value]));
-    for (const k of new Set([...ox.keys(), ...nx.keys()])) if (k && differs(ox.get(k), nx.get(k))) push('device', 'changed', n.data.name, `${k}: ${show(ox.get(k))} → ${show(nx.get(k))}`);
+    for (const k of new Set([...ox.keys(), ...nx.keys()])) if (k && differs(ox.get(k), nx.get(k))) push('device', 'changed', n.data.name, `${k}: ${show(ox.get(k))} → ${show(nx.get(k))}`, [id]);
     if (o.data.ports !== n.data.ports) {
       for (const port of new Set([...Object.keys(o.data.ports ?? {}), ...Object.keys(n.data.ports ?? {})])) {
         const x = o.data.ports?.[port] ?? {}, y = n.data.ports?.[port] ?? {};
         const name = portOf(n, port);
-        for (const [k, label] of PORT_FIELDS) if (differs(x[k], y[k])) push('port', 'changed', `${n.data.name} ${name}`, `Port ${label}: ${show(x[k])} → ${show(y[k])}`);
+        for (const [k, label] of PORT_FIELDS) if (differs(x[k], y[k])) push('port', 'changed', `${n.data.name} ${name}`, `Port ${label}: ${show(x[k])} → ${show(y[k])}`, [id]);
       }
     }
   }
-  for (const [id, n] of ad) if (!bd.has(id)) push('device', 'removed', n.data.name, ['Deleted', n.data.model, n.data.ip].filter(Boolean).join(' · '));
+  for (const [id, n] of ad) if (!bd.has(id)) push('device', 'removed', n.data.name, ['Deleted', n.data.model, n.data.ip].filter(Boolean).join(' · '), [id]);
 
   // Cables
   const ac = cablesOf(a), bc = cablesOf(b);
@@ -106,16 +108,16 @@ export function diffProjects(a: Project, b: Project, at = Date.now(), stencil?: 
   const isCable = (e: CableEdge, devs: Map<string, DeviceNode>) => devs.has(e.source) || devs.has(e.target);
   for (const [id, e] of bc) {
     const o = ac.get(id);
-    if (!o) { if (isCable(e, bd)) push('cable', 'added', ends(e, bd), `Connected (${e.data?.cable ?? 'Cat6'})`); continue; }
+    if (!o) { if (isCable(e, bd)) push('cable', 'added', ends(e, bd), `Connected (${e.data?.cable ?? 'Cat6'})`, [e.source, e.target]); continue; }
     if (o === e || !isCable(e, bd)) continue;
-    if (o.source !== e.source || o.target !== e.target || o.sourceHandle !== e.sourceHandle || o.targetHandle !== e.targetHandle) push('cable', 'changed', ends(e, bd), `Reconnected (was ${ends(o, ad)})`);
+    if (o.source !== e.source || o.target !== e.target || o.sourceHandle !== e.sourceHandle || o.targetHandle !== e.targetHandle) push('cable', 'changed', ends(e, bd), `Reconnected (was ${ends(o, ad)})`, [...new Set([e.source, e.target, o.source, o.target])]);
     for (const [k, label] of CABLE_FIELDS) {
       const x = (o.data as Record<string, unknown> | undefined)?.[k] ?? (k === 'cable' ? 'Cat6' : undefined);
       const y = (e.data as Record<string, unknown> | undefined)?.[k] ?? (k === 'cable' ? 'Cat6' : undefined);
-      if (differs(x, y)) push('cable', 'changed', ends(e, bd), `Cable ${label}: ${show(x)} → ${show(y)}`);
+      if (differs(x, y)) push('cable', 'changed', ends(e, bd), `Cable ${label}: ${show(x)} → ${show(y)}`, [e.source, e.target]);
     }
   }
-  for (const [id, e] of ac) if (!bc.has(id) && isCable(e, ad)) push('cable', 'removed', ends(e, ad), 'Disconnected');
+  for (const [id, e] of ac) if (!bc.has(id) && isCable(e, ad)) push('cable', 'removed', ends(e, ad), 'Disconnected', [e.source, e.target]);
 
   // Racks: racks themselves, and where devices are mounted
   const ar = new Map((a.racks ?? []).map((r) => [r.id, r])), br = new Map((b.racks ?? []).map((r) => [r.id, r]));
@@ -131,10 +133,10 @@ export function diffProjects(a: Project, b: Project, at = Date.now(), stencil?: 
   const am = mountsOf(a), bm = mountsOf(b);
   for (const [id, m] of bm) {
     const o = am.get(id);
-    if (!o) push('rack', 'changed', nameIn(id), `Mounted in ${m.rack} ${m.at}`);
-    else if (o.rack !== m.rack || o.at !== m.at) push('rack', 'changed', nameIn(id), `Moved: ${o.rack} ${o.at} → ${m.rack} ${m.at}`);
+    if (!o) push('rack', 'changed', nameIn(id), `Mounted in ${m.rack} ${m.at}`, [id]);
+    else if (o.rack !== m.rack || o.at !== m.at) push('rack', 'changed', nameIn(id), `Moved: ${o.rack} ${o.at} → ${m.rack} ${m.at}`, [id]);
   }
-  for (const [id, o] of am) if (!bm.has(id) && bd.has(id)) push('rack', 'changed', nameIn(id), `Taken out of ${o.rack} ${o.at}`);
+  for (const [id, o] of am) if (!bm.has(id) && bd.has(id)) push('rack', 'changed', nameIn(id), `Taken out of ${o.rack} ${o.at}`, [id]);
 
   // IP plan
   const av = new Map((a.vlans ?? []).map((v) => [v.id, v])), bv = new Map((b.vlans ?? []).map((v) => [v.id, v]));
@@ -208,5 +210,15 @@ export function cleanChangeLog(v: unknown): ChangeEntry[] | undefined {
     && CHANGE_KINDS.includes((e as ChangeEntry).kind)
     && ['added', 'removed', 'changed', 'note'].includes((e as ChangeEntry).action)
     && typeof (e as ChangeEntry).target === 'string' && typeof (e as ChangeEntry).detail === 'string');
-  return ok.length ? ok.slice(-CHANGE_LOG_LIMIT) : undefined;
+  const tidy = ok.map((e) => {
+    const { ids, ...rest } = e;
+    return Array.isArray(ids) && ids.every((x) => typeof x === 'string') && ids.length ? { ...rest, ids } : rest;
+  });
+  return tidy.length ? tidy.slice(-CHANGE_LOG_LIMIT) : undefined;
+}
+
+/** A device's own history, newest first: entries about it (by id; older entries without ids, by its name). */
+export function deviceHistory(log: ChangeEntry[] | undefined, nodeId: string, name: string): ChangeEntry[] {
+  const n = name.trim().toLowerCase();
+  return (log ?? []).filter((e) => (e.ids ? e.ids.includes(nodeId) : e.kind !== 'note' && !!n && (e.target.toLowerCase() === n || e.target.toLowerCase().startsWith(`${n} `)))).reverse();
 }

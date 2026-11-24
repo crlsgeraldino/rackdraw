@@ -18,6 +18,9 @@ import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices } from './project';
 import { PROJECT_FILE_VERSION, sanitizeProject } from './sanitize';
 import { rackLabel } from './rack';
+import { documentedPort, portMap, portMapDevices } from './portMap';
+import { changeKindLabel, changeTime } from './changeLog';
+import { SITE_TABLE, siteSummaries, siteTableRows } from './sites';
 import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
@@ -143,6 +146,28 @@ export function portRows(p: Project) {
         }));
     });
   });
+}
+
+export const PORT_MAP_TABLE = ['Device', 'Port', 'Connected to', 'Via', 'VLAN', 'PoE', 'Status', 'Label'];
+/** Port maps as one table: every port in use on each switch, patch panel, firewall and router. */
+export function portMapTableRows(p: Project): string[][] {
+  return portMapDevices(p, getStencil).flatMap((d) => {
+    const m = portMap(p, d.id, getStencil);
+    return m ? m.rows.filter(documentedPort).map((r) => [m.name, `${r.label}${r.uplink ? ' (uplink)' : ''}`, r.to || r.note, r.via, r.vlan, r.poe, r.status ?? '', r.cableLabel]) : [];
+  });
+}
+
+/** Sites as table rows, when the client has more than one (one site says nothing the other tables don't). */
+export function siteRowsForReport(p: Project): { header: string[]; rows: string[][] } {
+  const { sites } = siteSummaries(p, getStencil);
+  return { header: SITE_TABLE, rows: sites.length > 1 ? siteTableRows(sites) : [] };
+}
+
+export const CHANGE_TABLE = ['When', 'Kind', 'What', 'Change'];
+/** The change log's last `days` days, newest first (at most `max` rows), for the reports. */
+export function recentChangeRows(p: Project, days = 90, max = 400): string[][] {
+  const from = Date.now() - days * 86_400_000;
+  return (p.changeLog ?? []).filter((e) => e.at >= from).slice(-max).reverse().map((e) => [changeTime(e.at), changeKindLabel(e.kind), e.kind === 'note' ? '' : e.target, e.detail]);
 }
 
 /** Bill of materials and port capacity as table rows (shared by the PDF, print and Word report). */
@@ -493,6 +518,9 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     table('Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], [0.18, 0.24, 0.07, 0.07, 0.07, 0.12, 0.25].map((f) => f * avail),
       capacity.map((c) => [c.device, c.model, String(c.ports), String(c.used), String(c.free), c.poeBudgetW ? `${c.poeW} / ${c.poeBudgetW}` : '', c.warning]));
   }
+  { const st = siteRowsForReport(p); table('Sites', st.header, [0.12, 0.06, 0.06, 0.06, 0.07, 0.12, 0.09, 0.04, 0.08, 0.16, 0.07, 0.07].map((f) => f * avail), st.rows); }
+  table('Port maps (ports in use)', PORT_MAP_TABLE, [0.16, 0.08, 0.22, 0.18, 0.06, 0.07, 0.08, 0.15].map((f) => f * avail), portMapTableRows(p));
+  table('Recent changes (90 days)', CHANGE_TABLE, [0.14, 0.08, 0.28, 0.5].map((f) => f * avail), recentChangeRows(p));
   if (p.vlans?.length) {
     const ip = ipPlanRows(p);
     table('IP plan', ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free', 'Notes'], [0.06, 0.13, 0.13, 0.1, 0.18, 0.2, 0.09, 0.11].map((f) => f * avail),
