@@ -3,7 +3,7 @@
 import { useReactFlow } from '@xyflow/react';
 import { useMemo, useRef, useState } from 'react';
 import { setPref } from '@/lib/prefs';
-import { CABLE_STYLES, DEVICE_STATUSES, isDocumented, type AppNode, type CableData, type CableEdge, type CableType, type DeviceData, type DeviceNode, type PortData } from '@/lib/types';
+import { CABLE_STYLES, DEVICE_STATUSES, isDocumented, PORT_SPEEDS, POE_CLASSES, PORT_STATUSES, type AppNode, type CableData, type CableEdge, type CableType, type DeviceData, type DeviceNode, type PortData } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram, type ItemEdit } from '@/store/useDiagramStore';
 
 const key = (s: string) => s.trim().toLowerCase();
@@ -91,6 +91,24 @@ const PORT_COLS: Col[] = [
     get: (r) => (r.kind === 'port' && r.data.uplink ? 'Yes' : 'No'),
     set: (_r, v) => (/^(y|yes|true|1|x|uplink)$/i.test(v.trim()) ? { uplink: true } : /^(n|no|false|0|)$/i.test(v.trim()) ? { uplink: undefined } : null),
     options: [{ value: 'No', label: 'No' }, { value: 'Yes', label: 'Yes' }],
+  },
+  {
+    key: 'speed', label: 'Speed', width: 70, mono: true,
+    get: (r) => (r.kind === 'port' ? r.data.speed ?? '' : ''),
+    set: (_r, v) => ({ speed: v.trim() || undefined }),
+    options: [{ value: '', label: '—' }, ...PORT_SPEEDS.map((x) => ({ value: x, label: x }))],
+  },
+  {
+    key: 'poe', label: 'PoE', width: 80,
+    get: (r) => (r.kind === 'port' ? r.data.poe ?? '' : ''),
+    set: (_r, v) => ({ poe: v.trim() || undefined }),
+    options: [{ value: '', label: 'None' }, ...POE_CLASSES.map((x) => ({ value: x, label: x }))],
+  },
+  {
+    key: 'status', label: 'Status', width: 80,
+    get: (r) => (r.kind === 'port' ? PORT_STATUSES.find((x) => x.value === r.data.status)?.label ?? '' : ''),
+    set: (_r, v) => { const t = v.trim(); if (!t) return { status: undefined }; const m = PORT_STATUSES.find((x) => x.value === t.toLowerCase() || x.label.toLowerCase() === t.toLowerCase()); return m ? { status: m.value } : null; },
+    options: [{ value: '', label: '—' }, ...PORT_STATUSES.map((x) => ({ value: x.label, label: x.label }))],
   },
   portText('notes', 'Notes', 150),
   { key: 'peer', label: 'Cabled to', width: 170, get: (r) => (r.kind === 'port' ? r.peer : '') },

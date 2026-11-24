@@ -12,7 +12,7 @@ import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices, migrateProject } from './project';
 import { rackLabel } from './rack';
-import { FRAME_COLOR, isDocumented, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
+import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
 
@@ -121,6 +121,7 @@ export function portRows(p: Project) {
           device: n.data.name,
           port: portName(n, pid),
           uplink: pd.uplink ? 'Uplink' : '',
+          link: portLink(pd),
           connectedTo: pd.description || peer.get(`${n.id}|${pid}`) || '',
           ip: pd.ip ?? '',
           vlan: pd.vlan ?? '',
@@ -399,8 +400,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan]));
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
-  table('Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.16, 0.08, 0.07, 0.22, 0.12, 0.07, 0.28].map((f) => f * avail),
-    portRows(p).map((r) => [r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes]));
+  table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
+    portRows(p).map((r) => [r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes]));
 
   // Header and footer (Design / Print → Header & Footer), on every sheet.
   const hf = p.headerFooter;
@@ -481,8 +482,8 @@ export function exportCsv(p: Project) {
     ['PATCHING'], ['Rack', 'Position', 'Device', 'Port', 'To device', 'To port', 'Where', 'Cable', 'VLAN', 'Length'],
     ...patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan, r.length]),
     [],
-    ['PORT NOTES'], ['Page', 'Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'],
-    ...portRows(p).map((r) => [r.page, r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes]),
+    ['PORT NOTES'], ['Page', 'Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],
+    ...portRows(p).map((r) => [r.page, r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes]),
   ];
   // BOM so Excel reads UTF-8 correctly.
   downloadBlob(`${safeName(p.name)}.csv`, new Blob(['\ufeff' + csv(lines)], { type: 'text/csv;charset=utf-8' }));

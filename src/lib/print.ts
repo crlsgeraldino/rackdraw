@@ -90,8 +90,8 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
         patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan])),
       tableHtml(p, 'Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
         connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label])),
-      tableHtml(p, 'Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'],
-        portRows(p).map((r) => [r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes])),
+      tableHtml(p, 'Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],
+        portRows(p).map((r) => [r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes])),
     );
   }
   const body = sheets.filter(Boolean).join('');

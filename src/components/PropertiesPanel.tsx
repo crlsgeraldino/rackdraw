@@ -8,7 +8,7 @@ import { rackLabel } from '@/lib/rack';
 import { baseSize } from './nodes';
 import { useRef, useState } from 'react';
 import { loadImageFile } from '@/lib/imageImport';
-import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode, patternOf, type LinePattern, type ExtraLink } from '@/lib/types';
+import { CABLE_STYLES, DEFAULT_INFO_FIELDS, EXTRA_FIELD_SUGGESTIONS, INFO_BOX_FIELDS, type ExtraField, type InfoBoxPorts, type InfoBoxSettings, DEFAULT_LABEL_FIELDS, isDocumented, type PortData, type PortDef, PORT_SPEEDS, POE_CLASSES, PORT_STATUSES, type PortStatus, DEVICE_LABEL_FIELDS, DEVICE_STATUSES, type CableEdge, type DeviceLabelField, type BackdropNode, type CableArrows, type CableData, type CableRoute, type CableType, type DeviceNode, type ShapeData, type ShapeNode, patternOf, type LinePattern, type ExtraLink } from '@/lib/types';
 import { allDevices } from '@/lib/project';
 import { useCurrentPage, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
 import { PAGE_LINK, resolveLink } from '@/lib/links';
@@ -268,6 +268,9 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
                 </span>
                 {pd.ip && <span className="shrink-0 font-mono text-[10px] text-gray-500">{pd.ip}</span>}
                 {pd.vlan && <span className="shrink-0 rounded bg-gray-100 px-1 text-[9px] text-gray-600">V{pd.vlan}</span>}
+                {pd.speed && <span className="shrink-0 rounded bg-sky-50 px-1 text-[9px] text-sky-700">{pd.speed}</span>}
+                {pd.poe && <span className="shrink-0 text-[10px] text-amber-600" title={pd.poe}>⚡</span>}
+                {pd.status && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: PORT_STATUSES.find((s) => s.value === pd.status)?.color }} title={`Status: ${pd.status}`} />}
                 {pd.notes && <span className="shrink-0 text-[10px] text-gray-400" title={pd.notes}>✎</span>}
               </button>
               {isOpen && (
@@ -288,6 +291,29 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
                     <label className="block flex-1">
                       <span className="text-[10px] text-gray-500">VLAN</span>
                       <input className={`${input} font-mono`} value={pd.vlan ?? ''} onFocus={snapshot} onChange={(e) => set({ vlan: e.target.value })} />
+                    </label>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <label className="block flex-1">
+                      <span className="text-[10px] text-gray-500">Speed</span>
+                      <select className={input} value={pd.speed ?? ''} onChange={(e) => { snapshot(); set({ speed: e.target.value || undefined }); }}>
+                        <option value="">—</option>
+                        {[...new Set([...PORT_SPEEDS, ...(pd.speed ? [pd.speed] : [])])].map((v) => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    </label>
+                    <label className="block flex-1">
+                      <span className="text-[10px] text-gray-500">PoE</span>
+                      <select className={input} value={pd.poe ?? ''} onChange={(e) => { snapshot(); set({ poe: e.target.value || undefined }); }}>
+                        <option value="">None</option>
+                        {[...new Set([...POE_CLASSES, ...(pd.poe ? [pd.poe] : [])])].map((v) => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    </label>
+                    <label className="block flex-1">
+                      <span className="text-[10px] text-gray-500">Status</span>
+                      <select className={input} value={pd.status ?? ''} onChange={(e) => { snapshot(); set({ status: (e.target.value || undefined) as PortStatus | undefined }); }}>
+                        <option value="">—</option>
+                        {PORT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
                     </label>
                   </div>
                   <label className="flex items-center gap-1.5">

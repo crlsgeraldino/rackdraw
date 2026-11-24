@@ -69,10 +69,28 @@ export interface PortData {
   /** This port is an uplink (to the core, firewall, ISP…). */
   uplink?: boolean;
   notes?: string;
+  /** Link speed, e.g. "1G", "10G". */
+  speed?: string;
+  /** Power over Ethernet the port supplies, e.g. "PoE+". */
+  poe?: string;
+  /** Port state as configured / seen on the switch; missing = not recorded. */
+  status?: PortStatus;
 }
 
+export type PortStatus = 'up' | 'down' | 'disabled';
+export const PORT_SPEEDS = ['10M', '100M', '1G', '2.5G', '5G', '10G', '25G', '40G', '100G'];
+export const POE_CLASSES = ['PoE', 'PoE+', 'PoE++', 'PoE++ 90W'];
+export const PORT_STATUSES: { value: PortStatus; label: string; color: string }[] = [
+  { value: 'up', label: 'Up', color: '#16a34a' },
+  { value: 'down', label: 'Down', color: '#dc2626' },
+  { value: 'disabled', label: 'Disabled', color: '#6b7280' },
+];
+
+/** Speed, PoE and status in one line ("1G · PoE+ · Down"), for lists and tables. */
+export const portLink = (pd?: PortData) => [pd?.speed, pd?.poe, pd?.status ? PORT_STATUSES.find((s) => s.value === pd.status)?.label : ''].filter(Boolean).join(' · ');
+
 /** Does this port have anything written down about it? */
-export const isDocumented = (pd?: PortData) => !!(pd && (pd.description || pd.ip || pd.vlan || pd.uplink || pd.notes));
+export const isDocumented = (pd?: PortData) => !!(pd && (pd.description || pd.ip || pd.vlan || pd.uplink || pd.notes || pd.speed || pd.poe || pd.status));
 
 /** Editing state shared by every kind of diagram item (Arrange menu, hyperlinks). */
 export interface NodeExtras {

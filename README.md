@@ -719,6 +719,16 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - **Patching** list (right panel, nothing selected): every cable from this rack, top of the rack down, e.g.
   `Patch panel A · 7 → Front desk PC (Not racked) · Cat6 · VLAN 10 · 85 ft`. Point at a row to highlight its cord.
 - Select a mounted device to see just its **Connections**.
+- **Point at any port** in the rack for a card: what its cable goes to (and where that is racked), cable type,
+  VLAN and length, plus the port's notes (speed, PoE, status, IP, VLAN, notes). Ports marked **Down** get a red
+  frame and **Disabled** ports a grey slash.
+
+### Port details
+
+- Each port's notes (select a device → **Ports** → click a port) now also hold **Speed** (10M–100G), **PoE**
+  (PoE, PoE+, PoE++, PoE++ 90W) and **Status** (Up / Down / Disabled). The Ports list shows them as badges, the
+  Device Table's **Ports** tab has columns for them (paste a column from Excel to fill many at once), and the PDF,
+  printout, Word report and CSV port tables get a **Link** column ("10G · PoE+ · Up").
 - The PDF and printout draw the cords on the elevations and add a **Patching** table (rack, position, device, port,
   far end, where it is, cable, VLAN); the CSV gets a PATCHING section.
 

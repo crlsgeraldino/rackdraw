@@ -6,7 +6,7 @@ import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '
 import { groupLibraries } from '@/lib/libraries';
 import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
 import { STENCILS } from '@/lib/stencils';
-import type { Rack, RackDepth, RackItem, StencilDef } from '@/lib/types';
+import { PORT_STATUSES, type CableData, type Rack, type RackDepth, type RackItem, type StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { INNER_W, RackElevation, rackSize, uAtPoint, type RackPreview } from './RackElevation';
 
@@ -164,6 +164,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
   const [preview, setPreview] = useState<{ face: 'front' | 'rear'; p: RackPreview } | null>(null);
   const [dragging, setDragging] = useState<RackItem | null>(null);
   const [error, setError] = useState('');
+  const [portHover, setPortHover] = useState<{ nodeId: string; port: string; x: number; y: number } | null>(null);
   const refs = { front: useRef<SVGSVGElement>(null), rear: useRef<SVGSVGElement>(null) };
   const stencil = (id: string) => findStencil(id, custom);
 
@@ -236,6 +237,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
         </div>
       </div>
       {error && <div className="border-b border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700">{error}</div>}
+      {portHover && <PortCard hover={portHover} />}
       <div ref={area} className="flex flex-1 flex-wrap content-start gap-6 overflow-auto p-4" onPointerDown={(e) => { if (e.target === e.currentTarget) selectRackItem(null); }}>
         {(['front', 'rear'] as const).map((face) => (
           <div key={face} onDragOver={onDragOver(face)} onDragLeave={() => setPreview(null)} onDrop={onDrop(face)} className="rounded bg-white p-2 shadow-sm">
@@ -253,6 +255,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
               portStates={portStates}
               cables={cables}
               hotCable={hotCable}
+              onPortHover={dragging ? undefined : setPortHover}
             />
           </div>
         ))}
@@ -262,6 +265,59 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
 }
 
 /* ------------------------------------------------------------------ */
+
+/** What one port is: shown while pointing at it in the rack (like the diagram's port notes on hover). */
+function PortCard({ hover }: { hover: { nodeId: string; port: string; x: number; y: number } }) {
+  const project = useCurrentProject();
+  const custom = useDiagram((s) => s.customStencils);
+  const devices = useDevices();
+  const d = devices.get(hover.nodeId);
+  if (!d) return null;
+  const st = findStencil(d.data.stencilId, custom);
+  const pd = d.data.ports?.[hover.port] ?? {};
+  const label = pd.label || st?.ports.find((q) => q.id === hover.port)?.label || hover.port;
+  // The cable on this port (any page) and its far end.
+  let far = '';
+  let cable: CableData | undefined;
+  for (const pg of project.pages) for (const e of pg.edges) {
+    const mine = e.source === d.id && e.sourceHandle === hover.port ? 'source' : e.target === d.id && e.targetHandle === hover.port ? 'target' : null;
+    if (!mine) continue;
+    const otherId = mine === 'source' ? e.target : e.source;
+    const otherPort = mine === 'source' ? e.targetHandle : e.sourceHandle;
+    const o = devices.get(otherId);
+    const ost = o ? findStencil(o.data.stencilId, custom) : undefined;
+    const oname = o?.data.name ?? 'item';
+    const oport = otherPort ? o?.data.ports?.[otherPort]?.label || ost?.ports.find((q) => q.id === otherPort)?.label || otherPort : '';
+    const where = (project.racks ?? []).flatMap((r) => r.items.filter((it) => it.nodeId === otherId).map((it) => `${r.name} ${rackLabel(it)}`))[0];
+    far = [oname, oport && `port ${oport}`].filter(Boolean).join(' · ') + (where ? ` (${where})` : o ? ' (not racked)' : '');
+    cable = e.data;
+  }
+  const status = PORT_STATUSES.find((s) => s.value === pd.status);
+  const rows: [string, string][] = [
+    ['Cable to', far], ['Connected to', pd.description ?? ''],
+    ['Cable', [cable?.cable, cable?.vlan && `VLAN ${cable.vlan}`, cable?.length, cable?.label].filter(Boolean).join(' · ')],
+    ['Link', [pd.speed, pd.poe].filter(Boolean).join(' · ')], ['IP', pd.ip ?? ''], ['VLAN', pd.vlan ?? ''], ['Notes', pd.notes ?? ''],
+  ];
+  const shown = rows.filter(([, v]) => v);
+  const left = Math.min(hover.x + 14, window.innerWidth - 300), top = Math.min(hover.y + 14, window.innerHeight - 220);
+  return (
+    <div className="pointer-events-none fixed z-50 w-72 rounded-md border border-gray-200 bg-white p-2.5 text-xs shadow-xl" style={{ left, top }}>
+      <div className="mb-1 flex items-center gap-1.5">
+        <span className="font-semibold text-gray-900">{d.data.name}</span>
+        <span className="rounded bg-gray-100 px-1 font-mono text-[11px]">{label}</span>
+        {pd.uplink && <span className="rounded bg-orange-100 px-1 text-[9px] font-semibold text-orange-700">UPLINK</span>}
+        {status && <span className="ml-auto flex items-center gap-1 text-[10px]" style={{ color: status.color }}><span className="h-2 w-2 rounded-full" style={{ background: status.color }} />{status.label}</span>}
+      </div>
+      {shown.length ? (
+        <div className="grid grid-cols-[78px_1fr] gap-x-2 gap-y-0.5">
+          {shown.flatMap(([k, v]) => [<span key={`${k}-k`} className="text-gray-500">{k}</span>, <span key={`${k}-v`} className="break-words text-gray-800">{v}</span>])}
+        </div>
+      ) : (
+        <p className="text-gray-400">Nothing plugged in or noted. Select the device on the diagram to add port notes.</p>
+      )}
+    </div>
+  );
+}
 
 function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (id: string | null) => void }) {
   const devices = useDevices();

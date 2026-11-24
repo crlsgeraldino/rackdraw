@@ -60,6 +60,22 @@ interface Props {
   cables?: RackCable[];
   /** Cable highlighted (hovered in the patching list). */
   hotCable?: string | null;
+  /** Pointer over a port on the front (screen position for a card), or null when it leaves. */
+  onPortHover?: (h: { nodeId: string; port: string; x: number; y: number } | null) => void;
+}
+
+/** A port's box on the rack's front (for pointing at it), in the elevation's coordinates. */
+function portBox(rack: Rack, it: RackItem, st: StencilDef | undefined, port: string): { x: number; y: number; w: number; h: number } | null {
+  const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W, pad = 3;
+  if (!st || st.style === 'icon') {
+    const spot = jackSpots(st, RAIL, y).get(port);
+    return spot ? { x: spot[0] - 9, y: spot[1] - 8, w: 18, h: 16 } : null;
+  }
+  const p = st.ports.find((q) => q.id === port);
+  if (!p) return null;
+  const k = Math.min((w - pad * 2) / st.width, (h - pad * 2) / st.height);
+  const ax = RAIL + (w - st.width * k) / 2, ay = y + (h - st.height * k) / 2;
+  return { x: ax + p.x * k, y: ay + p.y * k, w: p.w * k, h: p.h * k };
 }
 
 function onFace(it: RackItem, face: 'front' | 'rear') {
@@ -412,7 +428,7 @@ function Plug({ x, y, color, w }: { x: number; y: number; color: string; w: numb
 /*  The elevation                                                      */
 /* ------------------------------------------------------------------ */
 
-export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width, portStates, cables, hotCable }: Props) {
+export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width, portStates, cables, hotCable, onPortHover }: Props) {
   const size = rackSize(rack);
   const x0 = RAIL;
   const frameR = RAIL * 2 + INNER_W;
@@ -530,6 +546,43 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
             })}
           </g>
         );
+      })()}
+
+      {face === 'front' && (() => {
+        // Ports marked down / disabled in their notes, and (in the rack view) a hover area on every port.
+        const out: ReactNode[] = [];
+        for (const it of rack.items) {
+          if (it.kind !== 'device' || !it.nodeId || it.id === hiddenId) continue;
+          const d = devices.get(it.nodeId);
+          if (!d) continue;
+          const st = stencil(d.data.stencilId);
+          const ids = !st || st.style === 'icon' ? [...jackSpots(st, RAIL, 0).keys()] : st.ports.map((q) => q.id);
+          for (const pid of ids) {
+            const b = portBox(rack, it, st, pid);
+            if (!b) continue;
+            const status = d.data.ports?.[pid]?.status;
+            if (status === 'down' || status === 'disabled') {
+              const c = status === 'down' ? '#ef4444' : '#9ca3af';
+              out.push(
+                <g key={`s${it.id}${pid}`} pointerEvents="none">
+                  <rect x={b.x - 1} y={b.y - 1} width={b.w + 2} height={b.h + 2} fill="none" stroke={c} strokeWidth={1.6} rx={1.5} />
+                  {status === 'disabled' && <path d={`M${b.x + 2} ${b.y + b.h - 2} L${b.x + b.w - 2} ${b.y + 2}`} stroke={c} strokeWidth={1.4} />}
+                </g>,
+              );
+            }
+            if (onPortHover) {
+              out.push(
+                <rect
+                  key={`h${it.id}${pid}`} x={b.x} y={b.y} width={b.w} height={b.h} fill="#ffffff" fillOpacity={0} style={{ cursor: 'help' }}
+                  onPointerEnter={(e) => onPortHover({ nodeId: d.id, port: pid, x: e.clientX, y: e.clientY })}
+                  onPointerLeave={() => onPortHover(null)}
+                  onPointerDown={onItemPointerDown ? (e) => { onPortHover(null); onItemPointerDown(it, e); } : undefined}
+                />,
+              );
+            }
+          }
+        }
+        return <g>{out}</g>;
       })()}
 
       {preview && (
