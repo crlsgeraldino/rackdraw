@@ -8,6 +8,7 @@
 import { unzipSync, type Unzipped } from 'fflate';
 import type { PortDef } from '../types';
 import { emfToSvg, type DibEncoder } from './emf';
+import { parseTheme, themedColor, type ThemeKind, type VisioTheme } from './theme';
 
 const NS = 'http://schemas.microsoft.com/office/visio/2012/main';
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -37,6 +38,35 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 /** Visio's legacy 24-color palette, for colors stored as an index. */
 const PALETTE = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#800000', '#008000', '#000080', '#808000', '#800080', '#008080', '#c0c0c0', '#e6e6e6', '#cdcdcd', '#b3b3b3', '#9a9a9a', '#808080', '#666666', '#4d4d4d', '#333333', '#1a1a1a'];
 
+/**
+ * Breaks text into lines that fit `width` (same units as `charW`, an average character width): explicit line
+ * breaks are kept, words wrap; a single word longer than the line stays whole. Character widths are estimated,
+ * so lines may run up to 8% over before wrapping.
+ */
+function wrapText(text: string, width: number, charW: number): string[] {
+  const max = Math.max(1, Math.floor((width * 1.08) / charW));
+  const out: string[] = [];
+  for (const para of text.split('\n')) {
+    let line = '';
+    for (const word of para.split(' ')) {
+      if (!line) line = word;
+      else if (line.length + 1 + word.length <= max) line += ` ${word}`;
+      else { out.push(line); line = word; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/** The average of #rrggbb colours. */
+function averageColor(cs: string[]): string {
+  const ch = (i: number) => Math.round(cs.reduce((a, c) => a + parseInt(c.slice(i, i + 2), 16), 0) / cs.length);
+  return `#${[1, 3, 5].map((i) => ch(i).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Relative lightness (0 black – 1 white) of a #rrggbb colour. */
+const lightness = (hex: string) => [1, 3, 5].reduce((a, i, k) => a + (parseInt(hex.slice(i, i + 2), 16) / 255) * [0.299, 0.587, 0.114][k], 0);
+
 function color(v: string | null | undefined): string | null {
   if (!v) return null;
   if (/^#[0-9a-f]{6}$/i.test(v)) return v;
@@ -56,6 +86,10 @@ export class VisioPackage {
   private masterRenders = new Map<string, RenderedMaster | null>();
 
   private constructor(private data: Uint8Array, readonly masters: VisioMasterInfo[], private styles: Map<string, Element>) {}
+
+  /** The drawing's themes (colours of shapes whose cells say "Themed"), by theme number; `theme` is the first. */
+  private theme: VisioTheme | null = null;
+  private themes = new Map<string, VisioTheme>();
 
   /** Pages of a drawing (.vsdx); empty for a stencil. */
   pages: VisioPageInfo[] = [];
@@ -103,6 +137,9 @@ export class VisioPackage {
           layers,
           name: pg.getAttribute('Name') || pg.getAttribute('NameU') || `Page ${pkg.pages.length + 1}`,
           file: `visio/pages/${target}`,
+          themeIndex: (sheet && (cell(sheet, 'ColorSchemeIndex') ?? cell(sheet, 'ThemeIndex'))) || undefined,
+          variationColor: num(sheet ? cell(sheet, 'VariationColorIndex') : null, 0),
+          variationStyle: num(sheet ? cell(sheet, 'VariationStyleIndex') : null, 0),
           widthIn: num(sheet ? cell(sheet, 'PageWidth') : null, 11),
           heightIn: num(sheet ? cell(sheet, 'PageHeight') : null, 8.5),
         });
@@ -113,6 +150,15 @@ export class VisioPackage {
     if (docXml) {
       const d = new DOMParser().parseFromString(docXml, 'application/xml');
       for (const st of Array.from(d.getElementsByTagNameNS(NS, 'StyleSheet'))) pkg.styles.set(st.getAttribute('ID') ?? '', st);
+    }
+    for (let i = 1; i <= 20; i++) {
+      const xml = pkg.text(`visio/theme/theme${i}.xml`);
+      if (!xml) break;
+      let th: VisioTheme | null = null;
+      try { th = parseTheme(xml); } catch { th = null; }
+      if (!th) continue;
+      pkg.theme ??= th;
+      for (const id of th.ids) if (!pkg.themes.has(id)) pkg.themes.set(id, th);
     }
     return pkg;
   }
@@ -207,9 +253,9 @@ export class VisioPackage {
     // Geometry
     const lineW = Math.max(0.003, num(get('LineWeight', 'line'), 0.01));
     const linePattern = num(get('LinePattern', 'line'), 1);
-    const lineColor = color(get('LineColor', 'line')) ?? '#000000';
+    const lineColor = this.colorOf(s, 'line', ctx) ?? '#000000';
     const fillPattern = num(get('FillPattern', 'fill'), 1);
-    const fillColor = color(get('FillForegnd', 'fill')) ?? '#ffffff';
+    const fillColor = this.colorOf(s, 'fill', ctx) ?? '#ffffff';
     const fillTrans = num(get('FillForegndTrans', 'fill'), 0);
     for (const geo of sections(s, 'Geometry')) {
       if (cell(geo, 'NoShow') === '1') continue;
@@ -218,7 +264,8 @@ export class VisioPackage {
       const fill = closed && cell(geo, 'NoFill') !== '1' && fillPattern !== 0;
       const stroke = cell(geo, 'NoLine') !== '1' && linePattern !== 0;
       if (!fill && !stroke) continue;
-      parts.push(`<path d="${d}" fill="${fill ? fillColor : 'none'}"${fill && fillTrans ? ` fill-opacity="${r3(1 - fillTrans)}"` : ''} stroke="${stroke ? lineColor : 'none'}" stroke-width="${r3(lineW)}" stroke-linejoin="round"${linePattern > 1 ? ` stroke-dasharray="${r3(lineW * 4)} ${r3(lineW * 3)}"` : ''}/>`);
+      // Even-odd, as Visio fills: an outline drawn around a smaller one leaves the inside empty (rings, frames).
+      parts.push(`<path d="${d}" fill="${fill ? fillColor : 'none'}" fill-rule="evenodd"${fill && fillTrans ? ` fill-opacity="${r3(1 - fillTrans)}"` : ''} stroke="${stroke ? lineColor : 'none'}" stroke-width="${r3(lineW)}" stroke-linejoin="round"${linePattern > 1 ? ` stroke-dasharray="${r3(lineW * 4)} ${r3(lineW * 3)}"` : ''}/>`);
     }
 
     // Embedded picture
@@ -238,15 +285,14 @@ export class VisioPackage {
     const sub = s.getElementsByTagNameNS(NS, 'Shapes')[0];
     if (sub && sub.parentElement === s) for (const c of children(sub, 'Shape')) parts.push(this.shape(c, ctx));
 
-    // Text (simple: one centred line block)
+    // Text: wrapped to its text block, aligned like Visio (paragraph alignment, vertical alignment, margins).
     const textEl = children(s, 'Text')[0];
-    const text = textEl?.textContent?.replace(/\s+/g, ' ').trim();
+    const text = textEl?.textContent?.replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).join('\n').trim();
     // Hidden text (HideText) isn't drawn: Visio shows it only when the shape's settings turn it on.
     if (text && cell(s, 'HideText') !== '1') {
-      const charSec = section(s, 'Character');
-      const row = charSec ? children(charSec, 'Row')[0] : undefined;
-      const size = num(row ? cell(row, 'Size') : get('Size', 'text'), 0.1111);
-      const tc = color(row ? cell(row, 'Color') : null) ?? '#000000';
+      const size = num(sectionCell(s, 'Character', 'Size', this.styles), 0.1111);
+      const bold = (num(sectionCell(s, 'Character', 'Style', this.styles)) & 1) === 1;
+      const tc = this.colorOf(s, 'font', ctx) ?? '#000000';
       // The text block: TxtPinX/Y is where its anchor point (TxtLocPinX/Y) sits; by default the block is the shape.
       const tw = num(cell(s, 'TxtWidth'), t.w), th = num(cell(s, 'TxtHeight'), t.h);
       const bx = num(cell(s, 'TxtPinX'), t.w / 2) - num(cell(s, 'TxtLocPinX'), tw / 2);
@@ -255,9 +301,16 @@ export class VisioPackage {
       // Left / right aligned text starts at the block's edge (inside its margin), as Visio draws it.
       const align = num(paraCell(s, 'HorzAlign', this.styles), 1);
       const left = num(get('LeftMargin', 'text'), 0.0556), right = num(get('RightMargin', 'text'), 0.0556);
+      const top = num(get('TopMargin', 'text'), 0.0556), bottom = num(get('BottomMargin', 'text'), 0.0556);
       const x = align === 0 ? bx + left : align === 2 ? bx + tw - right : bx + tw / 2;
       const anchor = align === 0 ? 'start' : align === 2 ? 'end' : 'middle';
-      parts.push(`<g transform="matrix(1 0 0 -1 ${r3(x)} ${r3(ty)})"><text font-size="${r3(size)}" font-family="Segoe UI, Arial, sans-serif" fill="${tc}" text-anchor="${anchor}" dominant-baseline="central">${esc(text)}</text></g>`);
+      // Auto-sized text blocks (TxtWidth = the text's own width) never wrap inside their shape's width.
+      const lines = wrapText(text, Math.max(size, Math.max(tw, t.w) - left - right), size * (bold ? 0.56 : 0.52));
+      const lh = size * 1.2;
+      const va = num(get('VerticalAlign', 'text'), 1);
+      const y0 = va === 0 ? -th / 2 + top + lh / 2 : va === 2 ? th / 2 - bottom - lh / 2 - (lines.length - 1) * lh : -((lines.length - 1) * lh) / 2;
+      const spans = lines.map((l, i) => `<tspan x="0" y="${r3(y0 + i * lh)}">${esc(l)}</tspan>`).join('');
+      parts.push(`<g transform="matrix(1 0 0 -1 ${r3(x)} ${r3(ty)})"><text font-size="${r3(size)}" font-family="Segoe UI, Arial, sans-serif"${bold ? ' font-weight="bold"' : ''} fill="${tc}" text-anchor="${anchor}" dominant-baseline="central">${spans}</text></g>`);
     }
 
     if (!parts.length) return '';
@@ -276,7 +329,7 @@ export class VisioPackage {
     const rels = this.rels(page.file);
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     const warnings: string[] = [];
-    const ctx: Ctx = { pkg: this, rels, folder: page.file.slice(0, page.file.lastIndexOf('/')), encodeDib, warnings };
+    const ctx: Ctx = { pkg: this, rels, folder: page.file.slice(0, page.file.lastIndexOf('/')), encodeDib, warnings, themeIndex: page.themeIndex, variationColor: page.variationColor, variationStyle: page.variationStyle };
     const shapesEl = doc.getElementsByTagNameNS(NS, 'Shapes')[0];
     const tops = shapesEl ? children(shapesEl, 'Shape') : [];
     // A shape drawn from a master only stores what differs from it: fill in the rest (size, geometry, text, styles,
@@ -313,12 +366,12 @@ export class VisioPackage {
       const bbox = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
       const get = (n: string, kind: 'line' | 'fill' | 'text') => styleCell(s, n, kind, this.styles);
       const linePattern = num(get('LinePattern', 'line'), 1);
-      const lineColor = linePattern === 0 ? null : color(get('LineColor', 'line')) ?? '#000000';
+      const lineColor = linePattern === 0 ? null : this.colorOf(s, 'line', ctx) ?? '#000000';
       const lineWidthPx = Math.max(0.5, num(get('LineWeight', 'line'), 0.01) * PX);
-      const fillColor = num(get('FillPattern', 'fill'), 1) === 0 ? null : color(get('FillForegnd', 'fill')) ?? '#ffffff';
+      const fillColor = num(get('FillPattern', 'fill'), 1) === 0 ? null : this.colorOf(s, 'fill', ctx) ?? '#ffffff';
       const charSec = section(s, 'Character');
       const charRow = charSec ? children(charSec, 'Row')[0] : undefined;
-      const textColor = color(charRow ? cell(charRow, 'Color') : null) ?? '#000000';
+      const textColor = this.colorOf(s, 'font', ctx) ?? '#000000';
       const fontPx = num(charRow ? cell(charRow, 'Size') : get('Size', 'text'), 0.1111) * PX;
       // Layer membership ("0;2") and Visio containers (User.msvStructureType = Container).
       const memRow = section(s, 'LayerMem') ? children(section(s, 'LayerMem')!, 'Row')[0] : undefined;
@@ -345,7 +398,9 @@ export class VisioPackage {
 
       // Lines and connectors: their geometry (or begin/end points) in page coordinates.
       const lineGeo = geos.length === 1 && !hasKids && !foreign ? lineRows(geos[0]) : null;
-      if (oneD || (lineGeo && (cell(geos[0], 'NoFill') === '1' || !fillColor))) {
+      // 1-D shapes that draw a filled area (walls, block arrows, pipes) are pictures of themselves, not lines.
+      const filledArea = fillColor != null && geos.some((g) => cell(g, 'NoFill') !== '1' && geometry(g, t.w, t.h).closed);
+      if ((oneD && !filledArea) || (lineGeo && (cell(geos[0], 'NoFill') === '1' || !fillColor))) {
         let pts: [number, number][];
         if (lineGeo && lineGeo.length >= 2) pts = lineGeo.map(([x, y]) => toPx(apply(t.m, x, y)));
         else pts = [toPx([num(cell(s, 'BeginX')), num(cell(s, 'BeginY'))]), toPx([num(cell(s, 'EndX')), num(cell(s, 'EndY'))])];
@@ -415,6 +470,42 @@ export class VisioPackage {
   }
 
   /** A master's drawing, rendered once per file. */
+  /**
+   * A shape's fill, line or text colour: its own (or its styles') colour, or, where that says "Themed" or isn't set,
+   * the colour its Quick Style cells pick from the drawing's theme.
+   */
+  private colorOf(s: Element, kind: ThemeKind, ctx: Ctx): string | null {
+    // A gradient fill shows its stop colours, not the plain fill colour: use their average.
+    if (kind === 'fill' && styleCell(s, 'FillGradientEnabled', 'fill', this.styles) === '1') {
+      const sec = section(s, 'FillGradient');
+      const stops = sec ? children(sec, 'Row').map((r) => color(cell(r, 'GradientStopColor'))).filter((c): c is string => !!c) : [];
+      if (stops.length) return averageColor(stops);
+    }
+    const raw =kind === 'fill' ? styleCell(s, 'FillForegnd', 'fill', this.styles)
+      : kind === 'line' ? styleCell(s, 'LineColor', 'line', this.styles)
+      : sectionCell(s, 'Character', 'Color', this.styles);
+    const own = color(raw);
+    if (own) return own;
+    // The shape's own theme (a page can mix themes), else its page's, else the drawing's first.
+    const theme = this.themes.get(cell(s, 'ColorSchemeIndex') ?? cell(s, 'ThemeIndex') ?? '') ?? this.themes.get(ctx.themeIndex ?? '') ?? this.theme;
+    if (!theme || (raw != null && raw !== 'Themed')) return null;
+    const styleKind = kind === 'font' ? 'text' : kind;
+    const K = kind === 'fill' ? 'Fill' : kind === 'line' ? 'Line' : 'Font';
+    const idx = (name: string) => {
+      const v = styleCell(s, name, styleKind, this.styles);
+      return v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
+    };
+    const opts = { connector: cell(s, 'BeginX') != null, variationColor: ctx.variationColor, variationStyle: ctx.variationStyle };
+    const c = themedColor(theme, kind, idx(`QuickStyle${K}Color`), idx(`QuickStyle${K}Matrix`), opts);
+    // QuickStyleVariation asks Visio to keep the line (4) or fill (2) visible on the (white) page: a near-white
+    // result then takes the picked theme colour itself.
+    const flag = kind === 'line' ? 4 : kind === 'fill' ? 2 : 0;
+    if (c && flag && ((idx('QuickStyleVariation') ?? 0) & flag) && lightness(c) > 0.92) {
+      return themedColor(theme, kind, idx(`QuickStyle${K}Color`), null, opts) ?? c;
+    }
+    return c;
+  }
+
   private masterShapes = new Map<string, Element | null>();
 
   /** The top shape of a master (what drawn copies inherit from). */
@@ -553,6 +644,11 @@ export interface VisioPageInfo {
   backPage?: string;
   /** The page's layers, in index order. */
   layers?: { name: string; visible: boolean; print: boolean; lock: boolean }[];
+  /** The page's theme number (ColorSchemeIndex / ThemeIndex). */
+  themeIndex?: string;
+  /** Which of the theme's variation colours / styles the page uses. */
+  variationColor?: number;
+  variationStyle?: number;
 }
 
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
@@ -606,6 +702,9 @@ interface Ctx {
   folder: string;
   encodeDib: DibEncoder;
   warnings: string[];
+  themeIndex?: string;
+  variationColor?: number;
+  variationStyle?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -619,6 +718,11 @@ interface Ctx {
 function inheritFrom(inst: Element, ms: Element) {
   const doc = inst.ownerDocument;
   const take = (el: Element) => doc.importNode(el, true);
+  // The style sheets it uses (line / fill / text formatting and theme Quick Styles), unless it picks its own.
+  for (const a of ['LineStyle', 'FillStyle', 'TextStyle']) {
+    const v = ms.getAttribute(a);
+    if (v != null && !inst.hasAttribute(a)) inst.setAttribute(a, v);
+  }
   const own = new Set(children(inst, 'Cell').map((c) => c.getAttribute('N')));
   for (const c of children(ms, 'Cell')) if (!own.has(c.getAttribute('N'))) inst.appendChild(take(c));
   for (const sec of children(ms, 'Section')) {
@@ -633,6 +737,11 @@ function inheritFrom(inst: Element, ms: Element) {
       if (!r) { mine.appendChild(take(row)); continue; }
       const rowCells = new Set(children(r, 'Cell').map((c) => c.getAttribute('N')));
       for (const c of children(row, 'Cell')) if (!rowCells.has(c.getAttribute('N'))) r.appendChild(take(c));
+    }
+    // Rows the shape left to its master were added at the end: put numbered rows (geometry) back in order.
+    const rows = children(mine, 'Row');
+    if (rows.length > 1 && rows.every((r) => r.hasAttribute('IX'))) {
+      rows.sort((a, b) => Number(a.getAttribute('IX')) - Number(b.getAttribute('IX'))).forEach((r) => mine.appendChild(r));
     }
   }
   if (!children(inst, 'Text').length) { const t = children(ms, 'Text')[0]; if (t) inst.appendChild(take(t)); }
@@ -684,8 +793,11 @@ function toBase64(bytes: Uint8Array) {
 const isArrowhead = (n: number) => n >= 1 && n <= 24;
 
 /** A paragraph setting (first paragraph), from the shape or else its text style chain. */
-function paraCell(s: Element, name: string, styles: Map<string, Element>): string | null {
-  const first = (el: Element) => { const sec = section(el, 'Paragraph'); const row = sec ? children(sec, 'Row')[0] : undefined; return row ? cell(row, name) : null; };
+const paraCell = (s: Element, name: string, styles: Map<string, Element>) => sectionCell(s, 'Paragraph', name, styles);
+
+/** A first-row setting of a text section (Paragraph, Character), from the shape or else its text style chain. */
+function sectionCell(s: Element, sectionName: string, name: string, styles: Map<string, Element>): string | null {
+  const first = (el: Element) => { const sec = section(el, sectionName); const row = sec ? children(sec, 'Row')[0] : undefined; return row ? cell(row, name) : null; };
   const own = first(s);
   if (own != null) return own;
   let id = s.getAttribute('TextStyle');
@@ -750,9 +862,17 @@ function geometry(geo: Element, w: number, h: number): { d: string; closed: bool
   let d = '';
   let cx = 0, cy = 0, sx = 0, sy = 0;
   let segments = 0, closedAll = true, started = false;
-  const P = (x: number, y: number) => `${r3(x)} ${r3(y)}`;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const P = (x: number, y: number) => {
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    return `${r3(x)} ${r3(y)}`;
+  };
   const finish = () => {
-    if (started && segments && (Math.abs(cx - sx) > 1e-6 || Math.abs(cy - sy) > 1e-6)) closedAll = false;
+    const gap = Math.hypot(cx - sx, cy - sy);
+    // Visio still fills an outline that stops just short of where it began (ring shapes drawn as one path).
+    const nearlyClosed = segments >= 4 && gap < 0.15 * Math.hypot(x1 - x0, y1 - y0);
+    if (started && segments && gap > 1e-6 && !nearlyClosed) closedAll = false;
+    x0 = y0 = Infinity; x1 = y1 = -Infinity;
   };
 
   for (const row of children(geo, 'Row')) {

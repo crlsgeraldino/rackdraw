@@ -234,7 +234,8 @@ function useDocument() {
     open: async (f?: File) => {
       if (!f) return;
       try {
-        if (/\.vsdx$/i.test(f.name)) {
+        // Visio drawings, and Visio templates (.vstx: a new drawing from the template, as Visio opens them).
+        if (/\.vs[dt]x$/i.test(f.name)) {
           setBusy(true);
           try {
             const { project: p, stencils, summary } = await importVsdx(f);
@@ -450,7 +451,7 @@ export function Ribbon() {
           onExport={(kind) => { setFile(false); ({ pdf: doc.pdf, png: doc.png, svg: doc.svg, csv: doc.csv, vsdx: doc.vsdx, docx: doc.docx, pptx: doc.pptx, selPng: () => doc.selection('png'), selSvg: () => doc.selection('svg'), web: doc.web })[kind](); }}
         />
       )}
-      <input ref={openRef} type="file" accept=".json,application/json,.vsdx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={openRef} type="file" accept=".json,application/json,.vsdx,.vstx" hidden onChange={(e) => { doc.open(e.target.files?.[0]); e.target.value = ''; }} />
       {printing && <PrintDialog onPrint={(o) => { setPrinting(false); doc.print(o); }} onClose={() => setPrinting(false)} />}
       {naming !== null && <NewClientDialog value={naming} onChange={setNaming} onClose={() => setNaming(null)} />}
     </header>
@@ -536,7 +537,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
       <nav className="flex w-56 shrink-0 flex-col bg-[#3955a3] py-3 text-white">
         <button className="mb-3 flex items-center gap-2 px-5 py-1 text-sm hover:bg-white/15" onClick={onClose}><Icon name="goBack" size={22} /> Back</button>
         {item('new', 'New client…', onNew)}
-        {item('open', 'Open… (RackDraw or Visio .vsdx)', onOpen)}
+        {item('open', 'Open… (RackDraw, Visio .vsdx or template .vstx)', onOpen)}
         {item('save', 'Save', onSave)}
         {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
         {item('open', 'Version History…', () => { onClose(); openVersions(); })}

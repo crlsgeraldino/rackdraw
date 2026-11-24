@@ -706,7 +706,13 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   real, editable RackDraw shapes with their own text, colours, bold and alignment. Network equipment (by its
   master's name or Shape Data such as *IP Address*) becomes a device; other complex shapes (ER tables, logos) come in
   as a picture of exactly that copy that cables still connect to.
-- Not carried over yet: Visio themes.
+- **Visio templates (`.vstx`)** open too, as a new drawing (as Visio does), including Microsoft's own downloadable
+  templates.
+- **Visio themes** are applied: shapes whose colours say "Themed" get the colours Visio shows, from the drawing's
+  theme (theme and variation colours, fill / line / text styles, connector styles, keep-visible-on-white). Gradient
+  backgrounds use their gradient colours, text inside pictures wraps to its box, and walls and other 1-D shapes that
+  draw a filled area come in as pictures instead of thin lines.
+- Not carried over yet: changing the theme inside RackDraw (Design → Themes uses RackDraw's own themes).
 
 ## Your own stencils (no code needed)
 

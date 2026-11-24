@@ -136,10 +136,13 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
           node = { id: `z-${uid()}`, type: 'zone', position: { x: it.x, y: it.y }, zIndex: -1, style: { width: it.w, height: it.h }, data: { title: it.text.split('\n')[0] || 'Zone', color: it.stroke ?? '#3b82f6' } };
         } else {
           const kind = it.kind === 'ellipse' ? 'ellipse' : it.kind === 'diamond' ? 'diamond' : it.kind === 'text' ? 'text' : (it.rounding ?? 0) > 2 ? 'rounded' : 'rect';
+          // Visio's fill transparency (0–1): fully transparent boxes (swimlane lists, frames) have no fill at all.
+          const trans = it.fillTransparency ?? 0;
           node = {
             id: `s-${uid()}`, type: 'shape', position: { x: it.x, y: it.y }, width: Math.max(20, it.w), height: Math.max(14, it.h),
             data: {
-              kind, text: it.text, fill: it.fill ?? 'transparent', stroke: it.stroke ?? 'transparent', textColor: it.textColor,
+              kind, text: it.text, fill: it.fill && trans < 0.99 ? it.fill : 'transparent', stroke: it.stroke ?? 'transparent', textColor: it.textColor,
+              fillTransparency: trans >= 0.01 && trans < 0.99 ? Math.round(trans * 100) : undefined,
               fontSize: Math.max(8, Math.min(48, Math.round(it.fontPx))), dashed: it.dashed || undefined, rotation: 0,
               align: it.align, valign: it.valign, bold: it.bold || undefined,
               layer: layerId(vp, it.layers),
@@ -226,6 +229,6 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
   pages.sort((a, b) => Number(!!a.background) - Number(!!b.background));
   if (!pages.length) throw new Error('This Visio file has no pages to open.');
   const now = Date.now();
-  const project: Project = { id: uid(), name: file.name.replace(/\.vsdx$/i, ''), pages, activePageId: pages[0].id, createdAt: now, updatedAt: now, ...(layers.length ? { layers } : {}) };
+  const project: Project = { id: uid(), name: file.name.replace(/\.vs[dt]x$/i, ''), pages, activePageId: pages[0].id, createdAt: now, updatedAt: now, ...(layers.length ? { layers } : {}) };
   return { project, stencils, summary };
 }
