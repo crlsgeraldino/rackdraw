@@ -17,6 +17,7 @@ import { IpPlanDialog } from '../IpPlanDialog';
 import { LifecycleDialog } from '../LifecycleDialog';
 import { ScanImportDialog } from '../ScanImportDialog';
 import { SitesDialog } from '../SitesDialog';
+import { WifiDialog } from '../WifiPlan';
 import { LabelsDialog } from '../LabelsDialog';
 import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
 import { ReportDialog } from '../ReportDialog';
@@ -1993,6 +1994,7 @@ function DataTab() {
   const [defining, setDefining] = useState(false);
   const [scan, setScan] = useState(false);
   const [sitesOpen, setSitesOpen] = useState(false);
+  const [wifiOpen, setWifiOpen] = useState(false);
   return (
     <>
       {reports && <ReportDialog onClose={() => setReports(false)} />}
@@ -2002,6 +2004,7 @@ function DataTab() {
       {labels && <LabelsDialog onClose={() => setLabels(false)} />}
       {scan && <ScanImportDialog onClose={() => setScan(false)} />}
       {sitesOpen && <SitesDialog onClose={() => setSitesOpen(false)} />}
+      {wifiOpen && <WifiDialog onClose={() => setWifiOpen(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Shape Data">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
@@ -2022,6 +2025,7 @@ function DataTab() {
       </Group>
       <Group label="Plan & Quote">
         <Big icon="building" label="Sites" onClick={() => setSitesOpen(true)} title="The network place by place (HQ, branches, IDFs, buildings): equipment, racks, free switch ports, PoE, rack power, circuits and their monthly cost, warranties, and the links between sites" />
+        <Big icon="wifi" label="Wi-Fi Plan" onClick={() => setWifiOpen(true)} title="Wi-Fi coverage on a scaled floor plan: a map of the estimated signal from the access points (walls included), how much of the floor is covered, and how many access points it needs (with places to put them)" />
         <Big icon="ipPlan" label="IP Plan" onClick={() => setIpPlan(true)} title="VLANs and subnets of this client: gateway, DHCP range, how full each subnet is, the next free IP, and every device IP checked against them" />
         <Big icon="lifecycle" label="Lifecycle" onClick={() => setLifecycle(true)} title="Warranties and end-of-life dates (what to renew or replace in the next 90 days), and the client's ISP / carrier circuits with their monthly cost" />
         <Big icon="csv" label="Bill of Materials" onClick={() => setBom(true)} title="What to order and what it costs: equipment by model, cable runs and patch cords, transceivers, jacks, racks, circuits; labor, markup and tax; and free ports per switch" />

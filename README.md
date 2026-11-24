@@ -54,6 +54,10 @@ and keyboard shortcuts. After each update a **What's new** window lists what cha
   plus a typical service life for its kind, else warranty end) and what that costs per year for the next 5 years plus
   anything overdue, from the same price book as the Bill of Materials; circuits as a yearly cost (Data → Lifecycle →
   Replacement budget, to Excel / CSV).
+- **Wi-Fi planning**: on a floor plan with a drawing scale, Data → Wi-Fi Plan shows a map of the estimated signal from
+  the access points (walls by material, doors and windows included), how much of the rooms gets signal good enough
+  for calls and video, and how many access points the floor needs for coverage and for the number of people, with a
+  button that places the suggested ones (as Planned). An estimate from standard planning rules, not a site survey.
 - **Sites**: the network place by place (HQ, branches, IDFs, buildings), from each device's Location or its rack's;
   devices without one count at the site they are cabled to. Per site: equipment, racks, free switch ports, PoE,
   rack power, VLANs, circuits and their monthly cost, warranties; plus the links between sites (Data → Sites, and in
