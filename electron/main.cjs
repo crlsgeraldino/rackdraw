@@ -1,7 +1,7 @@
 // RackDraw desktop shell (formerly NetCraft): serves the static Next.js export (out/) from a private app:// origin.
 // A custom scheme (rather than file://) keeps absolute asset paths working and gives the app a
 // stable origin, so diagrams saved in localStorage persist between launches.
-const { app, BrowserWindow, Menu, dialog, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, net, protocol, session, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -9,7 +9,37 @@ const ROOT = path.join(__dirname, '..', 'out');
 // The app was called NetCraft: its origin and data folder keep that name, so the diagrams saved there (IndexedDB /
 // localStorage belong to this origin, in this folder) are still found after the rename to RackDraw.
 const ORIGIN = 'app://netcraft';
-app.setPath('userData', path.join(app.getPath('appData'), 'NetCraft'));
+// RACKDRAW_DATA_DIR puts everything in another folder instead (a portable copy on a USB stick, or a test run that
+// must not touch the real data).
+app.setPath('userData', process.env.RACKDRAW_DATA_DIR ? path.resolve(process.env.RACKDRAW_DATA_DIR) : path.join(app.getPath('appData'), 'NetCraft'));
+
+/*
+ * What the app's pages may load: only the app itself (plus data: / blob: pictures, and the PDF reader's worker).
+ * Nothing from the internet — so text from an imported file can never send the diagrams anywhere or pull code in.
+ * Next.js puts its start-up data in inline scripts, hence 'unsafe-inline' for scripts; WebAssembly is for the PDF
+ * reader's image decoders.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' data: blob:",
+  "worker-src 'self' blob:",
+  "media-src 'self' data: blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+/**
+ * Browser permissions the app's own pages get: the clipboard (Copy buttons — Electron reports navigator.clipboard
+ * writes as "clipboard-read"), keeping its storage, full screen. Nothing else, and nothing for any other page.
+ */
+const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write', 'persistent-storage', 'fullscreen']);
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
@@ -157,7 +187,23 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
-    protocol.handle('app', (req) => net.fetch(pathToFileURL(resolveFile(new URL(req.url).pathname)).toString()));
+    protocol.handle('app', async (req) => {
+      const file = resolveFile(new URL(req.url).pathname);
+      const res = await net.fetch(pathToFileURL(file).toString());
+      if (!/\.html?$/i.test(file)) return res;
+      const headers = new Headers(res.headers);
+      headers.set('Content-Security-Policy', CSP);
+      headers.set('X-Content-Type-Options', 'nosniff');
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+    });
+    const ses = session.defaultSession;
+    ses.setPermissionRequestHandler((wc, permission, callback, details) => callback(ALLOWED_PERMISSIONS.has(permission) && isOwn(details?.requestingUrl || wc?.getURL() || '')));
+    ses.setPermissionCheckHandler((wc, permission, origin) => ALLOWED_PERMISSIONS.has(permission) && isOwn(origin || wc?.getURL() || ''));
+    // No downloads of anything the app didn't make itself (its own exports are blob: / data: URLs).
+    ses.on('will-download', (e, item) => {
+      const u = item.getURL();
+      if (!u.startsWith('blob:') && !u.startsWith('data:')) e.preventDefault();
+    });
 
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
