@@ -133,6 +133,17 @@ export function cableText(data: CableData | undefined, role: CableRole | undefin
   return parts.join(' · ');
 }
 
+/**
+ * The printed name of the port a cable end plugs into ("X1", "24", "SFP 1"): the device's own name for the port,
+ * else its stencil's; '' when the cable is attached to the device itself rather than a port.
+ */
+export function endPortName(n: DeviceNode | undefined, st: StencilDef | undefined, handle?: string | null): string {
+  if (!n || !handle) return '';
+  const def = st?.ports.find((q) => q.id === handle);
+  if (!def) return '';
+  return n.data.ports?.[handle]?.label?.trim() || def.label || handle;
+}
+
 /* Per-page index for working out roles on the canvas without searching the nodes for every cable. */
 const byPage = new WeakMap<AppNode[], Map<string, DeviceNode>>();
 export function deviceIndex(nodes: AppNode[]): Map<string, DeviceNode> {

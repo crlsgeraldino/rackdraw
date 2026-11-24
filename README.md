@@ -46,6 +46,7 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
   (or chosen in Shape Data). Design -> Cable Text shows the function, the cable type or both on every cable
   ("WAN uplink · Cat6", "Uplink · DAC"); a cable can have its own. The function is in the Connections tables and
   Visio Shape Data.
+  Tick "Port names at the ends" to write the port each cable plugs into at each end ("X1", "24", "Gi1/0/5").
 - **Replacement budget**: when each piece of equipment is due for replacement (its End of life, else purchase date
   plus a typical service life for its kind, else warranty end) and what that costs per year for the next 5 years plus
   anything overdue, from the same price book as the Bill of Materials; circuits as a yearly cost (Data → Lifecycle →

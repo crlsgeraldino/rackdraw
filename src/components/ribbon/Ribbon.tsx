@@ -56,6 +56,7 @@ import { PrintDialog } from '../PrintDialog';
 import { ViewMenu } from '../ViewMenu';
 import { Icon } from './icons';
 import { Big, Check, Column, Drop, Group, Small, Swatches } from './parts';
+import { safeFitView } from '@/lib/fit';
 
 type Tab = 'home' | 'insert' | 'design' | 'data' | 'review' | 'view' | 'shape';
 const TABS: { id: Tab; label: string }[] = [
@@ -105,7 +106,7 @@ function centerDrawing(rf: ReturnType<typeof useReactFlow<AppNode>>) {
   const dx = (cols * sheet.w - b.width) / 2 - b.x, dy = (rows * sheet.h - b.height) / 2 - b.y;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
   st.moveDrawing(dx, dy);
-  setTimeout(() => rf.fitView({ padding: 0.08, duration: 200 }), 50);
+  setTimeout(() => safeFitView(rf, { padding: 0.08, duration: 200 }), 50);
 }
 
 function useDocument() {
@@ -249,7 +250,7 @@ function useDocument() {
           try {
             const { project: p, stencils, summary } = await importVsdx(f);
             useDiagram.getState().importProject(p, stencils);
-            setTimeout(() => rf.fitView({ padding: 0.2 }), 80);
+            setTimeout(() => safeFitView(rf, { padding: 0.2 }), 80);
             const notes = [...new Set(summary.warnings)];
             alert(
               `Opened ${f.name}: ${summary.pages} page${summary.pages === 1 ? '' : 's'}, ${summary.devices} devices, ${summary.cables} cables, ${summary.shapes} other shapes.` +
@@ -264,7 +265,7 @@ function useDocument() {
         }
         const { project: p, stencils } = await readProjectFile(f);
         useDiagram.getState().importProject(p, stencils);
-        setTimeout(() => rf.fitView({ padding: 0.2 }), 50);
+        setTimeout(() => safeFitView(rf, { padding: 0.2 }), 50);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -420,7 +421,7 @@ export function Ribbon() {
           <select
             className="max-w-56 rounded bg-white/15 px-1.5 py-0.5 text-sm text-white outline-none hover:bg-white/25 [&>option]:text-gray-900"
             value={project.id}
-            onChange={(e) => { openProject(e.target.value); setTimeout(() => rf.fitView({ padding: 0.2 }), 50); }}
+            onChange={(e) => { openProject(e.target.value); setTimeout(() => safeFitView(rf, { padding: 0.2 }), 50); }}
             title="Client"
           >
             {sorted.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1912,7 +1913,7 @@ function DesignTab() {
               {CABLE_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </label>
-          <span className="px-1 text-[10px] text-gray-500">e.g. &quot;WAN uplink · Cat6&quot;</span>
+          <Check label="Port names at the ends" checked={!!d.cablePorts} onChange={(v) => s.setDisplay({ cablePorts: v || undefined })} />
         </Column>
       </Group>
       <Group label="Info Boxes">
@@ -2037,12 +2038,12 @@ function ViewTab() {
         <Big icon="racks" label={`Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`} active={!diagram} onClick={() => setView('racks')} />
       </Group>
       <Group label="Zoom">
-        <Big icon="fit" label="Fit Page" onClick={() => rf.fitView({ padding: 0.2, duration: 200 })} disabled={!diagram} title="Fit the whole page in the window" />
+        <Big icon="fit" label="Fit Page" onClick={() => safeFitView(rf, { padding: 0.2, duration: 200 })} disabled={!diagram} title="Fit the whole page in the window" />
         <Column>
           <Small icon="zoomIn" label="Zoom In" onClick={() => rf.zoomIn({ duration: 150 })} disabled={!diagram} />
           <Small icon="zoomOut" label="Zoom Out" onClick={() => rf.zoomOut({ duration: 150 })} disabled={!diagram} />
           <Small icon="hundred" label="100%" onClick={() => rf.zoomTo(1, { duration: 150 })} disabled={!diagram} />
-          <Small icon="find" label="Selection" onClick={() => { const ids = rf.getNodes().filter((n) => n.selected).map((n) => ({ id: n.id })); if (ids.length) void rf.fitView({ nodes: ids, padding: 0.4, maxZoom: 2, duration: 200 }); }} disabled={!diagram} title="Zoom to the selected items" />
+          <Small icon="find" label="Selection" onClick={() => { const ids = rf.getNodes().filter((n) => n.selected).map((n) => ({ id: n.id })); if (ids.length) void safeFitView(rf, { nodes: ids, padding: 0.4, maxZoom: 2, duration: 200 }); }} disabled={!diagram} title="Zoom to the selected items" />
         </Column>
       </Group>
       <Group label="Show">
