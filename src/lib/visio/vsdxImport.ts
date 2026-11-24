@@ -12,6 +12,40 @@ import { RD_SHAPE } from './vsdxWriter';
  */
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${svg.replace(/[%#\r\n]/g, (c) => encodeURIComponent(c))}`;
 
+type Pt = [number, number];
+
+/**
+ * A RackDraw door from a Visio door's swing (page px): the rotation / flip whose hinge, closed leaf and open leaf
+ * point the same ways, in a square box as wide as the leaf. RackDraw's door, unturned: hinge bottom-left, closed
+ * leaf along the bottom (the wall), open leaf up the left side.
+ */
+function doorFrom(d: { hinge: Pt; wallTip: Pt; openTip: Pt }, wallPx: number | undefined, layer: string | undefined): AppNode | null {
+  const r = Math.hypot(d.wallTip[0] - d.hinge[0], d.wallTip[1] - d.hinge[1]);
+  if (!(r > 1)) return null;
+  const unit = (a: Pt, b: Pt): Pt => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / L, (b[1] - a[1]) / L]; };
+  const u = unit(d.hinge, d.wallTip), v = unit(d.hinge, d.openTip);
+  // The same turn RackDraw applies when drawing (and saving) a door, on the unit square.
+  const turn = (rot: number, flip: boolean, [x0, y0]: Pt): Pt => {
+    const [x, y] = flip ? [1 - x0, y0] : [x0, y0];
+    return rot === 90 ? [1 - y, x] : rot === 180 ? [1 - x, 1 - y] : rot === 270 ? [y, 1 - x] : [x, y];
+  };
+  let best: { rot: number; flip: boolean; score: number; h: Pt } | null = null;
+  for (const rot of [0, 90, 180, 270]) for (const flip of [false, true]) {
+    const h = turn(rot, flip, [0, 1]), w = turn(rot, flip, [1, 1]), o = turn(rot, flip, [0, 0]);
+    const su = unit(h, w), sv = unit(h, o);
+    const score = su[0] * u[0] + su[1] * u[1] + sv[0] * v[0] + sv[1] * v[1];
+    if (!best || score > best.score) best = { rot, flip, score, h };
+  }
+  const b = best!;
+  return {
+    id: `s-${uid()}`, type: 'shape', position: { x: d.hinge[0] - b.h[0] * r, y: d.hinge[1] - b.h[1] * r }, width: r, height: r,
+    data: {
+      kind: 'door', text: '', rotation: b.rot, flip: b.flip || undefined, wallGap: wallPx && wallPx > 1 ? Math.round(wallPx * 10) / 10 : undefined,
+      fill: 'transparent', stroke: '#374151', textColor: '#111827', fontSize: 14, layer,
+    },
+  } as AppNode;
+}
+
 /**
  * "Open a Visio drawing": turns each page of a .vsdx into a RackDraw page. Pictures become devices (their Shape
  * Data fills the device fields, their shapes go into a library named after the file), plain boxes/ellipses/text
@@ -85,7 +119,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
 
     // Text RackDraw wrote for a device's label / info box: recreate those on the device instead.
     const pictureNames = new Set(items.filter((i) => i.kind === 'picture').map((i) => i.data.Name || i.name));
-    const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'wall' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
+    const ownText = (i: PageItem) => i.kind !== 'line' && i.kind !== 'wall' && i.kind !== 'door' && i.kind !== 'picture' && /\s(label|info)$/.test(i.name) && pictureNames.has(i.name.replace(/\s(label|info)$/, ''));
     const infoFor = new Set(items.filter((i) => ownText(i) && i.name.endsWith(' info')).map((i) => i.name.replace(/\sinfo$/, '')));
 
     for (const it of items) {
@@ -109,6 +143,11 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
           },
         } as AppNode);
         summary.shapes++;
+        continue;
+      }
+      if (it.kind === 'door' && it.door) {
+        const node = doorFrom(it.door, it.thicknessPx, layerId(vp, it.layers));
+        if (node) { nodes.push(node); summary.shapes++; }
         continue;
       }
       if (it.kind === 'line' || ownText(it)) continue;

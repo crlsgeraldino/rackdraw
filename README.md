@@ -736,9 +736,12 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   and windows too (they carry a *RackDraw shape* Shape Data field), and a page with walls opens as a floor plan.
 - Pictures stored in a Visio file as uncompressed bitmaps (BMP, common in screenshots) are converted to PNG on
   import, so big templates stay small (Microsoft's office floor plan template: 64 MB → 5 MB).
+- **Visio doors** (single and double, from the Walls, Shell and Structure stencil) become RackDraw doors: same width,
+  hinge side and swing direction, with the doorway cut through the wall; a double door becomes two doors. Doors drawn
+  partly open in Visio come in fully open.
 - Not carried over yet: changing the theme inside RackDraw (Design → Themes uses RackDraw's own themes); Visio room
-  shapes and window walls whose look comes from ShapeSheet formulas come in as pictures; Visio's own door and window
-  shapes come in as pictures.
+  shapes and window walls whose look comes from ShapeSheet formulas come in as pictures; Visio's own window shapes
+  and special doors (garage, revolving, and doors inside stall or washroom groups) come in as pictures.
 
 ## Your own stencils (no code needed)
 

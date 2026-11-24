@@ -434,6 +434,26 @@ export class VisioPackage {
         });
         continue;
       }
+      // Visio doors (single and double): each swing arc becomes a RackDraw door, measured from how it is drawn
+      // (hinge = the arc's centre, in the wall; one end on the wall, the other the open leaf), so flips and
+      // rotations come out right without evaluating Visio's formulas.
+      if (hasKids && /\b(door|double)\b/i.test(masterName ?? '') && !/garage|overhead|revolving/i.test(masterName ?? '')) {
+        const leaves = doorSwings(s, t.m);
+        if (leaves.length) {
+          // The wall line: the door's own length axis, half-way through its thickness.
+          const a = apply(t.m, 0, t.h / 2), b = apply(t.m, t.w, t.h / 2);
+          const fromWall = (p: [number, number]) => {
+            const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+            return Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / L;
+          };
+          for (const lf of leaves) {
+            const hinge = fromWall(lf.centers[0]) <= fromWall(lf.centers[1]) ? lf.centers[0] : lf.centers[1];
+            const [wallTip, openTip] = fromWall(lf.ends[0]) <= fromWall(lf.ends[1]) ? lf.ends : [lf.ends[1], lf.ends[0]];
+            items.push({ ...base, kind: 'door', door: { hinge: toPx(hinge), wallTip: toPx(wallTip), openTip: toPx(openTip) }, thicknessPx: t.h * PX * sc });
+          }
+          continue;
+        }
+      }
       // 1-D shapes that draw a filled area (walls, block arrows, pipes) are pictures of themselves, not lines.
       const filledArea = fillColor != null && geos.some((g) => cell(g, 'NoFill') !== '1' && geometry(g, t.w, t.h).closed);
       if ((oneD && !filledArea) || (lineGeo && (cell(geos[0], 'NoFill') === '1' || !fillColor))) {
@@ -698,9 +718,11 @@ export interface VisioPageInfo {
 /** A shape read from a drawing page. Positions in pixels from the page's top-left. */
 export interface PageItem {
   id: string;
-  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall';
-  /** Wall: its thickness on the page. */
+  kind: 'picture' | 'box' | 'ellipse' | 'diamond' | 'text' | 'line' | 'wall' | 'door';
+  /** Wall: its thickness on the page; door: the wall it sits in. */
   thicknessPx?: number;
+  /** Door: hinge, the leaf's tip when closed (on the wall) and when open, in page px. */
+  door?: { hinge: [number, number]; wallTip: [number, number]; openTip: [number, number] };
   align?: 'left' | 'right';
   valign?: 'top' | 'bottom';
   bold?: boolean;
@@ -883,6 +905,37 @@ function styleCell(s: Element, name: string, kind: 'line' | 'fill' | 'text', sty
 type M = [number, number, number, number, number, number]; // SVG matrix(a b c d e f)
 
 /** parent ∘ child: apply the child transform first, then the parent's. */
+/**
+ * The visible door-swing arcs inside a door shape (geometry of just MoveTo + ArcTo): both ends and both possible
+ * centres of each, in the coordinates `m` maps to (the door's parent).
+ */
+function doorSwings(s: Element, m: M): { ends: [[number, number], [number, number]]; centers: [[number, number], [number, number]] }[] {
+  const out: ReturnType<typeof doorSwings> = [];
+  const visit = (el: Element, mm: M) => {
+    for (const geo of sections(el, 'Geometry')) {
+      if (cell(geo, 'NoShow') === '1') continue;
+      const rows = children(geo, 'Row').filter((r) => r.getAttribute('Del') !== '1');
+      if (rows.length !== 2 || !/MoveTo$/.test(rows[0].getAttribute('T') ?? '') || rows[1].getAttribute('T') !== 'ArcTo') continue;
+      const p0: [number, number] = [num(cell(rows[0], 'X')), num(cell(rows[0], 'Y'))];
+      const p1: [number, number] = [num(cell(rows[1], 'X')), num(cell(rows[1], 'Y'))];
+      const bulge = Math.abs(num(cell(rows[1], 'A')));
+      const c = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+      if (bulge < 1e-9 || c < 1e-9) continue;
+      // Radius from chord and bulge; the centre sits on the chord's perpendicular, on either side.
+      const R = (bulge * bulge + (c / 2) ** 2) / (2 * bulge), d = R - bulge;
+      const mx = (p0[0] + p1[0]) / 2, my = (p0[1] + p1[1]) / 2, nx = -(p1[1] - p0[1]) / c, ny = (p1[0] - p0[0]) / c;
+      out.push({
+        ends: [apply(mm, ...p0), apply(mm, ...p1)],
+        centers: [apply(mm, mx + nx * d, my + ny * d), apply(mm, mx - nx * d, my - ny * d)],
+      });
+    }
+    const sub = children(el, 'Shapes')[0];
+    if (sub) for (const k of children(sub, 'Shape')) visit(k, compose(mm, xf(k).m));
+  };
+  visit(s, m);
+  return out;
+}
+
 function compose(p: M, c: M): M {
   return [
     p[0] * c[0] + p[2] * c[1], p[1] * c[0] + p[3] * c[1],
