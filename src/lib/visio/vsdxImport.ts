@@ -1,5 +1,6 @@
 'use client';
 
+import { CABLE_ROLES } from '../cableRole';
 import { libraryNameFromFile } from '../libraries';
 import { newPage } from '../project';
 import { CABLE_STYLES, DEVICE_STATUSES, type AppNode, type CableEdge, type CableType, type DeviceData, type Layer, type Page, type PortDef, type Project, type StencilDef } from '../types';
@@ -332,6 +333,7 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         data: {
           cable, color, route: 'step',
           vlan: it.data.VLAN || undefined, length: it.data.Length || undefined, label: it.data.Label || undefined,
+          role: CABLE_ROLES.find((r) => r.label.toLowerCase() === (it.data.Function ?? '').trim().toLowerCase())?.value,
           arrows: it.arrows?.start && it.arrows?.end ? 'both' : it.arrows?.end ? 'end' : it.arrows?.start ? 'start' : undefined,
           layer: layerId(vp, it.layers),
         },

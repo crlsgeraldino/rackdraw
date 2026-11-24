@@ -45,6 +45,7 @@ import { activePage, allNodes } from '@/lib/project';
 import { SCALE_PRESETS, SET_SCALE_EVENT } from '@/lib/units';
 import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
 import { allLinks, dashFor } from '@/lib/types';
+import { CABLE_TAGS, type CableTag } from '@/lib/cableRole';
 import { getStencil, TEXT_DEFAULT_SIZE, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
 import { OPEN_CHECK_EVENT } from '../CheckPanel';
@@ -1902,6 +1903,16 @@ function DesignTab() {
             </select>
           </label>
           <Check label="Legend" checked={d.showLegend} onChange={(v) => s.setDisplay({ showLegend: v })} />
+        </Column>
+      </Group>
+      <Group label="Cable Text">
+        <Column>
+          <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]" title="What every cable's tag shows: your typed label only, or what the cable is for (WAN uplink, Uplink, Access…, worked out from what it connects), its type, or both. A cable can have its own in Shape Data.">Show
+            <select className={sel} value={d.cableTag ?? 'label'} onChange={(e) => s.setDisplay({ cableTag: e.target.value as CableTag })}>
+              {CABLE_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </label>
+          <span className="px-1 text-[10px] text-gray-500">e.g. &quot;WAN uplink · Cat6&quot;</span>
         </Column>
       </Group>
       <Group label="Info Boxes">

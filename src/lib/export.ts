@@ -21,6 +21,7 @@ import { rackLabel } from './rack';
 import { documentedPort, portMap, portMapDevices } from './portMap';
 import { changeKindLabel, changeTime } from './changeLog';
 import { SITE_TABLE, siteSummaries, siteTableRows } from './sites';
+import { edgeRole, roleLabel } from './cableRole';
 import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
 /* ---------- helpers ---------- */
@@ -69,6 +70,8 @@ export interface ConnectionRow {
   toDevice: string;
   toPort: string;
   cable: string;
+  /** What the cable is for (WAN uplink, Uplink, Access…), chosen or worked out from its ends. */
+  role: string;
   vlan: string;
   label: string;
   length: string;
@@ -86,7 +89,7 @@ export function connectionRows(p: Project): ConnectionRow[] {
         page: pg.name,
         fromDevice: nodeName(a), fromPort: portName(a, e.sourceHandle),
         toDevice: nodeName(b), toPort: portName(b, e.targetHandle),
-        cable: d.cable, vlan: d.vlan ?? '', label: d.label ?? '', length: d.length ?? '',
+        cable: d.cable, role: roleLabel(edgeRole(pg.nodes, e, getStencil)) ?? '', vlan: d.vlan ?? '', label: d.label ?? '', length: d.length ?? '',
       };
     });
   });
@@ -534,8 +537,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     table('Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends', 'Monthly'], [0.15, 0.15, 0.13, 0.15, 0.1, 0.12, 0.12, 0.08].map((f) => f * avail),
       lc.circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd, r.monthly === '' ? '' : String(r.monthly)]));
   }
-  table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
-    connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
+  table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'Function', 'VLAN', 'Length', 'Label'], [0.09, 0.15, 0.07, 0.15, 0.07, 0.08, 0.1, 0.07, 0.08, 0.14].map((f) => f * avail),
+    connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.role, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
     portRows(p).map((r) => [r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes]));
 
@@ -609,8 +612,8 @@ export function exportCsv(p: Project) {
     ['DEVICES'], ['Page', 'Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack position', 'Location', 'Power (W)', 'Notes'],
     ...deviceRows(p).map((d) => [d.page, d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack, d.location, d.powerW, d.notes]),
     [],
-    ['CONNECTIONS'], ['Page', 'From device', 'From port', 'To device', 'To port', 'Cable', 'VLAN', 'Length', 'Label'],
-    ...conns.map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]),
+    ['CONNECTIONS'], ['Page', 'From device', 'From port', 'To device', 'To port', 'Cable', 'Function', 'VLAN', 'Length', 'Label'],
+    ...conns.map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.role, c.vlan, c.length, c.label]),
     [],
     ['RACKS'], ['Rack', 'Position', 'Height', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power (W)'],
     ...rackRows(p).map((r) => [r.rack, r.position, r.height, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW]),

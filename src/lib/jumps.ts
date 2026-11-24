@@ -42,7 +42,14 @@ const subscribe = (cb: () => void) => {
 
 const same = (a?: Pt[], b?: Pt[]) => !!a && !!b && a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
 
-export function publishRoute(id: string, pts: Pt[] | null) {
+/**
+ * A route with a NaN / infinite point (the canvas had no size yet, e.g. the window was minimised) counts as no route:
+ * NaN never equals itself, so such a route would look "changed" on every check and re-publish forever.
+ */
+const usable = (pts: Pt[] | null) => (pts && pts.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)) ? pts : null);
+
+export function publishRoute(id: string, raw: Pt[] | null) {
+  const pts = usable(raw);
   if (pts ? same(routes.get(id), pts) : !routes.has(id)) return;
   if (pts) routes.set(id, pts);
   else routes.delete(id);
@@ -66,7 +73,8 @@ export const otherRoutes = (id: string) => [...routes.entries()].filter(([k]) =>
  * only hops where it really crosses another (the raw routes above are what the lanes are worked out from).
  */
 const drawn = new Map<string, Pt[]>();
-export function publishDrawn(id: string, pts: Pt[] | null) {
+export function publishDrawn(id: string, raw: Pt[] | null) {
+  const pts = usable(raw);
   if (pts ? same(drawn.get(id), pts) : !drawn.has(id)) return;
   if (pts) drawn.set(id, pts);
   else drawn.delete(id);

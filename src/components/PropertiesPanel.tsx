@@ -2,6 +2,7 @@
 
 import { openChangeLog, openPortMap } from '@/lib/events';
 import { changeTime, deviceHistory } from '@/lib/changeLog';
+import { CABLE_ROLES, CABLE_TAGS, edgeRole, roleLabel, type CableRole, type CableTag } from '@/lib/cableRole';
 import { CIRCUIT_KINDS, daysUntil, LIFE_STATES, stateOf, whenText, type CircuitInfo } from '@/lib/lifecycle';
 import { parsePrice } from '@/lib/quote';
 import { subnetUsage } from '@/lib/ipam';
@@ -865,6 +866,7 @@ function CableProps({ edge }: { edge: CableEdge }) {
       </label>
       <CableColorEditor edges={[edge]} />
       <Field label="Label" value={data.label} onChange={(v) => update(id, { label: v })} />
+      <CableFunction edges={[edge]} />
       <CableLength id={id} data={data} />
       <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono list={VLAN_LIST} />
       <VlanOptions />
@@ -1266,9 +1268,51 @@ function MultiCableData({ edges }: { edges: CableEdge[] }) {
       </div>
       <MultiField label="VLAN(s)" values={data.map((d) => d.vlan ?? '')} onSet={(v) => s.updateEdgesData(ids, { vlan: v || undefined })} mono />
       <MultiField label="Label" values={data.map((d) => d.label ?? '')} onSet={(v) => s.updateEdgesData(ids, { label: v || undefined })} />
+      <CableFunction edges={edges} />
     </div>
   );
 }
+
+/**
+ * What the cable is for (worked out from its ends unless chosen) and what text it shows (the client's choice under
+ * Design → Cable Text unless set here). Works for one cable or several.
+ */
+function CableFunction({ edges }: { edges: CableEdge[] }) {
+  const nodes = useCurrentPage().nodes;
+  const clientTag: CableTag = useCurrentProject().display?.cableTag ?? 'label';
+  const ids = edges.map((e) => e.id);
+  const set = (patch: Partial<CableData>) => { const s = useDiagram.getState(); s.snapshot(); s.updateEdgesData(ids, patch); };
+  const auto = (e: CableEdge) => edgeRole(nodes, { ...e, data: { ...(e.data ?? { cable: 'Cat6' }), role: undefined } }, getStencilNow);
+  const roles = edges.map((e) => e.data?.role ?? '');
+  const role = roles.every((r) => r === roles[0]) ? roles[0] : 'mixed';
+  const autoNames = [...new Set(edges.map((e) => roleLabel(auto(e)) ?? 'none'))];
+  const autoText = autoNames.length === 1 ? (autoNames[0] === 'none' ? 'nothing found' : autoNames[0]) : 'per cable';
+  const tags = edges.map((e) => e.data?.tag ?? '');
+  const tag = tags.every((t) => t === tags[0]) ? tags[0] : 'mixed';
+  const sel = 'w-full rounded border border-gray-300 px-1.5 py-1 text-sm';
+  return (
+    <div className="flex gap-2">
+      <label className="mb-2 block flex-1">
+        <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Function</span>
+        <select className={sel} value={role} onChange={(e) => set({ role: (e.target.value || undefined) as CableRole | 'none' | undefined })} title="What the cable is for. Auto works it out from the devices and ports at its ends.">
+          {role === 'mixed' && <option value="mixed" disabled>Mixed</option>}
+          <option value="">Auto ({autoText})</option>
+          {CABLE_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+          <option value="none">None</option>
+        </select>
+      </label>
+      <label className="mb-2 block flex-1">
+        <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Text on cable</span>
+        <select className={sel} value={tag} onChange={(e) => set({ tag: (e.target.value || undefined) as CableTag | undefined })} title="What the cable's tag shows. The client's setting is under Design → Cable Text.">
+          {tag === 'mixed' && <option value="mixed" disabled>Mixed</option>}
+          <option value="">As the client ({CABLE_TAGS.find((t) => t.value === clientTag)?.label})</option>
+          {CABLE_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
+const getStencilNow = (id: string) => findStencil(id, useDiagram.getState().customStencils);
 
 const LINE_PATTERNS: { value: LinePattern; label: string }[] = [
   { value: 'solid', label: 'Solid' }, { value: 'dash', label: 'Dash' }, { value: 'dot', label: 'Dot' }, { value: 'dashdot', label: 'Dash-dot' },
