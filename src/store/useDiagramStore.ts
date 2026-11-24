@@ -241,7 +241,7 @@ interface DiagramState {
   // projects
   newProject: (name: string) => void;
   openProject: (id: string) => void;
-  updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes'>>) => void;
+  updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes' | 'quote'>>) => void;
   deleteProject: (id: string) => void;
   importProject: (p: Project, stencils?: StencilDef[]) => void;
 

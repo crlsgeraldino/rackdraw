@@ -642,6 +642,8 @@ export interface Project {
   theme?: string;
   /** Saved report definitions (Data → Reports). */
   reports?: import('./report').ReportDef[];
+  /** Cost estimate / quote settings (Data → Bill of Materials → Labor & quote). */
+  quote?: import('./quote').QuoteSettings;
   display?: DisplaySettings;
   titleBlock?: TitleBlock;
   /** v0.2 and earlier kept a single diagram here; migrated into `pages` on load. */

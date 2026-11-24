@@ -10,6 +10,8 @@ import type { CableData, CableEdge, DeviceNode, PortDef, Project, StencilDef } f
 type Stencils = (id: string) => StencilDef | undefined;
 
 export interface BomRow {
+  /** Identifies the item in the price book (same item, same price, in every client). */
+  key: string;
   item: string;
   detail: string;
   qty: number;
@@ -70,7 +72,17 @@ const fmtFt = (ft: number) => `${Math.round(ft).toLocaleString()} ft (${Math.rou
 /** Runs longer than this are permanent cabling (bulk cable); shorter ones are patch cords. */
 const CORD_MAX_FT = 25;
 
-export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomSection[]; capacity: CapacityRow[] } {
+/** What the labor estimate counts (Bill of Materials → Labor & quote). */
+export interface WorkCounts {
+  copperRuns: number;
+  fiberRuns: number;
+  rackDevices: number;
+  endpoints: number;
+  racks: number;
+  cords: number;
+}
+
+export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomSection[]; capacity: CapacityRow[]; work: WorkCounts } {
   const devices = allDevices(p);
   const byId = new Map(devices.map((d) => [d.id, d] as const));
   const edges: CableEdge[] = p.pages.flatMap((pg) => pg.edges).filter((e) => byId.has(e.source) && byId.has(e.target));
@@ -79,7 +91,8 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
   const count = <K,>(m: Map<K, number>, k: K, n = 1) => m.set(k, (m.get(k) ?? 0) + n);
 
   /* Equipment, by type and model. */
-  const equip = new Map<string, { item: string; detail: string; qty: number }>();
+  const equip = new Map<string, { key: string; item: string; detail: string; qty: number }>();
+  const work: WorkCounts = { copperRuns: 0, fiberRuns: 0, rackDevices: 0, endpoints: 0, racks: (p.racks ?? []).length, cords: 0 };
   const services = new Map<string, number>();
   for (const d of devices) {
     const s = st(d);
@@ -90,8 +103,10 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
     const model = d.data.model?.trim() || s?.defaults?.model || '';
     const units = s?.rackUnits ? `${s.rackUnits}U` : '';
     const k = `${item}|${model}`;
-    const row = equip.get(k) ?? { item, detail: [model, units].filter(Boolean).join(' · '), qty: 0 };
+    const row = equip.get(k) ?? { key: `eq|${k}`, item, detail: [model, units].filter(Boolean).join(' · '), qty: 0 };
     row.qty++;
+    if (s?.rackUnits) work.rackDevices++;
+    else if (s?.category !== 'Cabling' && !isPassThrough(d, s)) work.endpoints++;
     equip.set(k, row);
   }
 
@@ -132,7 +147,12 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
       const name = FIBER.has(t) ? FIBER_NAME[t] : COPPER.has(t) ? `${t} cable (bulk, plenum / riser)` : `${t} cable`;
       count(bulkFt, name, ft);
       count(runs, name);
-    } else count(cords, `${cordName(t)}|${Math.round(ft * 10) / 10} ft`);
+      if (FIBER.has(t)) work.fiberRuns++;
+      else if (COPPER.has(t)) work.copperRuns++;
+    } else {
+      count(cords, `${cordName(t)}|${Math.round(ft * 10) / 10} ft`);
+      work.cords++;
+    }
 
     // Each end on an active SFP port needs a module (DAC cables have theirs built in).
     for (const [nid, h] of [[e.source, e.sourceHandle], [e.target, e.targetHandle]] as const) {
@@ -175,24 +195,25 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
       title: 'Cabling',
       rows: [
         ...[...bulkFt].map(([name, ft]) => ({
+          key: `bulk|${name}`,
           item: name,
           detail: `${runs.get(name)} run${runs.get(name) === 1 ? '' : 's'}, ${fmtFt(ft)} + 10% slack${COPPER.has(name.split(' ')[0]) ? ` ≈ ${Math.ceil((ft * 1.1) / 1000)} × 1000 ft box` : ''}`,
           qty: Math.ceil(ft * 1.1), unit: 'ft',
         })),
-        ...[...cords].sort().map(([k, n]) => { const [item, len] = k.split('|'); return { item, detail: len, qty: n, unit: 'each' }; }),
-        ...[...unknown].map(([item, n]) => ({ item, detail: 'length not set on the diagram', qty: n, unit: 'each' })),
+        ...[...cords].sort().map(([k, n]) => { const [item, len] = k.split('|'); return { key: `cord|${k}`, item, detail: len, qty: n, unit: 'each' }; }),
+        ...[...unknown].map(([item, n]) => ({ key: `cable|${item}`, item, detail: 'length not set on the diagram', qty: n, unit: 'each' })),
       ],
     },
-    { title: 'Transceivers', rows: [...transceivers].sort().map(([item, n]) => ({ item, detail: 'one per active SFP port with a fiber / copper link', qty: n, unit: 'each' })) },
+    { title: 'Transceivers', rows: [...transceivers].sort().map(([item, n]) => ({ key: `xcvr|${item}`, item, detail: 'one per active SFP port with a fiber / copper link', qty: n, unit: 'each' })) },
     {
       title: 'Terminations',
       rows: [
-        ...(wallEnds ? [{ item: 'Cat6 keystone jack + faceplate', detail: 'wall end of each horizontal run from a patch panel', qty: wallEnds, unit: 'each' }] : []),
-        ...(lcEnds ? [{ item: 'LC duplex connector / pigtail (splice)', detail: 'each backbone fiber end on a fiber panel', qty: lcEnds, unit: 'each' }] : []),
+        ...(wallEnds ? [{ key: 'term|keystone', item: 'Cat6 keystone jack + faceplate', detail: 'wall end of each horizontal run from a patch panel', qty: wallEnds, unit: 'each' }] : []),
+        ...(lcEnds ? [{ key: 'term|lc', item: 'LC duplex connector / pigtail (splice)', detail: 'each backbone fiber end on a fiber panel', qty: lcEnds, unit: 'each' }] : []),
       ],
     },
-    { title: 'Racks & accessories', rows: [...racks, ...accessories].map(([item, n]) => ({ item, detail: '', qty: n, unit: 'each' })) },
-    { title: 'Circuits & services', rows: [...services, ...air].map(([item, n]) => ({ item, detail: '', qty: n, unit: 'each' })) },
+    { title: 'Racks & accessories', rows: [...racks, ...accessories].map(([item, n]) => ({ key: `rack|${item}`, item, detail: '', qty: n, unit: 'each' })) },
+    { title: 'Circuits & services', rows: [...services, ...air].map(([item, n]) => ({ key: `svc|${item}`, item, detail: 'monthly', qty: n, unit: 'each' })) },
   ].filter((s) => s.rows.length);
 
   /* Port capacity of switches, firewalls and panels. */
@@ -219,7 +240,7 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
       return { device: d.data.name, model: d.data.model ?? s.defaults?.model ?? s.name, ports: ports.length, used: n, free: ports.length - n, poePorts: poe.length, poeW, poeBudgetW: budget, warning: warn };
     })
     .sort((a, b) => a.device.localeCompare(b.device));
-  return { sections, capacity };
+  return { sections, capacity, work };
 }
 
 /** The bill of materials as rows for a sheet / CSV: Section, Item, Detail, Qty, Unit. */

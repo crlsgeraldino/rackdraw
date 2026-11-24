@@ -735,7 +735,17 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   - **Circuits & services**: Internet, MPLS, Metro Ethernet, cloud, cellular, satellite, microwave paths.
   - **Port capacity**: every switch, firewall and patch panel with ports used / free, PoE ports and watts against the
     switch's PoE budget, flagged at 80% of ports or PoE.
-  - Copy, CSV or Excel; the PDF export and the CSV export include both tables.
+  - Copy, CSV or Excel; the PDF export and the CSV export include both tables (without prices).
+- **Cost estimate and quote** (same dialog):
+  - **Price book**: type a unit price next to any item (bulk cable per foot); it is remembered for every client, so
+    the next quote prices itself. Items without a price are highlighted and counted. **Export prices / Import
+    prices** saves the book to a `.rackdraw-prices.json` file to back it up or share it with other techs.
+  - **Labor & quote** tab: hours estimated from the drawing (copper drops, fiber runs, rack equipment, endpoints,
+    racks, patch cords) with editable hours per task, labor rate, markup and tax on materials, currency and how long
+    the quote is valid; totals for materials, markup, tax, labor, one-time total, and monthly recurring charges
+    (circuits and services). Settings and notes / terms are saved with the client.
+  - **Quote (Word)**: a quote document with materials by section, labor, totals and your notes; Excel and CSV give
+    the same lines with unit prices and amounts.
 - **Equipment for every kind of network (PAN, WLAN, LAN, CAN, MAN, WAN)**: the Shapes window has filter buttons
   (All · PAN · WLAN · LAN · CAN · MAN · WAN) that show only the built-in equipment used in that kind of network
   (imported libraries are hidden while a filter is on); searching "MAN" or "WAN" works too. 76 built-in items:

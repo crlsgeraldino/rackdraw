@@ -39,8 +39,10 @@ export interface Prefs {
   favorites: string[];
   /** Your name on comments. */
   author: string;
+  /** Your price book: unit price per Bill of Materials item (key → price), used for every client's quote. */
+  priceBook: Record<string, number>;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '' };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {} };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;
