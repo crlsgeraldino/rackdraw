@@ -490,9 +490,16 @@ export function Ribbon() {
 }
 
 /** File → New: client name and a template (Blank, the built-in starters, or My templates), like Visio's gallery. */
+/** How File → New groups the built-in templates. */
+const TEMPLATE_GROUPS: { title: string; ids: string[] }[] = [
+  { title: 'Networks by size', ids: ['tpl-office-rack', 'tpl-net-medium', 'tpl-net-large'] },
+  { title: 'Reference and other drawings', ids: ['tpl-net-types', 'tpl-office', 'tpl-rack', 'tpl-floor'] },
+];
+
 function NewClientDialog({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
   const mine = Object.values(useDiagram((s) => s.templates));
   const [pick, setPick] = useState<string>('blank');
+  const [details, setDetails] = useState({ site: '', address: '', contact: '' });
   const all = [...BUILT_IN_TEMPLATES, ...mine];
   const create = () => {
     const name = value.trim();
@@ -500,8 +507,18 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
     const t = all.find((x) => x.id === pick);
     if (t) useDiagram.getState().newFromTemplate(name, t);
     else useDiagram.getState().newProject(name);
+    // The client's details go on the title block and every report.
+    const d = Object.fromEntries(Object.entries(details).map(([k, v]) => [k, v.trim() || undefined]).filter(([, v]) => v));
+    if (Object.keys(d).length) useDiagram.getState().updateProject(d);
     onClose();
   };
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
+  const field = 'rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500';
+  const grouped = new Set(TEMPLATE_GROUPS.flatMap((g) => g.ids));
   const card = (id: string, title: string, sub: string, del?: () => void) => (
     <div key={id} className={`group relative cursor-pointer rounded border p-2 text-left ${pick === id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-blue-300'}`} onClick={() => setPick(id)} onDoubleClick={() => { setPick(id); setTimeout(create, 0); }}>
       <div className="text-sm font-medium text-gray-900">{title}</div>
@@ -510,19 +527,35 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
     </div>
   );
   return (
-    <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/30 pt-24" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/30 pt-16" onMouseDown={onClose}>
       <form
-        className="w-[min(640px,94vw)] rounded-lg bg-white p-4 shadow-xl"
+        role="dialog" aria-modal="true" aria-label="New client"
+        className="w-[min(680px,94vw)] rounded-lg bg-white p-4 shadow-xl"
         onMouseDown={(e) => e.stopPropagation()}
         onSubmit={(e) => { e.preventDefault(); create(); }}
       >
         <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="nc-client-name">New client</label>
         <input id="nc-client-name" autoFocus className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500" placeholder="Client name"
-          value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && onClose()} />
-        <div className="mt-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Start from</div>
-        <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto">
-          {card('blank', 'Blank drawing', 'One empty network page.')}
-          {BUILT_IN_TEMPLATES.map((t) => card(t.id, t.name, t.description))}
+          value={value} onChange={(e) => onChange(e.target.value)} />
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <input className={field} placeholder="Site (optional)" aria-label="Site" value={details.site} onChange={(e) => setDetails({ ...details, site: e.target.value })} />
+          <input className={field} placeholder="Address (optional)" aria-label="Address" value={details.address} onChange={(e) => setDetails({ ...details, address: e.target.value })} />
+          <input className={field} placeholder="Contact (optional)" aria-label="Contact" value={details.contact} onChange={(e) => setDetails({ ...details, contact: e.target.value })} />
+        </div>
+        <div className="max-h-[52vh] overflow-y-auto">
+          <div className="mt-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Start from</div>
+          <div className="grid grid-cols-2 gap-2">{card('blank', 'Blank drawing', 'One empty network page.')}</div>
+          {TEMPLATE_GROUPS.map((g) => (
+            <div key={g.title}>
+              <div className="mt-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{g.title}</div>
+              <div className="grid grid-cols-2 gap-2">
+                {g.ids.map((id) => BUILT_IN_TEMPLATES.find((t) => t.id === id)).filter((t): t is (typeof BUILT_IN_TEMPLATES)[number] => !!t).map((t) => card(t.id, t.name, t.description))}
+              </div>
+            </div>
+          ))}
+          {BUILT_IN_TEMPLATES.some((t) => !grouped.has(t.id)) && (
+            <div className="mt-2 grid grid-cols-2 gap-2">{BUILT_IN_TEMPLATES.filter((t) => !grouped.has(t.id)).map((t) => card(t.id, t.name, t.description))}</div>
+          )}
         </div>
         {mine.length > 0 && (
           <>
@@ -1853,7 +1886,7 @@ function DesignTab() {
           </Drop>
         </Column>
       </Group>
-      <Group label="Data Graphics">
+      <Group label="Data Colours">
         <Column>
           <label className="flex h-[22px] items-center gap-1 px-1 text-[11px]">Devices by
             <select className={sel} value={d.deviceColor} onChange={(e) => s.setDisplay({ deviceColor: e.target.value as DeviceColorBy })}>
@@ -1882,7 +1915,6 @@ function DesignTab() {
 function DataTab() {
   const propsPane = usePref('propsPane');
   const table = usePref('deviceTable');
-  const quick = usePref('quickInfo');
   const [reports, setReports] = useState(false);
   const [bom, setBom] = useState(false);
   const [ipPlan, setIpPlan] = useState(false);
@@ -1897,12 +1929,9 @@ function DataTab() {
       {lifecycle && <LifecycleDialog onClose={() => setLifecycle(false)} />}
       {labels && <LabelsDialog onClose={() => setLabels(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
-      <Group label="Show/Hide">
+      <Group label="Shape Data">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
         <Big icon="defineData" label="Define Shape Data" onClick={() => setDefining(true)} title="Fields every device of this client has: text, number, date, pick list, yes/no; required fields" />
-        <Column>
-          <Check label="Quick info on hover" checked={quick} onChange={(v) => setPref('quickInfo', v)} />
-        </Column>
       </Group>
       <Group label="Device Table">
         <Big icon="table" label="Device Table" active={table} onClick={() => setPref('deviceTable', !table)} title="Every device as an editable spreadsheet under the drawing: type in cells, sort, filter, go to a device" />
@@ -1910,23 +1939,25 @@ function DataTab() {
       <Group label="External Data">
         <DataMenu />
       </Group>
-      <Group label="Layers & Colours">
+      <Group label="Layers">
         <ViewMenu label="Layers" />
       </Group>
       <Group label="Data Graphics">
         <DataGraphicsMenu />
       </Group>
-      <Group label="Planning">
+      <Group label="Plan & Quote">
         <Big icon="ipPlan" label="IP Plan" onClick={() => setIpPlan(true)} title="VLANs and subnets of this client: gateway, DHCP range, how full each subnet is, the next free IP, and every device IP checked against them" />
         <Big icon="lifecycle" label="Lifecycle" onClick={() => setLifecycle(true)} title="Warranties and end-of-life dates (what to renew or replace in the next 90 days), and the client's ISP / carrier circuits with their monthly cost" />
+        <Big icon="csv" label="Bill of Materials" onClick={() => setBom(true)} title="What to order and what it costs: equipment by model, cable runs and patch cords, transceivers, jacks, racks, circuits; labor, markup and tax; and free ports per switch" />
+        <Big
+          icon="racks" label="Rack from Diagram"
+          title="Mount this page's rack equipment (firewall, patch panels, switches, servers, UPS) in new racks, one per location, laid out like real ones; its cables show as patch cords"
+          onClick={() => { if (!useDiagram.getState().buildRackFromDiagram()) alert('Nothing to mount: this page has no rack-mountable devices that aren\'t already in a rack.'); }}
+        />
       </Group>
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />
         <Big icon="label" label="Labels" onClick={() => setLabels(true)} title="Print cable labels (both ends), asset labels with a QR code, and patch panel port strips on Avery sheets" />
-        <Big icon="csv" label="Bill of Materials" onClick={() => setBom(true)} title="What to order: equipment by model, cable runs and patch cords by length, transceivers, jacks, racks and accessories, circuits; and free ports per switch" />
-      </Group>
-      <Group label="Validate">
-        <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} title="Find duplicate IPs, unconnected uplinks, missing details…" />
       </Group>
     </>
   );
@@ -1938,7 +1969,7 @@ function ReviewTab() {
   return (
     <>
       <Group label="Proofing">
-        <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} />
+        <Big icon="check" label="Check Diagram" onClick={() => window.dispatchEvent(new Event(OPEN_CHECK_EVENT))} title="Find mistakes and gaps: duplicate IPs, IPs outside the IP plan, ports used twice, unconnected uplinks, warranties ending, missing details…" />
       </Group>
       <Group label="Comments">
         <Big icon="note" label="New Comment" onClick={() => openComments(true)} title="Comment on the selected item" disabled={!hasSel} />
@@ -1969,7 +2000,6 @@ function ViewTab() {
   const navPane = usePref('navPane');
   const grid = usePref('grid');
   const breaks = usePref('pageBreaks');
-  const d = project.display ?? DEFAULT_DISPLAY;
   const diagram = view === 'diagram';
   return (
     <>
@@ -1978,11 +2008,6 @@ function ViewTab() {
         <Big icon="fullscreen" label="Full Screen" onClick={() => { setView('diagram'); setPresenting(true); }} title="Show the drawing alone, page by page (F5); arrow keys change page, Esc ends" />
         <Big icon="diagram" label="Diagram" active={diagram} onClick={() => setView('diagram')} />
         <Big icon="racks" label={`Racks${project.racks?.length ? ` (${project.racks.length})` : ''}`} active={!diagram} onClick={() => setView('racks')} />
-        <Big
-          icon="racks" label="Rack from Diagram"
-          title="Mount this page's rack equipment (firewall, patch panels, switches, servers, UPS) in a new rack, laid out like a real one; its cables show as patch cords"
-          onClick={() => { if (!useDiagram.getState().buildRackFromDiagram()) alert('Nothing to mount: this page has no rack-mountable devices that aren\'t already in a rack.'); }}
-        />
       </Group>
       <Group label="Zoom">
         <Big icon="fit" label="Fit Page" onClick={() => rf.fitView({ padding: 0.2, duration: 200 })} disabled={!diagram} title="Fit the whole page in the window" />
@@ -2001,7 +2026,7 @@ function ViewTab() {
         </Column>
         <Column>
           <Check label="Pan & Zoom" checked={minimap} onChange={(v) => setPref('minimap', v)} />
-          <Check label="Legend" checked={d.showLegend} onChange={(v) => useDiagram.getState().setDisplay({ showLegend: v })} />
+
           <Check label="Dynamic grid" checked={dynamicGrid} onChange={(v) => setPref('dynamicGrid', v)} title="While dragging, snap into line with other shapes and show guides" />
         </Column>
         <Column>

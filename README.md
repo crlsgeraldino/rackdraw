@@ -12,58 +12,69 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 
 ## Features
 
-- **Real front-panel stencils** — SonicWall TZ570/TZ670, 8/24/48-port switches, 24-port patch panel — where every
-  port is a connection point. Plus symbols for ISP, modem/ONT, AP, server, NAS, UPS, workstation, laptop, printer,
-  VoIP phone and IP camera.
-- **Cables** — drag from port to port. Pick the type (Cat6, Cat5e, Fiber, DAC, WAN, Console, Wireless, VPN), label,
-  VLAN and line color. Right-angle cables route **around devices** instead of through them. Connected ports light up.
-- **Device labels** — choose what each device shows (name, IP, model, location, serial, or nothing) and drag the label
-  wherever it reads best.
-- **Device data** — hostname, model, management IP, serial, location, notes.
-- **Port notes** — for every port: what's plugged in (even devices you don't draw: printers, cameras, phones, the
-  ISP handoff), its IP and VLAN, an **uplink** flag and notes. Shown on hover, marked on the device, and listed in
-  the PDF, printout and CSV.
-- **Info boxes** — a printable box beside any device with the details you pick (model, IP, serial, your own fields
-  like WAN IP / LAN subnet / gateway) and what each port connects to (uplinks, printers, APs…).
-- **Quick info** — hover a device for a floating card with its IP (copy / open), serial, rack, ports in use and
-  port notes. Turn it off under **View → Quick info on hover**.
-- **Zones and notes** — resizable rooms/racks and sticky notes.
-- **One diagram per client**, switchable from the toolbar, auto-saved in the browser. Save/open `.rackdraw.json` files
-  to back up or share.
-- **Export** — PDF report (diagram + device and connection tables), PNG (Word/email), SVG (Visio, Office, draw.io),
-  CSV (Excel).
-- Undo/redo (Ctrl+Z / Ctrl+Y), cut/copy/paste (Ctrl+X/C/V), duplicate (Ctrl+D), delete (Del), snap-to-grid, minimap.
-- **Arrange** — align, distribute, group, bring to front / send to back, lock, **auto-arrange** (top down by
-  cabling), **format painter** (copy/paste format).
-- **Line jumps** — where cables cross, one hops over the other, like Visio.
-- **Check diagram** — finds duplicate IPs and names, ports with two cables, unconnected uplinks, VLAN mismatches,
-  overlapping devices, missing stencils, broken links and missing details; click a problem to go to it.
-- **Find & replace** (Ctrl+F / Ctrl+H) across every page: names, IPs, serials, port notes, VLANs, labels.
-- **Hyperlinks** on devices, shapes and zones: a device's web UI, a ticket, or another page.
-- **Print** (Ctrl+P) and PDF with a **title block** on every sheet: client, site, drawing, prepared by, revision,
-  date, page X of Y.
+**Draw the network**
+- **76 built-in stencils** for every kind of network (PAN, WLAN, LAN, CAN, MAN, WAN), with a filter in the Shapes
+  window: front-panel switches (8–48 ports, PoE, core / aggregation), patch panels (24 / 48 / 96, fiber), firewalls,
+  routers, SD-WAN, APs, controllers, bridges, servers, storage, UPS, carrier gear, endpoints and cabling parts. Every
+  port is a connection point. Import vendor Visio stencils (`.vssx`) or your own pictures as devices.
+- **Cables** port to port, with type (Cat6 / 6a / 5e, single- and multimode fiber, DAC, coax, serial, wireless,
+  cellular, microwave, satellite, VPN…), VLAN, length and label. Right-angle cables route around devices, spread
+  into lanes and hop over each other.
+- **Device and port details**: hostname, model, IP, MAC, serial, asset tag, location, status, lifecycle dates,
+  circuit records; per port: what's plugged in, IP, VLAN, speed, PoE, status, notes. Your own fields (Define Shape
+  Data), info boxes, data graphics and colours by status / location / model / layer / warranty.
+- **Pages, zones, notes, floor plans** (walls, doors, windows, drawing scale, CAD / PDF backgrounds), shapes,
+  tables, callouts, layers, hyperlinks, comments, find & replace.
+
+**Racks and connections**
+- **Rack elevations** with realistic equipment, patch cords that match the diagram's cables, port hover cards and a
+  patching schedule. **Rack from Diagram** builds racks (one per location) from the page's equipment.
+- **Cable path tracing** through patch panels and wall jacks, with total lengths.
+
+**Plan and quote** (Data → Plan & Quote)
+- **IP Plan**: VLANs and subnets, DHCP ranges, next free IP, and IP checks.
+- **Lifecycle**: warranties and end-of-life dates, ISP / carrier circuits and their monthly cost.
+- **Bill of Materials**: what to order (equipment, cable footage, patch cords, transceivers, jacks, racks), with a
+  price book, labor estimate, markup, tax and a Word / Excel quote; port and PoE capacity per switch.
+- **Labels**: cable labels, asset labels with QR codes, patch panel strips, on Avery sheets.
+
+**Check and share**
+- **Check Diagram** (Review): duplicate IPs, IPs outside the plan, ports used twice, unconnected uplinks, VLAN
+  mismatches, warranties ending, missing details; click a problem to go to it.
+- **Templates** (File → New): small, medium and large networks with racks and IP plans, a PAN-to-WAN reference, a
+  server rack and a floor plan; save your own clients as templates.
+- **Export**: PDF report, Word report, PowerPoint, Visio `.vsdx`, web page, PNG / SVG, CSV and Excel. Print with a
+  title block, header and footer.
+- **Safe by default**: saved on this computer (never uploaded), Version History, File → Back up everything / Restore,
+  recovery if saved data is damaged.
 
 ## The window (laid out like Visio)
 
 - **Ribbon** across the top, with the Quick Access Toolbar (Save, Undo, Redo) and the client picker in the title
-  bar. Tabs: **File** (new, open, save, print, export PDF/PNG/SVG/CSV, delete), **Home** (clipboard, format painter,
-  text/dimension/zone tools, fill and line colour, align/distribute/order/group/lock/auto-arrange, find/replace/
-  select all), **Insert** (pages, floor-plan picture, image/Visio/library imports, shapes, zone, note, dimension),
-  **Design** (page size and orientation, drawing scale, title block, line jumps, data colours, legend, info boxes),
-  **Data** (Shape Data pane, Excel link, layers, Check Diagram), **Review** and **View** (diagram/racks, zoom,
-  rulers, grid, page breaks, Pan & Zoom, task panes). Selecting something adds a **Shape** tab for it.
-  Ctrl+F1 collapses the ribbon.
-- **Shapes** window on the left: search, **More Shapes** (Visio stencil import, image import, stencil libraries),
-  your libraries and the built-in stencils as folding title bars.
+  bar. Tabs:
+  - **File**: new client, open, save, Visio, Version History, templates, print, back up / restore, export, delete.
+  - **Home**: clipboard, tools, font, paragraph, shape style, arrange (align, distribute, order, group, lock,
+    auto-arrange, format painter), editing (find, replace, select).
+  - **Insert**: pages, pictures and plans, shapes, floor plan, tables, zones, notes, callouts, text.
+  - **Design**: page setup, drawing scale, layout, themes, backgrounds, connectors (line jumps), data colours and
+    legend, info boxes.
+  - **Data**: Shape Data, Define Shape Data, Device Table, Excel data, layers, data graphics, **Plan & Quote** (IP
+    Plan, Lifecycle, Bill of Materials, Rack from Diagram), Reports and Labels.
+  - **Review**: Check Diagram, comments, find.
+  - **View**: diagram / racks, full screen, zoom, show (rulers, grid, page breaks, Pan & Zoom, quick info), task
+    panes.
+  - Selecting something adds a **Shape** tab for it. Ctrl+F1 collapses the ribbon.
+- **Shapes** window on the left: search, network-type filter (PAN … WAN), **More Shapes** (Visio stencil import,
+  image import, stencil libraries), your libraries and the built-in stencils as folding title bars.
 - **Drawing page**: a white page of the chosen paper size that grows by whole sheets to fit the drawing, with grid,
   dashed page breaks and **rulers** (inches, cm, or the page's drawing scale).
-- **Shape Data** pane on the right with folding sections (Shape Data, Ports, Display, Size & Position); with nothing
-  selected it shows the page and client.
+- **Shape Data** pane on the right with folding sections (Shape Data, Lifecycle, Circuit, Ports, Display, Size &
+  Position); with nothing selected it shows the page and client.
 - **Status bar**: page number, the selection's size and position, zoom slider, 100%, fit page, Pan & Zoom.
 
 ## Run locally
 
-Requires Node 18.18+.
+Requires Node 22.6+ (Node 18.18+ runs the app; the tests need 22.6+).
 
 ```bash
 npm install
@@ -468,7 +479,7 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   end or both. Right-angle routes leave the port straight out of the device, then take the shortest path with the
   fewest bends that keeps clear of every device, note and shape on the page, and re-route as you move things.
 - **Line color**: pick a color for a cable (or several selected cables) in the right panel; **Auto** goes back to
-  coloring by cable type or VLAN (View menu). Dashes and thickness still follow the cable type.
+  coloring by cable type or VLAN (Design → Data Colours). Dashes and thickness still follow the cable type.
 - **Device labels**: in the right panel, *Show on the diagram* picks the fields under a device (name, IP, model,
   location, serial; untick all to hide the label). Works on several selected devices at once. Drag a label on the
   canvas to move it; *Reset position* puts it back.
@@ -562,7 +573,7 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
   Select several items with Shift+click, or Shift+drag a box.
 - A **group** is selected and moved as one; ungroup to edit the members on their own.
 - **Lock position** keeps items from being moved, resized, deleted or aligned (handy for a wall-mounted rack or a
-  room outline). Locked items can still be selected and edited; unlock them from the Arrange menu or the right panel.
+  room outline). Locked items can still be selected and edited; unlock them from Home → Arrange or the right panel.
 - **Find** (Ctrl+F) searches every page of the client: device name, model, IP, MAC, serial, asset tag, location,
   notes, links, port descriptions and VLANs, zone titles, notes, shape text, and cable labels/VLANs.
   Enter / Shift+Enter step through results and zoom to each one. **Replace** (Ctrl+H, or ▸ in the find bar)
@@ -631,14 +642,14 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 - **Parallel cables get their own lanes**: where several right-angle cables would run on the same line (e.g. a switch
   feeding a row of workstations), they're spread a few pixels apart, ordered so the bundle doesn't cross itself.
 - **Line jumps**: where two cables cross, the horizontal one hops over the vertical one (prints and exports too).
-  Turn off under **View → Line jumps where cables cross**.
-- **Arrange → Auto-arrange (top down)** lays out the selected devices (or the whole page) in rows by cabling:
+  Turn off under **Design → Connectors → Line jumps**.
+- **Home → Arrange → Auto-arrange (top down)** lays out the selected devices (or the whole page) in rows by cabling:
   ISP, firewall, core switch, access switches, then APs/servers/endpoints, each under what it connects to;
   unconnected devices go on the last row. Leaves room for info boxes and labels. Ctrl+Z undoes it.
-- **Arrange → Copy format / Paste format** (format painter): copy a cable's type, color, routing and arrows, a
+- **Home → Format Painter / Paste format**: copy a cable's type, color, routing and arrows, a
   shape's colors/border/text size, or a device's label fields, info-box settings and status, then paste onto other
   selected items of the same kind.
-- **Arrange → Check diagram…** lists problems across every page: duplicate device IPs (also inside `https://…`
+- **Review → Check Diagram** lists problems across every page: duplicate device IPs (also inside `https://…`
   addresses) and names, duplicate port IPs, ports with two cables, uplinks with nothing connected, cable VLANs that
   disagree with the port VLAN, overlapping devices, missing stencils and links to deleted pages; tick *Show missing
   details* for devices without IP, serial or connections. It updates as you edit; click a line to go there.
@@ -669,7 +680,7 @@ The **View** menu works like Visio's layers and data graphics:
   canvas and on each PDF diagram page.
 - Every device has a **status** (Active, Planned, Offline, Retired). Planned devices are drawn dashed (handy for
   proposals), retired ones faded.
-- **Layers** group devices and cables (e.g. Cameras, Wi-Fi, Power, Planned work). Create them in the View menu, put
+- **Layers** group devices and cables (e.g. Cameras, Wi-Fi, Power, Planned work). Create them in Data → Layers, put
   the selection on a layer (or set it in the properties panel), and tick a layer off to hide everything on it, on the
   canvas and in picture/PDF exports. Tables in the PDF/CSV still list everything.
 - **Layer properties** (Data → Layers), like Visio's: per layer **Visible**, **Print** (untick to leave it out of
@@ -722,7 +733,7 @@ The **Data** menu links devices to a spreadsheet, like Visio's *Link Data to Sha
 
 ## Racks
 
-Switch to **Racks** in the toolbar to draw rack elevations for the client.
+Switch to **Racks** (View → Racks) to draw rack elevations for the client.
 
 - **+ Add rack** in any standard size (6U–48U); several racks per client.
 - Drag devices from **On the diagram, not racked** into the rack, or drag a **New device** in (it is added to the
@@ -986,10 +997,20 @@ properties panel. See `sonicwallTz` and `switchStencil()` for examples.
 
 ```
 src/
-  app/                 Next.js entry (static page that loads the editor client-side)
-  components/          Editor, toolbar, palette, properties panel, node and cable renderers
-  lib/stencils.tsx     Device catalog and artwork
-  lib/export.ts        PDF / PNG / SVG / CSV export and project files
-  lib/types.ts         Data model
-  store/               Zustand store (projects, history, persistence)
+  app/                    Next.js entry (static page that loads the editor client-side)
+  components/             Editor, palette, Shape Data pane, canvas nodes and cables, rack views, dialogs
+  components/ribbon/      Ribbon tabs, buttons and icons
+  lib/stencils.tsx        Built-in stencil catalog and artwork
+  lib/templates.ts        File → New templates
+  lib/types.ts            Data model
+  lib/visio/              Visio .vssx / .vsdx / .vstx import and .vsdx export
+  lib/export.ts           PDF / PNG / SVG / CSV export and project files (also print.ts, wordReport.ts, docx.ts…)
+  lib/trace.ts            Cable path tracing through patch panels
+  lib/rackPatching.ts     Rack patch cords and patching schedule;  lib/autoRack.ts  Rack from Diagram
+  lib/ipam.ts             IP plan;  lib/lifecycle.ts  lifecycle and circuits
+  lib/bom.ts, quote.ts    Bill of Materials and quote;  lib/labels.ts, qr.ts  label printing
+  lib/persistence.ts      Saving (batched, failure reporting);  lib/backup.ts, sanitize.ts  backup and file checks
+  store/                  Zustand store (clients, history, versions)
+electron/                 Desktop app shell
+tests/                    Unit tests (npm test)
 ```
