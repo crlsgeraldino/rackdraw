@@ -2,7 +2,7 @@
 
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
-import { planRack } from '@/lib/autoRack';
+import { planRacks } from '@/lib/autoRack';
 import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
@@ -2070,11 +2070,12 @@ export const useDiagram = create<DiagramState>()(
           const mounted = new Set(racks.flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
           const devices = page().nodes.filter((n): n is DeviceNode => n.type === 'device' && !mounted.has(n.id));
           const cables = p.pages.flatMap((pg) => pg.edges.map((e) => ({ a: e.source, b: e.target })));
-          const { rack, mounted: count } = planRack(name || `Rack ${String.fromCharCode(65 + racks.length)}`, devices, getStencil, cables);
+          // One rack per Location (MDF, IDF-1…) when the devices say where they are; otherwise a single rack.
+          const { racks: built, mounted: count } = planRacks(name || `Rack ${String.fromCharCode(65 + racks.length)}`, devices, getStencil, cables);
           if (!count) return 0;
           get().snapshot();
-          commit({ racks: [...racks, rack] });
-          set({ activeRackId: rack.id, selectedRackItemId: null, view: 'racks' });
+          commit({ racks: [...racks, ...built] });
+          set({ activeRackId: built[0].id, selectedRackItemId: null, view: 'racks' });
           return count;
         },
         updateRack: (id, patch) => {

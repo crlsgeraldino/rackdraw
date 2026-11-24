@@ -69,20 +69,46 @@ function switchStencil(id: string, name: string, copper: number, sfp: number, po
   };
 }
 
+/**
+ * Aggregation / core switch: `sfp` 10G SFP+ ports (X1, X2… odd on top, even below, like a copper switch) and `qsfp`
+ * 40/100G QSFP uplinks (Q1…). The backbone of medium and large networks: IDF uplinks, servers, storage.
+ */
+function fiberSwitch(id: string, name: string, sfp: number, qsfp: number, model: string): StencilDef {
+  const ports: PortDef[] = [];
+  const startX = 150, pitch = 52, groupGap = 16;
+  let lastX = startX;
+  for (let c = 0; c < sfp / 2; c++) {
+    const x = startX + c * pitch + Math.floor(c / 6) * groupGap;
+    lastX = x;
+    ports.push({ id: `X${c * 2 + 1}`, label: `${c * 2 + 1}`, kind: 'sfp', x, y: 14, w: 46, h: 34, side: 'top' });
+    ports.push({ id: `X${c * 2 + 2}`, label: `${c * 2 + 2}`, kind: 'sfp', x, y: 52, w: 46, h: 34, side: 'bottom' });
+  }
+  const qStart = lastX + 80;
+  for (let q = 0; q < qsfp; q++) {
+    const top = q % 2 === 0;
+    ports.push({ id: `Q${q + 1}`, label: `Q${q + 1}`, kind: 'sfp', x: qStart + Math.floor(q / 2) * 70, y: top ? 14 : 52, w: 62, h: 34, side: top ? 'top' : 'bottom' });
+  }
+  ports.push({ id: 'CONSOLE', label: 'Console', kind: 'console', x: 40, y: 30, w: 44, h: 40, side: 'top' });
+  return {
+    id, name, category: 'Switching', width: qStart + Math.ceil(qsfp / 2) * 70 + 60, height: 100, scale: 0.5, style: 'panel', ports, rackUnits: 1,
+    defaults: { model },
+  };
+}
+
 /** Patch panel: rows of 24 ports (1U each, like standard 24 / 48 / 96-port panels), numbered left to right, row by row. */
-function patchPanel(count: number): StencilDef {
+function patchPanel(count: number, fiber = false): StencilDef {
   const perRow = Math.min(24, count);
   const rows = Math.ceil(count / perRow);
   const ports: PortDef[] = [];
   for (let i = 0; i < count; i++) {
     const c = i % perRow, r = Math.floor(i / perRow);
     const x = 90 + c * 36 + Math.floor(c / 6) * 14;
-    ports.push({ id: `PP${i + 1}`, label: `${i + 1}`, kind: 'rj45', x, y: 34 + r * 90, w: 30, h: 28, side: 'bottom' });
+    ports.push({ id: `PP${i + 1}`, label: `${i + 1}`, kind: fiber ? 'sfp' : 'rj45', x, y: 34 + r * 90, w: 30, h: 28, side: 'bottom' });
   }
   return {
-    id: `patch-panel-${count}`, name: `Patch panel ${count}-port`, category: 'Switching',
+    id: fiber ? `patch-panel-fiber-${count}` : `patch-panel-${count}`, name: fiber ? `Fiber patch panel ${count}-port LC` : `Patch panel ${count}-port`, category: 'Switching',
     width: 90 + perRow * 36 + Math.floor(perRow / 6) * 14 + 60, height: 90 * rows, scale: 0.5, style: 'panel', ports, rackUnits: rows,
-    defaults: { model: `${count}-port Cat6 patch panel (${rows}U)` },
+    defaults: { model: fiber ? `${count}-port LC duplex fiber panel, OM4 (${rows}U)` : `${count}-port Cat6 patch panel (${rows}U)` },
   };
 }
 
@@ -102,15 +128,21 @@ export const STENCILS: StencilDef[] = [
   sonicwallTz,
   switchStencil('switch-24-poe', 'Switch 24-port PoE + 4 SFP', 24, 4, true),
   switchStencil('switch-48', 'Switch 48-port + 4 SFP', 48, 4, false),
+  switchStencil('switch-48-poe', 'Switch 48-port PoE + 4 SFP+', 48, 4, true),
   switchStencil('switch-8', 'Switch 8-port + 2 SFP', 8, 2, false),
+  fiberSwitch('switch-core-24sfp', 'Core / aggregation switch 24× SFP+ + 4× QSFP', 24, 4, '24× 10G SFP+, 4× 40/100G QSFP28 L3 switch'),
   patchPanel(24),
   patchPanel(48),
   patchPanel(96),
+  patchPanel(24, true),
+  icon('firewall', 'Firewall (1U)', 'Firewalls', [{ id: 'WAN', label: 'WAN', side: 'top', kind: 'rj45' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'sfp' }, { id: 'HA', label: 'HA / sync', side: 'right', kind: 'rj45' }, { id: 'MGMT', label: 'Management', side: 'left', kind: 'rj45' }], { model: 'Next-gen firewall' }, 1),
+  icon('router', 'Router (1U)', 'WAN', [{ id: 'WAN', label: 'WAN 1', side: 'top', kind: 'rj45' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }, { id: 'WAN2', label: 'WAN 2', side: 'right', kind: 'rj45' }], { model: 'Edge router' }, 1),
   icon('internet', 'Internet / ISP', 'WAN', [{ id: 'WAN', label: 'WAN', side: 'bottom' }]),
   icon('modem', 'ISP modem / ONT', 'WAN', [{ id: 'UPLINK', label: 'Uplink', side: 'top' }, { id: 'LAN', label: 'LAN', side: 'bottom', kind: 'rj45' }]),
   icon('access-point', 'Wireless access point', 'Wireless', [{ id: 'ETH', label: 'PoE uplink', side: 'top', kind: 'rj45' }, { id: 'WIFI', label: 'Wireless', side: 'bottom' }]),
   icon('server', 'Server', 'Servers', [{ id: 'NIC1', label: 'NIC 1', side: 'top', kind: 'rj45' }, { id: 'MGMT', label: 'iDRAC / iLO', side: 'left', kind: 'rj45' }, { id: 'NIC2', label: 'NIC 2', side: 'right', kind: 'rj45' }], undefined, 2),
   icon('nas', 'NAS', 'Servers', [{ id: 'NIC1', label: 'NIC 1', side: 'top', kind: 'rj45' }], undefined, 1),
+  icon('san', 'SAN / storage array', 'Servers', [{ id: 'CTRL-A', label: 'Controller A', side: 'top', kind: 'sfp' }, { id: 'CTRL-B', label: 'Controller B', side: 'right', kind: 'sfp' }, { id: 'MGMT', label: 'Management', side: 'left', kind: 'rj45' }], { model: 'Dual-controller storage array' }, 2),
   icon('workstation', 'Workstation', 'Endpoints', [{ id: 'NIC', label: 'NIC', side: 'top', kind: 'rj45' }]),
   icon('laptop', 'Laptop', 'Endpoints', [{ id: 'NIC', label: 'NIC / Wi-Fi', side: 'top' }]),
   icon('printer', 'Printer / MFP', 'Endpoints', [{ id: 'NIC', label: 'NIC', side: 'top', kind: 'rj45' }]),
@@ -222,9 +254,10 @@ function SwitchDecor({ s }: { s: StencilDef }) {
       <text x={110} y={48} fontSize={8} fill="#cfcfcf" textAnchor="middle">PWR</text>
       <text x={40} y={90} fontSize={9} fill="#cfcfcf">CONSOLE</text>
       <text x={s.width - 20} y={92} fontSize={9} fill="#9a9a9a" textAnchor="end">{leds * 2 > 0 ? `${leds * 2}P` : ''}</text>
-      {s.ports.filter((p) => p.kind === 'rj45').map((p) => (
+      {s.ports.filter((p) => p.kind === 'rj45' || (p.kind === 'sfp' && s.id.startsWith('switch-core'))).map((p) => (
         <text key={p.id} x={p.x + p.w / 2} y={p.side === 'top' ? p.y - 2 : p.y + p.h + 9} fontSize={7} fill="#cfcfcf" textAnchor="middle">{p.label}</text>
       ))}
+      {s.id.startsWith('switch-core') && <text x={110} y={80} fontSize={9} fill="#7dd3fc" textAnchor="middle">L3</text>}
     </g>
   );
 }
@@ -249,6 +282,20 @@ function PatchDecor({ s }: { s: StencilDef }) {
   );
 }
 
+/** A fiber panel's LC duplex adapters (aqua, OM4), drawn over its ports. */
+function FiberAdapters({ s }: { s: StencilDef }) {
+  return (
+    <g pointerEvents="none">
+      {s.ports.map((p) => (
+        <g key={p.id}>
+          <rect x={p.x + 3} y={p.y + 5} width={p.w / 2 - 4} height={p.h - 10} rx={1.5} fill="#22d3ee" opacity={0.85} />
+          <rect x={p.x + p.w / 2 + 1} y={p.y + 5} width={p.w / 2 - 4} height={p.h - 10} rx={1.5} fill="#22d3ee" opacity={0.85} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 /** Front-panel artwork. `width`/`height` override the diagram size (the rack view draws it to fit a slot). */
 export function PanelArt({ stencil, portStates, width, height }: { stencil: StencilDef; portStates: Record<string, PortState>; width?: number; height?: number }) {
   const decor: ReactNode =
@@ -263,6 +310,7 @@ export function PanelArt({ stencil, portStates, width, height }: { stencil: Sten
       <rect x={0} y={stencil.height - 6} width={stencil.width} height={6} rx={2} fill="#1c1c1e" />
       {decor}
       {stencil.ports.map((p) => <PortArt key={p.id} port={p} state={portStates[p.id] ?? 'idle'} />)}
+      {stencil.id.startsWith('patch-panel-fiber') && <FiberAdapters s={stencil} />}
     </svg>
   );
 }
@@ -302,6 +350,15 @@ export function IconArt({ id, size = 64 }: { id: string; size?: number }) {
       break;
     case 'camera':
       body = (<g {...s}><rect x={10} y={22} width={34} height={18} rx={4} fill="#f3f4f6" /><path d="M44 27 L54 22 V40 L44 35" fill="#e5e7eb" /><path d="M20 40 V50 M14 50 H28" /><circle cx={18} cy={31} r={3} fill={accent} stroke="none" /></g>);
+      break;
+    case 'firewall':
+      body = (<g {...s}><rect x={8} y={14} width={48} height={36} rx={2} fill="#fee2e2" stroke="#b91c1c" /><path stroke="#b91c1c" d="M8 26 H56 M8 38 H56 M20 14 V26 M38 14 V26 M28 26 V38 M46 26 V38 M18 38 V50 M38 38 V50" /></g>);
+      break;
+    case 'router':
+      body = (<g {...s}><ellipse cx={32} cy={36} rx={24} ry={12} fill="#f3f4f6" /><path d="M8 36 V28 M56 36 V28" /><ellipse cx={32} cy={28} rx={24} ry={12} fill="#f3f4f6" /><path stroke={accent} d="M22 24 L28 28 M22 24 L22 29 M42 32 L36 28 M42 32 L42 27 M24 33 H40 M36 22 L42 24 L36 26" /></g>);
+      break;
+    case 'san':
+      body = (<g {...s}><rect x={10} y={12} width={44} height={18} rx={2} fill="#f3f4f6" /><rect x={10} y={34} width={44} height={18} rx={2} fill="#f3f4f6" /><path d="M16 17 V25 M22 17 V25 M28 17 V25 M34 17 V25 M16 39 V47 M22 39 V47 M28 39 V47 M34 39 V47" /><circle cx={47} cy={21} r={2} fill="#22c55e" stroke="none" /><circle cx={47} cy={43} r={2} fill="#22c55e" stroke="none" /></g>);
       break;
     case 'ups':
       body = (<g {...s}><rect x={16} y={10} width={32} height={44} rx={3} fill="#f3f4f6" /><path stroke={accent} d="M34 18 L26 32 H34 L30 46" /></g>);

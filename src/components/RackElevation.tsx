@@ -210,7 +210,7 @@ function DeviceFace({ x, y, h, device, stencil, ports }: { x: number; y: number;
   const w = INNER_W;
   const kind = stencil?.id ?? '';
   const name = device?.data.name ?? 'Device';
-  const drives = kind === 'server' || kind === 'nas';
+  const drives = kind === 'server' || kind === 'nas' || kind === 'san';
   const parts: ReactNode[] = [<Face key="f" x={x} y={y} w={w} h={h} light={drives} />];
   const ink = drives ? '#1f2937' : '#e5e7eb';
 
@@ -264,6 +264,23 @@ function DeviceFace({ x, y, h, device, stencil, ports }: { x: number; y: number;
 /** The back of any device: power supplies with fans and a handle, a row of fans, and its network ports. */
 function DeviceRear({ x, y, h, device, stencil, ports }: { x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState> }) {
   const w = INNER_W;
+  if (stencil?.id.startsWith('patch-panel-fiber')) {
+    // A fiber panel's back: splice cassettes with the trunk's fibers coiled in, and the trunk cable gland.
+    const parts: ReactNode[] = [<Face key="f" x={x} y={y} w={w} h={h} fill="#202227" />];
+    for (let b = 0; b < 4; b++) {
+      const bx = x + 34 + b * 96, cy = y + h / 2;
+      parts.push(
+        <g key={b}>
+          <rect x={bx} y={cy - 10} width={84} height={20} rx={3} fill="#374151" stroke="#6b7280" />
+          <ellipse cx={bx + 42} cy={cy} rx={30} ry={6} fill="none" stroke="#22d3ee" strokeWidth={1.2} opacity={0.8} />
+          <ellipse cx={bx + 42} cy={cy} rx={24} ry={4} fill="none" stroke="#f59e0b" strokeWidth={1} opacity={0.7} />
+        </g>,
+      );
+    }
+    parts.push(<circle key="gl" cx={x + w - 40} cy={y + h / 2} r={Math.min(9, h / 2 - 3)} fill="#111" stroke="#9ca3af" />);
+    parts.push(<text key="n" x={x + w - 56} y={y + h - 4} fontSize={8} fill="#d1d5db" textAnchor="end">{device?.data.name ?? 'Fiber panel'} (rear)</text>);
+    return <>{parts}</>;
+  }
   if (stencil?.id.startsWith('patch')) {
     // A patch panel's back: punch-down (110) blocks, one per six ports, with the cable bundles tied off.
     const parts: ReactNode[] = [<Face key="f" x={x} y={y} w={w} h={h} fill="#202227" />];

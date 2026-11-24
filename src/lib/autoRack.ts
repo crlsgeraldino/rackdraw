@@ -49,12 +49,20 @@ export function planRack(name: string, devices: DeviceNode[], stencil: (id: stri
   for (const g of by('edge')) top.push({ g });
   const panels = by('panel');
   const switches = by('switch');
+  // Pair each panel with the switch it is patched to most (strongest pairs first), so an IDF's copper panels sit
+  // right above their own switches and a fiber panel that only carries uplinks goes to the top.
+  const pairs = panels.flatMap((p) => switches.map((s) => ({ p, s, n: linked(p.d.id, s.d.id) }))).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const partner = new Map<string, (typeof gear)[number]>();
   const placedSw = new Set<string>();
+  for (const x of pairs) {
+    if (partner.has(x.p.d.id) || placedSw.has(x.s.d.id)) continue;
+    partner.set(x.p.d.id, x.s);
+    placedSw.add(x.s.d.id);
+  }
+  for (const p of panels) if (!partner.has(p.d.id)) top.push({ g: p });
   for (const p of panels) {
-    // The switch this panel is patched to most.
-    const sw = switches.filter((s) => !placedSw.has(s.d.id)).sort((a, b) => linked(p.d.id, b.d.id) - linked(p.d.id, a.d.id))[0];
-    top.push({ g: p }, { acc: 'cable-manager' });
-    if (sw && linked(p.d.id, sw.d.id) > 0) { top.push({ g: sw }); placedSw.add(sw.d.id); }
+    const sw = partner.get(p.d.id);
+    if (sw) top.push({ g: p }, { acc: 'cable-manager' }, { g: sw });
   }
   for (const s of switches) if (!placedSw.has(s.d.id)) top.push({ g: s }, { acc: 'cable-manager' });
   if (top.length && top[top.length - 1].acc) top.pop();
@@ -83,4 +91,28 @@ export function planRack(name: string, devices: DeviceNode[], stencil: (id: stri
   if (b <= u) add({ kind: 'pdu', label: 'PDU', u: b, height: 1, depth: 'rear' });
 
   return { rack: { id: `r-${uid()}`, name, units, items }, mounted: gear.length };
+}
+
+/**
+ * Plans one rack per room for medium and large networks: devices are grouped by their Location (MDF, IDF-1,
+ * Building B…), each group gets its own rack named after it. Devices without a location share a rack named
+ * `fallbackName`. Returns the racks (not yet added) and how many devices they hold.
+ */
+export function planRacks(fallbackName: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { racks: Rack[]; mounted: number } {
+  const groups = new Map<string, DeviceNode[]>();
+  for (const d of devices) {
+    if (!rackUnitsOf(stencil(d.data.stencilId))) continue;
+    const where = (d.data.location ?? '').trim();
+    groups.set(where, [...(groups.get(where) ?? []), d]);
+  }
+  const racks: Rack[] = [];
+  let mounted = 0;
+  for (const [where, list] of groups) {
+    const { rack, mounted: n } = planRack(where ? `${where} rack` : fallbackName, list, stencil, cables, options);
+    if (!n) continue;
+    if (where) rack.location = where;
+    racks.push(rack);
+    mounted += n;
+  }
+  return { racks, mounted };
 }

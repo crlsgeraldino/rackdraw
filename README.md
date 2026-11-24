@@ -708,8 +708,24 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   equipment that isn't in a rack yet in a new rack sized to fit (with a few spare units), laid out the way a tech
   would: firewall / router at the top, each patch panel above the switch it is patched to with a cable manager
   between, other switches, a blanking panel, servers and storage, the UPS at the bottom and a PDU on the rear. The
-  diagram's cables appear as patch cords straight away.
-- **File → New → Office network + rack**: a complete office (ISP, firewall, PoE switch, patch panel with eight
+  diagram's cables appear as patch cords straight away. When the devices have a **Location** (MDF, IDF-1,
+  Building B IDF…), it builds **one rack per location**, each named after its room; an unmatched fiber panel (one
+  that only carries uplinks) goes at the top of its rack.
+- **Small, medium and large networks** (File → New):
+  - **Small network + rack (up to 25 users)**: one wiring closet (the former "Office network + rack").
+  - **Medium network (25–150 users)**: three floors. Dual-WAN firewall (fiber ISP + cable backup), a 10G core
+    switch with two hosts and a backup NAS in the MDF, and an IDF per floor fed by an OM4 fiber backbone through
+    fiber panels at both ends; 48-port PoE access switches, 48-port patch panels and a UPS in every room. Three racks.
+  - **Large network (150+ users, campus)**: two ISPs on an HA firewall pair, a redundant core pair with a 100G
+    inter-switch link, four virtualization hosts, a dual-controller SAN, backup NAS and an out-of-band management
+    switch in the data center, and three buildings each with a two-switch access stack dual-homed to both cores over
+    single-mode fiber. Four racks (a 32U data center rack and an 18U rack per building).
+  - Every drop is traced end to end (endpoint → patch panel → access switch → fiber panels → core), with wall jacks,
+    lengths, VLANs (1 / 10 data / 20 voice / 30 cameras), port speeds and PoE filled in.
+- **Equipment for bigger networks**: Switch 48-port PoE + 4 SFP+, Core / aggregation switch (24× SFP+, 4× QSFP28),
+  Fiber patch panel 24-port LC (aqua OM4 adapters on the front, splice cassettes on the back), Firewall (1U, WAN /
+  LAN / HA / management), Router (1U, dual WAN) and SAN / storage array (2U, two controllers).
+- **File → New → Small network + rack**: a complete office (ISP, firewall, PoE switch, patch panel with eight
   wall-jack runs to APs, PCs, printer, camera and phone, server, NAS, UPS) with VLANs, lengths and port details, and
   the same equipment in an 18U rack built that way.
 - **Patch panels**: 24-port (1U), **48-port (2U)** and **96-port (4U)**, in rows of 24 numbered left to right, row
