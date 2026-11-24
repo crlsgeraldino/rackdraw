@@ -241,13 +241,23 @@ export class VisioPackage {
     // Text (simple: one centred line block)
     const textEl = children(s, 'Text')[0];
     const text = textEl?.textContent?.replace(/\s+/g, ' ').trim();
-    if (text) {
+    // Hidden text (HideText) isn't drawn: Visio shows it only when the shape's settings turn it on.
+    if (text && cell(s, 'HideText') !== '1') {
       const charSec = section(s, 'Character');
       const row = charSec ? children(charSec, 'Row')[0] : undefined;
       const size = num(row ? cell(row, 'Size') : get('Size', 'text'), 0.1111);
       const tc = color(row ? cell(row, 'Color') : null) ?? '#000000';
-      const tx = num(cell(s, 'TxtPinX'), t.w / 2), ty = num(cell(s, 'TxtPinY'), t.h / 2);
-      parts.push(`<g transform="matrix(1 0 0 -1 ${r3(tx)} ${r3(ty)})"><text font-size="${r3(size)}" font-family="Segoe UI, Arial, sans-serif" fill="${tc}" text-anchor="middle" dominant-baseline="central">${esc(text)}</text></g>`);
+      // The text block: TxtPinX/Y is where its anchor point (TxtLocPinX/Y) sits; by default the block is the shape.
+      const tw = num(cell(s, 'TxtWidth'), t.w), th = num(cell(s, 'TxtHeight'), t.h);
+      const bx = num(cell(s, 'TxtPinX'), t.w / 2) - num(cell(s, 'TxtLocPinX'), tw / 2);
+      const by = num(cell(s, 'TxtPinY'), t.h / 2) - num(cell(s, 'TxtLocPinY'), th / 2);
+      const ty = by + th / 2;
+      // Left / right aligned text starts at the block's edge (inside its margin), as Visio draws it.
+      const align = num(paraCell(s, 'HorzAlign', this.styles), 1);
+      const left = num(get('LeftMargin', 'text'), 0.0556), right = num(get('RightMargin', 'text'), 0.0556);
+      const x = align === 0 ? bx + left : align === 2 ? bx + tw - right : bx + tw / 2;
+      const anchor = align === 0 ? 'start' : align === 2 ? 'end' : 'middle';
+      parts.push(`<g transform="matrix(1 0 0 -1 ${r3(x)} ${r3(ty)})"><text font-size="${r3(size)}" font-family="Segoe UI, Arial, sans-serif" fill="${tc}" text-anchor="${anchor}" dominant-baseline="central">${esc(text)}</text></g>`);
     }
 
     if (!parts.length) return '';
@@ -269,6 +279,19 @@ export class VisioPackage {
     const ctx: Ctx = { pkg: this, rels, folder: page.file.slice(0, page.file.lastIndexOf('/')), encodeDib, warnings };
     const shapesEl = doc.getElementsByTagNameNS(NS, 'Shapes')[0];
     const tops = shapesEl ? children(shapesEl, 'Shape') : [];
+    // A shape drawn from a master only stores what differs from it: fill in the rest (size, geometry, text, styles,
+    // sub-shapes) from the master, as Visio does, so every copy is drawn at its own size with its own text.
+    for (const s of tops) {
+      const mid = s.getAttribute('Master');
+      const ms = mid ? this.masterShape(mid) : null;
+      if (ms) inheritFrom(s, ms);
+    }
+    // Connectors glued to a part of a group (a row of a table) count as glued to the group.
+    const topOf = new Map<string, string>();
+    for (const s of tops) {
+      const id = s.getAttribute('ID') ?? '';
+      for (const d of Array.from(s.getElementsByTagNameNS(NS, 'Shape'))) topOf.set(d.getAttribute('ID') ?? '', id);
+    }
     const H = page.heightIn;
     const toPx = ([x, y]: [number, number]): [number, number] => [x * PX, (H - y) * PX];
     const items: PageItem[] = [];
@@ -303,7 +326,10 @@ export class VisioPackage {
       const layers = layerMember ? layerMember.split(';').map(Number).filter((x) => Number.isFinite(x)) : undefined;
       const userSec = section(s, 'User');
       const container = !!userSec && children(userSec, 'Row').some((r) => r.getAttribute('N') === 'msvStructureType' && /container/i.test(cell(r, 'Value') ?? ''));
-      const base = { id, name, text, data, ...bbox, textColor, fontPx, layers, container };
+      // Every Shape Data field name (even empty ones) and the master's name: what kind of thing the shape is.
+      const fields = prop ? children(prop, 'Row').map((row) => cell(row, 'Label') || row.getAttribute('N') || '').filter(Boolean) : [];
+      const masterName = s.getAttribute('Master') ? this.allMasters.get(s.getAttribute('Master')!)?.name : undefined;
+      const base = { id, name, text, data, ...bbox, textColor, fontPx, layers, container, fields, masterName };
 
       const geos = sections(s, 'Geometry').filter((g) => cell(g, 'NoShow') !== '1');
       const sub = s.getElementsByTagNameNS(NS, 'Shapes')[0];
@@ -320,7 +346,8 @@ export class VisioPackage {
         else pts = [toPx([num(cell(s, 'BeginX')), num(cell(s, 'BeginY'))]), toPx([num(cell(s, 'EndX')), num(cell(s, 'EndY'))])];
         items.push({
           ...base, kind: 'line', points: pts, lineColor: lineColor ?? '#000000', lineWidthPx, dashed: linePattern > 1,
-          arrows: { start: num(get('BeginArrow', 'line')) > 0, end: num(get('EndArrow', 'line')) > 0 },
+          // Arrowheads only: Visio's higher arrow styles (25 and up) are crow's-foot / ER marks, not arrows.
+          arrows: { start: isArrowhead(num(get('BeginArrow', 'line'))), end: isArrowhead(num(get('EndArrow', 'line'))) },
         });
         continue;
       }
@@ -375,12 +402,31 @@ export class VisioPackage {
     for (const c of Array.from(doc.getElementsByTagNameNS(NS, 'Connect'))) {
       const fromCell = c.getAttribute('FromCell');
       if (fromCell !== 'BeginX' && fromCell !== 'EndX') continue;
-      connects.push({ connector: c.getAttribute('FromSheet') ?? '', end: fromCell === 'BeginX' ? 'begin' : 'end', shape: c.getAttribute('ToSheet') ?? '' });
+      const to = c.getAttribute('ToSheet') ?? '';
+      connects.push({ connector: c.getAttribute('FromSheet') ?? '', end: fromCell === 'BeginX' ? 'begin' : 'end', shape: topOf.get(to) ?? to });
     }
     return { items, connects, warnings };
   }
 
   /** A master's drawing, rendered once per file. */
+  private masterShapes = new Map<string, Element | null>();
+
+  /** The top shape of a master (what drawn copies inherit from). */
+  private masterShape(id: string): Element | null {
+    if (!this.masterShapes.has(id)) {
+      const m = this.allMasters.get(id);
+      const xml = m ? this.text(m.file) : null;
+      let top: Element | null = null;
+      if (xml) {
+        const d = new DOMParser().parseFromString(xml, 'application/xml');
+        const sh = d.getElementsByTagNameNS(NS, 'Shapes')[0];
+        top = sh ? children(sh, 'Shape')[0] ?? null : null;
+      }
+      this.masterShapes.set(id, top);
+    }
+    return this.masterShapes.get(id)!;
+  }
+
   private masterRender(id: string, encodeDib: DibEncoder): RenderedMaster | null {
     if (!this.masterRenders.has(id)) {
       const m = this.allMasters.get(id);
@@ -485,6 +531,10 @@ export interface PageItem {
   text: string;
   /** Shape Data (label → value). */
   data: Record<string, string>;
+  /** Names of all its Shape Data fields, filled in or not. */
+  fields?: string[];
+  /** The name of the master it was drawn from. */
+  masterName?: string;
   x: number;
   y: number;
   w: number;
@@ -527,6 +577,42 @@ interface Ctx {
 /*  XML helpers                                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Copies into a drawn shape whatever it leaves to its master: cells, sections (row by row, cell by cell), text and
+ * sub-shapes (matched through MasterShape). What the shape sets itself always wins.
+ */
+function inheritFrom(inst: Element, ms: Element) {
+  const doc = inst.ownerDocument;
+  const take = (el: Element) => doc.importNode(el, true);
+  const own = new Set(children(inst, 'Cell').map((c) => c.getAttribute('N')));
+  for (const c of children(ms, 'Cell')) if (!own.has(c.getAttribute('N'))) inst.appendChild(take(c));
+  for (const sec of children(ms, 'Section')) {
+    const n = sec.getAttribute('N'), ix = sec.getAttribute('IX') ?? '';
+    const mine = children(inst, 'Section').find((x) => x.getAttribute('N') === n && (x.getAttribute('IX') ?? '') === ix);
+    if (!mine) { inst.appendChild(take(sec)); continue; }
+    const secCells = new Set(children(mine, 'Cell').map((c) => c.getAttribute('N')));
+    for (const c of children(sec, 'Cell')) if (!secCells.has(c.getAttribute('N'))) mine.appendChild(take(c));
+    for (const row of children(sec, 'Row')) {
+      const key = row.getAttribute('IX') ?? row.getAttribute('N');
+      const r = children(mine, 'Row').find((x) => (x.getAttribute('IX') ?? x.getAttribute('N')) === key);
+      if (!r) { mine.appendChild(take(row)); continue; }
+      const rowCells = new Set(children(r, 'Cell').map((c) => c.getAttribute('N')));
+      for (const c of children(row, 'Cell')) if (!rowCells.has(c.getAttribute('N'))) r.appendChild(take(c));
+    }
+  }
+  if (!children(inst, 'Text').length) { const t = children(ms, 'Text')[0]; if (t) inst.appendChild(take(t)); }
+  const msSub = children(ms, 'Shapes')[0];
+  if (!msSub) return;
+  const instSub = children(inst, 'Shapes')[0];
+  if (!instSub) { inst.appendChild(take(msSub)); return; }
+  const byId = new Map(Array.from(msSub.getElementsByTagNameNS(NS, 'Shape')).map((e) => [e.getAttribute('ID') ?? '', e]));
+  for (const k of Array.from(instSub.getElementsByTagNameNS(NS, 'Shape'))) {
+    const ref = k.getAttribute('MasterShape');
+    const mk = ref ? byId.get(ref) : undefined;
+    if (mk) inheritFrom(k, mk);
+  }
+}
+
 function children(el: Element, local: string): Element[] {
   return Array.from(el.children).filter((c) => c.localName === local);
 }
@@ -560,6 +646,24 @@ function toBase64(bytes: Uint8Array) {
 }
 
 /** A cell from the shape itself, else from its line/fill/text style chain. */
+const isArrowhead = (n: number) => n >= 1 && n <= 24;
+
+/** A paragraph setting (first paragraph), from the shape or else its text style chain. */
+function paraCell(s: Element, name: string, styles: Map<string, Element>): string | null {
+  const first = (el: Element) => { const sec = section(el, 'Paragraph'); const row = sec ? children(sec, 'Row')[0] : undefined; return row ? cell(row, name) : null; };
+  const own = first(s);
+  if (own != null) return own;
+  let id = s.getAttribute('TextStyle');
+  for (let guard = 0; id != null && guard < 20; guard++) {
+    const st = styles.get(id);
+    if (!st) break;
+    const v = first(st);
+    if (v != null) return v;
+    id = st.getAttribute('TextStyle');
+  }
+  return null;
+}
+
 function styleCell(s: Element, name: string, kind: 'line' | 'fill' | 'text', styles: Map<string, Element>): string | null {
   const own = cell(s, name);
   if (own != null) return own;

@@ -133,6 +133,16 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
 - **Line spacing** (≡↕): 1.0, 1.15, 1.5 or 2.0.
 - Visio exports keep both (turned text block, paragraph spacing).
 
+## Opening other kinds of Visio drawings
+
+- Visio files that aren't network diagrams (database / ER diagrams, flowcharts, Microsoft's other templates) open as
+  they look in Visio: each shape becomes a picture of exactly that copy, with its own size and text, and connectors
+  still join them. Shapes that are equipment (network, rack and computer stencils, or anything with IP / MAC / serial /
+  model data) still become devices with ports and details, as before.
+- What a shape leaves to its master (size, outline, text, styles, its parts) is filled in from the master, as Visio
+  does; text alignment and hidden text follow the file's settings; connectors glued to part of a group attach to
+  the group; crow's-foot (ER) line ends open as plain ends rather than arrows.
+
 ## Big sites
 
 - Pages with hundreds of devices and cables stay responsive: a cable only re-routes when something near it moves,

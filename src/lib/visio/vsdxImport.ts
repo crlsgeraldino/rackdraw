@@ -27,6 +27,20 @@ const FIELD_ALIASES: [keyof DeviceData, RegExp][] = [
 ];
 const IGNORED = /^(type|status)$/i;
 
+/** Network equipment, by its master's name (Visio's network, rack and computer stencils). */
+const EQUIPMENT = /router|switch|server|firewall|access ?point|\bap\b|wireless|modem|gateway|hub|bridge|nas\b|san\b|storage|ups\b|pdu|patch|rack|pc\b|computer|workstation|laptop|desktop|tablet|phone|printer|copier|scanner|camera|nvr|dvr|projector|controller|load ?balancer|vpn|cloud|internet|isp|ont\b|cable ?modem|fax|terminal|mainframe|kvm|monitor|display|appliance/i;
+/** Shape Data fields that mark a shape as a piece of equipment. */
+const DEVICE_FIELDS = /^(ip|ip ?address|mac|mac ?address|serial|serial ?number|asset ?(tag|number)|product ?number|manufacturer|model|network ?name|host ?name|cable|vlan|from|to)$/i;
+
+/**
+ * Is this Visio shape a piece of equipment (a device here, with ports and details) or just part of a drawing
+ * (tables, labels, flowchart boxes…), which is kept as a picture of itself?
+ */
+const isEquipment = (it: PageItem) =>
+  // RackDraw's own Visio files mark every device with Name, Status and Type.
+  ('Name' in it.data && 'Type' in it.data && 'Status' in it.data)
+  || Object.keys(it.data).some((k) => DEVICE_FIELDS.test(k.trim())) || (it.fields ?? []).some((k) => DEVICE_FIELDS.test(k.trim())) || EQUIPMENT.test(it.masterName ?? '');
+
 /** Ports on the four sides, for pictures that have no connection points, so cables can attach. */
 function sidePorts(w: number, h: number): PortDef[] {
   const s = Math.max(6, Math.min(12, Math.min(w, h) * 0.2));
@@ -81,7 +95,17 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
 
     for (const it of items) {
       if (it.kind === 'line' || ownText(it)) continue;
-      if (it.kind === 'picture' && it.svg) {
+      if (it.kind === 'picture' && it.svg && !isEquipment(it)) {
+        // Part of a drawing (an ER table, a flowchart symbol, a logo…): a picture of exactly this copy, with its own
+        // size and text, that cables can still connect to.
+        const node: AppNode = {
+          id: `s-${uid()}`, type: 'shape', position: { x: it.x, y: it.y }, width: Math.max(4, it.w), height: Math.max(4, it.h),
+          data: { kind: 'image', text: '', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(it.svg)}`, fill: 'transparent', stroke: 'transparent', textColor: '#111827', fontSize: 14, rotation: 0, layer: layerId(vp, it.layers) },
+        };
+        nodes.push(node);
+        nodeFor.set(it.id, { node, k: 1 });
+        summary.shapes++;
+      } else if (it.kind === 'picture' && it.svg) {
         const key = it.masterId ? `m:${it.masterId}` : '';
         let st = key ? byMaster.get(key) : undefined;
         if (!st) {
