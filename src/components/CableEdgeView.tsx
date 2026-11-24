@@ -2,7 +2,7 @@
 
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, useNodesStore, useReactFlow, type EdgeProps, type NodesStore } from '@xyflow/react';
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { roundedPath, routeOrthogonal, type Obstacle, type Side } from '@/lib/router';
+import { roundedPath, routeOrthogonal, type Obstacle, type Pt, type Side } from '@/lib/router';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
 import { getStencil, useDiagram } from '@/store/useDiagramStore';
@@ -70,13 +70,30 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   const route = data?.route ?? 'step';
   // Only right-angle cables are routed around devices; subscribing costs nothing for the others.
   useOverlayVersion(); // re-route when a label or info box changes size
-  const key = useNodesStore((s) => (route === 'step'
+  // While something is being dragged, cables don't re-route (that made dragging on big pages jerky): a cable on the
+  // dragged item follows it as a plain right-angle line, the others keep their routes. All re-route on the drop.
+  const dragState = useNodesStore((s) => {
+    let any = 0;
+    for (const n of s.nodeLookup.values()) {
+      if (!n.dragging) continue;
+      if (n.id === source || n.id === target) return 2;
+      any = 1;
+    }
+    return any;
+  });
+  const liveKey = useNodesStore((s) => (route === 'step' && dragState === 0
     ? obstacleKey(s, { left: Math.min(sourceX, targetX) - NEAR, top: Math.min(sourceY, targetY) - NEAR, right: Math.max(sourceX, targetX) + NEAR, bottom: Math.max(sourceY, targetY) + NEAR })
-    : ''));
+    : null));
+  const lastKey = useRef('');
+  if (liveKey !== null) lastKey.current = liveKey;
+  const key = liveKey ?? lastKey.current;
+  const frozen = useRef<Pt[] | null>(null);
 
   // Corner points of a right-angle route around obstacles (null: not routed, or no clear path).
   const pts = useMemo(() => {
-    if (route !== 'step' || source === target) return null;
+    if (route !== 'step' || source === target || dragState === 2) return null;
+    // Another item is moving: keep this route as it was (its ends haven't moved).
+    if (dragState === 1 && frozen.current) return frozen.current;
     const r = routeOrthogonal(
       { x: sourceX, y: sourceY, side: sourcePosition as Side },
       { x: targetX, y: targetY, side: targetPosition as Side },
@@ -85,7 +102,8 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
       target,
     );
     return r && r.length > 1 ? r : null;
-  }, [route, key, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+  }, [route, key, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, dragState]);
+  if (dragState === 0) frozen.current = pts;
 
   // Line jumps: share this route with the other cables and hop over the ones crossing it.
   const display = useDiagram((s) => s.projects[s.currentId]?.display);
@@ -93,8 +111,9 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   const jumpStyle = display?.jumpStyle ?? 'arc', jumpR = display?.jumpSize ?? JUMP_R, corners = display?.cableCorners ?? 8;
   // Every right-angle route is shared: for line jumps and for spacing parallel cables apart.
   useEffect(() => {
-    publishRoute(id, pts);
-  }, [id, pts]);
+    // A cable on the item being dragged keeps its last shared route until the drop (no churn for the others).
+    if (dragState !== 2) publishRoute(id, pts);
+  }, [id, pts, dragState]);
   useEffect(() => () => { publishRoute(id, null); publishDrawn(id, null); }, [id]);
   const routesVersion = useRoutesVersion();
   // Spread into lanes where it would run on top of other cables.

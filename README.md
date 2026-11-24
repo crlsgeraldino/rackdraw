@@ -139,6 +139,8 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   cables share their routes (for line jumps and parallel spacing) in one batch instead of redrawing each other one by
   one, and unchanged devices and cables aren't redrawn. On a 151-device / 150-cable page, moving a device went from
   about 1.5 s of work to about 0.13 s.
+- **Dragging** stays smooth on big pages: while you drag, cables on the moving item follow it as plain right-angle
+  lines and the other cables keep their routes; when you let go, everything re-routes round devices again.
 
 ## Alt Text and accessible exports
 
