@@ -257,7 +257,14 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <div className="flex gap-2">
         <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
         <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
+        <Field label="Weight (lb)" value={d.weightLb === undefined ? '' : String(d.weightLb)} onChange={(v) => update(node.id, { weightLb: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
       </div>
+      {d.stencilId === 'ups' && (
+        <div className="flex gap-2">
+          <Field label="UPS output (W)" value={d.ups?.capacityW === undefined ? '' : String(d.ups.capacityW)} onChange={(v) => update(node.id, { ups: { ...d.ups, capacityW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) } })} mono />
+          <Field label="Runtime ½ load (min)" value={d.ups?.runtimeHalfMin === undefined ? '' : String(d.ups.runtimeHalfMin)} onChange={(v) => update(node.id, { ups: { ...d.ups, runtimeHalfMin: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) } })} mono />
+        </div>
+      )}
       {mount ? (
         <p className="mb-2 text-xs text-gray-600">
           Mounted in <button className="font-medium text-blue-600 hover:underline" onClick={() => { selectRack(mount.rack.id); selectRackItem(mount.item.id); setView('racks'); }}>{mount.rack.name} · {rackLabel(mount.item)}</button>

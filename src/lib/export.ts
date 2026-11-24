@@ -1,3 +1,4 @@
+import { fmtRuntime, rackPower } from './rackPower';
 import { expandHF, hasHeaderFooter } from './headerFooter';
 import { patchRows, rackCables, rackPortStates } from './rackPatching';
 import { allPaths, pathLength, type TraceHop } from './trace';
@@ -141,6 +142,18 @@ export function portRows(p: Project) {
           notes: pd.notes ?? '',
         }));
     });
+  });
+}
+
+/** Each rack's power, heat, weight, circuit load and UPS runtime. */
+export function rackPowerRows(p: Project) {
+  return (p.racks ?? []).map((r) => {
+    const pw = rackPower(p, r, getStencil);
+    return {
+      rack: r.name, power: pw.totalW ? `${pw.totalW} W` : '', heat: pw.btu ? `${pw.btu} BTU/h` : '', weight: pw.weightLb ? `${pw.weightLb} lb` : '',
+      circuit: pw.circuit ? `${pw.circuit.amps} A / ${pw.circuit.volts} V${pw.circuit.redundant ? ' A+B' : ''}: ${Math.round(pw.circuit.pct * 100)}%` : '',
+      ups: pw.ups.map((u) => `${u.name} ${Math.round(u.pct * 100)}%, ~${fmtRuntime(u.runtimeMin)}`).join('; '),
+    };
   });
 }
 
@@ -458,6 +471,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]));
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'], [0.13, 0.1, 0.07, 0.2, 0.15, 0.14, 0.11, 0.1].map((f) => f * avail),
     rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
+  table('Rack power', ['Rack', 'Power', 'Heat', 'Weight', 'Circuit load', 'UPS load and runtime'], [0.17, 0.1, 0.12, 0.1, 0.2, 0.31].map((f) => f * avail),
+    rackPowerRows(p).map((r) => [r.rack, r.power, r.heat, r.weight, r.circuit, r.ups]));
   table('Patching', ['Rack', 'Position', 'Device', 'Port', 'To device', 'Port', 'Where', 'Cable', 'VLAN'], [0.11, 0.08, 0.17, 0.07, 0.17, 0.07, 0.13, 0.1, 0.1].map((f) => f * avail),
     patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan]));
   table('Cable paths', ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'], [0.2, 0.3, 0.2, 0.15, 0.15].map((f) => f * avail),
@@ -562,6 +577,9 @@ export function exportCsv(p: Project) {
     [],
     ['RACKS'], ['Rack', 'Position', 'Height', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power (W)'],
     ...rackRows(p).map((r) => [r.rack, r.position, r.height, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW]),
+    [],
+    ['RACK POWER'], ['Rack', 'Power', 'Heat', 'Weight', 'Circuit load', 'UPS load and runtime'],
+    ...rackPowerRows(p).map((r) => [r.rack, r.power, r.heat, r.weight, r.circuit, r.ups]),
     [],
     ['PATCHING'], ['Rack', 'Position', 'Device', 'Port', 'To device', 'To port', 'Where', 'Cable', 'VLAN', 'Length'],
     ...patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan, r.length]),

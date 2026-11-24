@@ -67,7 +67,7 @@ const FIBER_NAME: Record<string, string> = { Fiber: 'Fiber cable', 'Fiber SM': '
 
 /** Typical PoE budgets of the built-in PoE switches (W). */
 const POE_BUDGET: Record<string, number> = { 'switch-16-poe': 240, 'switch-24-poe': 370, 'switch-48-poe': 740 };
-const POE_WATTS: Record<string, number> = { PoE: 15.4, 'PoE+': 30, 'PoE++': 60, 'PoE++ 90W': 90 };
+export const POE_WATTS: Record<string, number> = { PoE: 15.4, 'PoE+': 30, 'PoE++': 60, 'PoE++ 90W': 90 };
 
 export { lengthFt };
 const fmtFt = (ft: number) => `${Math.round(ft).toLocaleString()} ft (${Math.round(ft / 3.28084).toLocaleString()} m)`;

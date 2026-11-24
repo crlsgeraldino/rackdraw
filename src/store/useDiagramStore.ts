@@ -309,7 +309,7 @@ interface DiagramState {
    * firewall at the top, panels above their switches, servers, UPS at the bottom. Returns how many were mounted.
    */
   buildRackFromDiagram: (name?: string) => number;
-  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes'>>) => boolean;
+  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes' | 'feedVolts' | 'feedAmps' | 'redundantFeeds'>>) => boolean;
   deleteRack: (id: string) => void;
   /** Places an item if it fits; returns false otherwise. */
   placeRackItem: (rackId: string, item: Omit<RackItem, 'id'>) => boolean;

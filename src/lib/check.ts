@@ -1,3 +1,4 @@
+import { rackPower } from './rackPower';
 import { ipOf, ipPlanProblems } from './ipam';
 import { lifecycleProblems } from './lifecycle';
 import { resolveLink } from './links';
@@ -68,6 +69,7 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
 
   // VLAN / IP plan (Data → IP Plan): IPs outside the plan, in a DHCP pool, on network / broadcast addresses; clashes.
   const pageOf = new Map(devices.map(({ n, pg }) => [n.id, pg.id]));
+  const pageOfDevice = pageOf;
   for (const pr of ipPlanProblems(p)) {
     if (pr.deviceId) add(pr.severity, pr.rule, pr.message, pageOf.get(pr.deviceId) ?? p.pages[0].id, 'node', pr.deviceId);
     else add(pr.severity, pr.rule, pr.message, p.pages[0].id, 'node', '');
@@ -167,6 +169,13 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
       const t = resolveLink(n.data.link);
       if (t?.kind === 'page' && !pageIds.has(t.pageId)) add('warning', 'Broken link', `${n.type === 'device' ? n.data.name : 'An item'} links to a page that no longer exists`, pg.id, 'node', n.id);
     }
+  }
+
+  // Racks: circuit over its continuous rating, UPS overloaded or with little runtime.
+  for (const r of p.racks ?? []) {
+    const pw = rackPower(p, r, stencilOf);
+    const anchor = r.items.map((it) => it.nodeId).find((id) => id && pageOfDevice.has(id));
+    for (const w of pw.warnings) add(/over the|overloaded/.test(w) ? 'warning' : 'info', 'Rack power', `${r.name}: ${w}`, anchor ? pageOfDevice.get(anchor)! : p.pages[0].id, 'node', anchor ?? '');
   }
 
   const order: Record<Severity, number> = { error: 0, warning: 1, info: 2 };

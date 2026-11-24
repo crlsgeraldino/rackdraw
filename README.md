@@ -30,6 +30,10 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Rack elevations** with realistic equipment, patch cords that match the diagram's cables, port hover cards and a
   patching schedule. **Rack from Diagram** builds racks (one per location) from the page's equipment.
 - **Cable path tracing** through patch panels and wall jacks, with total lengths.
+- **Rack power & cooling**: power draw (each device's figure, or a typical one for built-in equipment, plus the PoE
+  the switches deliver), heat in BTU/h, weight, load on the rack's circuit against its 80% continuous rating (with
+  A + B feeds), and each UPS's load and estimated runtime (from its output and datasheet runtime at half load).
+  Check Diagram warns about overloaded circuits and UPSes; the PDF and CSV have a Rack power table.
 
 **Plan and quote** (Data → Plan & Quote)
 - **IP Plan**: VLANs and subnets, DHCP ranges, next free IP, and IP checks.
