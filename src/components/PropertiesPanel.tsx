@@ -747,6 +747,13 @@ function ShapeProps({ node }: { node: ShapeNode }) {
           <label className="mt-4 flex items-center gap-1.5 text-sm"><input type="checkbox" checked={!!d.flip} onChange={(e) => set({ flip: e.target.checked || undefined })} /> Swing the other way</label>
         </div>
       )}
+      {d.kind === 'door' && (
+        <label className="mb-2 block">
+          <span className="mb-0.5 flex justify-between text-[11px] font-medium text-gray-500"><span>Open</span><span>{d.doorOpen ?? 100}%</span></span>
+          <input type="range" min={0} max={100} step={5} className="w-full" value={d.doorOpen ?? 100} aria-label="How far the door is open"
+            onChange={(e) => { const v = Number(e.target.value); set({ doorOpen: v >= 100 ? undefined : v }); }} />
+        </label>
+      )}
       {d.kind !== 'door' && d.kind !== 'window' && d.kind !== 'callout' && (
         <div className="mb-2">
           <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Angle{d.kind === 'arrow' ? ' (0° points right)' : ''}</span>

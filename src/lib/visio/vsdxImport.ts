@@ -19,16 +19,21 @@ type Pt = [number, number];
  * point the same ways, in a square box as wide as the leaf. RackDraw's door, unturned: hinge bottom-left, closed
  * leaf along the bottom (the wall), open leaf up the left side.
  */
+/** The turn RackDraw applies when drawing (and saving) a door, on the unit square: flip, then rotate. */
+function turnUnit(rot: number, flip: boolean, [x0, y0]: Pt): Pt {
+  const [x, y] = flip ? [1 - x0, y0] : [x0, y0];
+  return rot === 90 ? [1 - y, x] : rot === 180 ? [1 - x, 1 - y] : rot === 270 ? [y, 1 - x] : [x, y];
+}
+
 function doorFrom(d: { hinge: Pt; wallTip: Pt; openTip: Pt }, wallPx: number | undefined, layer: string | undefined): AppNode | null {
   const r = Math.hypot(d.wallTip[0] - d.hinge[0], d.wallTip[1] - d.hinge[1]);
   if (!(r > 1)) return null;
   const unit = (a: Pt, b: Pt): Pt => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / L, (b[1] - a[1]) / L]; };
   const u = unit(d.hinge, d.wallTip), v = unit(d.hinge, d.openTip);
-  // The same turn RackDraw applies when drawing (and saving) a door, on the unit square.
-  const turn = (rot: number, flip: boolean, [x0, y0]: Pt): Pt => {
-    const [x, y] = flip ? [1 - x0, y0] : [x0, y0];
-    return rot === 90 ? [1 - y, x] : rot === 180 ? [1 - x, 1 - y] : rot === 270 ? [y, 1 - x] : [x, y];
-  };
+  const turn = turnUnit;
+  // How far it is open: the angle between the leaf closed (along the wall) and as drawn; a right angle = fully open.
+  const ang = (Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1]))) * 180) / Math.PI;
+  const open = Math.round(Math.min(90, ang) / 90 * 100);
   let best: { rot: number; flip: boolean; score: number; h: Pt } | null = null;
   for (const rot of [0, 90, 180, 270]) for (const flip of [false, true]) {
     const h = turn(rot, flip, [0, 1]), w = turn(rot, flip, [1, 1]), o = turn(rot, flip, [0, 0]);
@@ -41,6 +46,7 @@ function doorFrom(d: { hinge: Pt; wallTip: Pt; openTip: Pt }, wallPx: number | u
     id: `s-${uid()}`, type: 'shape', position: { x: d.hinge[0] - b.h[0] * r, y: d.hinge[1] - b.h[1] * r }, width: r, height: r,
     data: {
       kind: 'door', text: '', rotation: b.rot, flip: b.flip || undefined, wallGap: wallPx && wallPx > 1 ? Math.round(wallPx * 10) / 10 : undefined,
+      doorOpen: open < 97 ? Math.max(0, open) : undefined,
       fill: 'transparent', stroke: '#374151', textColor: '#111827', fontSize: 14, layer,
     },
   } as AppNode;
@@ -133,11 +139,19 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
           : { x: it.x, y: it.y, w: it.w, h: it.h };
         if (own === 'door' && pts.length) { box.w = Math.max(...pts.map((p) => p[0])) - box.x; box.h = Math.max(...pts.map((p) => p[1])) - box.y; }
         const rotation = Number(it.data.Rotation) || 0;
+        const doorOpen = own === 'door' && it.data.Open != null && Number(it.data.Open) < 100 ? Math.max(0, Number(it.data.Open) || 0) : undefined;
+        if (doorOpen != null) {
+          // A partly open door draws less than its square: find the square from what it draws (the same turn as saving).
+          const r = Math.max(box.w, box.h);
+          const s = Math.sin((doorOpen / 100) * (Math.PI / 2));
+          const c = ([[0, 1 - s], [1, 1 - s], [0, 1], [1, 1]] as Pt[]).map((p) => turnUnit(rotation, it.data.Flip === '1', p));
+          Object.assign(box, { x: box.x - Math.min(...c.map((p) => p[0])) * r, y: box.y - Math.min(...c.map((p) => p[1])) * r, w: r, h: r });
+        }
         const wallGap = Number(it.data['Wall gap']) || undefined;
         nodes.push({
           id: `s-${uid()}`, type: 'shape', position: { x: box.x, y: box.y }, width: Math.max(4, box.w), height: Math.max(4, box.h),
           data: {
-            kind: own, text: '', rotation: own === 'door' ? rotation : 0, flip: own === 'door' && it.data.Flip === '1' ? true : undefined, wallGap,
+            kind: own, text: '', rotation: own === 'door' ? rotation : 0, flip: own === 'door' && it.data.Flip === '1' ? true : undefined, wallGap, doorOpen,
             fill: own === 'window' ? it.fill ?? 'transparent' : 'transparent', stroke: (own === 'door' ? it.lineColor : it.stroke) ?? '#374151',
             textColor: '#111827', fontSize: 14, layer: layerId(vp, it.layers),
           },

@@ -325,6 +325,8 @@ export interface ShapeData extends Record<string, unknown>, NodeExtras {
   calloutStyle?: CalloutStyle;
   /** Door set into a wall: the wall's thickness, so the doorway is cut out of it. */
   wallGap?: number;
+  /** Door: how far it is open, as a percentage of a right angle (Visio's door open %); missing = fully open. */
+  doorOpen?: number;
   /** Picture flipped left-right / upside down (Arrange → Flip). */
   flipX?: boolean;
   flipY?: boolean;

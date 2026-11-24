@@ -413,13 +413,16 @@ function outline(d: ShapeData, w: number, h: number, common: OutlineProps) {
       // Floor-plan door: the leaf (hinged bottom-left, drawn open) and its swing arc; flip mirrors the swing.
       const r = Math.min(w, h) - 2;
       const g = d.flip ? `matrix(-1 0 0 1 ${w} 0)` : undefined;
+      // Partly open: the leaf turned that far from the wall, the swing arc only that long.
+      const th = (Math.max(0, Math.min(100, d.doorOpen ?? 100)) / 100) * (Math.PI / 2);
+      const tip = [1 + r * Math.cos(th), h - 1 - r * Math.sin(th)];
       return (
         <g transform={g}>
           {/* Set into a wall: the doorway is cut out of it (the page colour over the wall). */}
           {d.wallGap ? <rect x={1} y={h - 1 - d.wallGap / 2} width={r} height={d.wallGap} style={{ fill: 'var(--nc-page, #ffffff)' }} stroke="none" /> : null}
           <line x1={1} y1={h - 1} x2={r + 1} y2={h - 1} stroke={d.stroke} strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
-          <line x1={1} y1={h - 1} x2={1} y2={h - 1 - r} stroke={d.stroke} strokeWidth={3} vectorEffect="non-scaling-stroke" />
-          <path d={`M1 ${h - 1 - r} A${r} ${r} 0 0 1 ${r + 1} ${h - 1}`} fill="none" stroke={d.stroke} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />
+          <line x1={1} y1={h - 1} x2={tip[0]} y2={tip[1]} stroke={d.stroke} strokeWidth={3} vectorEffect="non-scaling-stroke" />
+          {th > 0.001 && <path d={`M${tip[0]} ${tip[1]} A${r} ${r} 0 0 1 ${r + 1} ${h - 1}`} fill="none" stroke={d.stroke} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />}
         </g>
       );
     }

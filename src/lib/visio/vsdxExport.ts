@@ -256,8 +256,12 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           } else if (d.kind === 'door') {
             // Leaf and swing as one line (arc sampled), in the shape's own rotation and swing.
             const r = Math.min(bb.w, bb.h);
-            const local: VPt[] = [{ x: 0, y: 1 }, { x: 0, y: 1 - r / bb.h }];
-            for (let k = 1; k <= 12; k++) { const t = (k / 12) * (Math.PI / 2); local.push({ x: (Math.sin(t) * r) / bb.w, y: 1 - (Math.cos(t) * r) / bb.h }); }
+            // Hinge, the leaf's tip (turned `th` from the wall; a right angle when fully open), then the arc back to the wall.
+            const open = Math.max(0, Math.min(100, d.doorOpen ?? 100));
+            const th = (open / 100) * (Math.PI / 2);
+            const at = (a: number): VPt => ({ x: (Math.cos(a) * r) / bb.w, y: 1 - (Math.sin(a) * r) / bb.h });
+            const local: VPt[] = [{ x: 0, y: 1 }, at(th)];
+            for (let k = 1; k <= 12; k++) local.push(at(th * (1 - k / 12)));
             const rot = ((d.rotation ?? 0) % 360 + 360) % 360;
             const turn = (p: VPt): VPt => {
               const q = d.flip ? { x: 1 - p.x, y: p.y } : p;
@@ -273,6 +277,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
             // Tagged so RackDraw opens it again as a door (swing, side and doorway kept).
             const doorData: [string, string][] = [[RD_SHAPE, 'door'], ['Rotation', String(rot)], ['Flip', d.flip ? '1' : '0']];
             if (d.wallGap) doorData.push(['Wall gap', String(d.wallGap)]);
+            if (open < 100) doorData.push(['Open', String(open)]);
             front.push({ kind: 'line', name: 'Door', points: local.map(turn).map((p) => ({ x: bb.x + p.x * bb.w, y: bb.y + p.y * bb.h })), line: d.stroke === 'transparent' ? '#374151' : d.stroke, lineWeightPt: 1.5, data: doorData });
           } else if (d.kind === 'window') {
             front.push({ kind: 'rect', name: 'Window', box: bb, fill: d.fill === 'transparent' ? null : d.fill, line: d.stroke, lineWeightPt: 1, data: [[RD_SHAPE, 'window']] });

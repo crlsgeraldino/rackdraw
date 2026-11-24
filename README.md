@@ -207,6 +207,9 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   into the side you dropped it on.
 - A door set into a wall **cuts its doorway** out of the wall (on the canvas, in prints and in Visio exports); moving
   it off the wall closes the gap again.
+- **How far a door is open**: the *Open* slider in the right panel (0–100 %, like Visio's door open %) turns the
+  leaf and shortens its swing; 0 % draws the door closed. Kept in Visio exports, and partly open Visio doors come in
+  at their angle.
 - **Wall Lengths** (Insert → Floor Plan) shows the real length beside the selected walls, or every wall on the page
   when none is selected (click again to hide). It uses the page's drawing scale.
 
@@ -738,7 +741,7 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
   import, so big templates stay small (Microsoft's office floor plan template: 64 MB → 5 MB).
 - **Visio doors** (single and double, from the Walls, Shell and Structure stencil) become RackDraw doors: same width,
   hinge side and swing direction, with the doorway cut through the wall; a double door becomes two doors. Doors drawn
-  partly open in Visio come in fully open.
+  partly open in Visio come in at the same angle.
 - **Visio windows** (Window, Window wall / curtain wall) become RackDraw windows along their wall, as thick as the
   wall (from the shape or its *Wall thickness*).
 - **Visio rooms** (Room, "L" Room) become RackDraw walls: each side of the room is a wall as thick as Visio's, on the
