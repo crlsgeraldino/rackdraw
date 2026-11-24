@@ -1,4 +1,4 @@
-import { bomTableRows, cablePathRows, CHANGE_TABLE, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, PORT_MAP_TABLE, portMapTableRows, portRows, rackPowerRows, rackRows, recentChangeRows, renderRack, titleBlockCells, type PageRenderer } from './export';
+import { bomTableRows, cablePathRows, CHANGE_TABLE, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, PORT_MAP_TABLE, portMapTableRows, portRows, rackPowerRows, rackRows, recentChangeRows, renderRack, siteRowsForReport, titleBlockCells, type PageRenderer } from './export';
 import { FRAME_COLOR, type Project } from './types';
 import { hasHeaderFooter, hfCss } from './headerFooter';
 
@@ -94,6 +94,7 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
         cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables])),
       tableHtml(p, 'Bill of materials', ['Section', 'Qty', 'Unit', 'Item', 'Detail'], bomTableRows(p).bom),
       tableHtml(p, 'Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], bomTableRows(p).capacity),
+      tableHtml(p, 'Sites', siteRowsForReport(p).header, siteRowsForReport(p).rows),
       tableHtml(p, 'Port maps (ports in use)', PORT_MAP_TABLE, portMapTableRows(p)),
       tableHtml(p, 'Recent changes (90 days)', CHANGE_TABLE, recentChangeRows(p)),
       p.vlans?.length ? tableHtml(p, 'IP plan', ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free', 'Notes'],

@@ -41,6 +41,10 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Bill of Materials**: what to order (equipment, cable footage, patch cords, transceivers, jacks, racks), with a
   price book, labor estimate, markup, tax and a Word / Excel quote; port and PoE capacity per switch.
 - **Labels**: cable labels, asset labels with QR codes, patch panel strips, on Avery sheets.
+- **Sites**: the network place by place (HQ, branches, IDFs, buildings), from each device's Location or its rack's;
+  devices without one count at the site they are cabled to. Per site: equipment, racks, free switch ports, PoE,
+  rack power, VLANs, circuits and their monthly cost, warranties; plus the links between sites (Data → Sites, and in
+  the reports when there is more than one site).
 - **Network scan import**: open an nmap XML file or an Advanced IP Scanner / Angry IP Scanner CSV (or paste a DHCP
   list); each host gets a guessed kind of device (printer, camera, NAS, server, AP…), devices already drawn are
   matched by MAC, IP or name and updated, new ones are laid out on a new page, and devices that didn't answer are
