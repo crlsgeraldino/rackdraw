@@ -1,7 +1,7 @@
 {
   "name": "netcraft",
   "productName": "RackDraw",
-  "version": "0.71.0",
+  "version": "0.72.0",
   "description": "RackDraw: free network, rack and floor-plan diagrams for client documentation",
   "author": "crlsgeraldino",
   "license": "MIT",
