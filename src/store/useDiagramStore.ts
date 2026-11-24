@@ -3,9 +3,12 @@
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
 import { planRacks } from '@/lib/autoRack';
-import { del, get as idbGet, set as idbSet } from 'idb-keyval';
+import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { rackdrawStorage, reportLoadError } from '@/lib/persistence';
+import { sanitizeProject } from '@/lib/sanitize';
+import type { BackupFile } from '@/lib/backup';
 import type { ImportPlan } from '@/lib/dataImport';
 import { pack, unpack, usedPool } from '@/lib/blobPool';
 import { DEFAULT_DISPLAY } from '@/lib/display';
@@ -26,18 +29,6 @@ import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
 import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DeviceNode, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, ShapeNode, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
 
-/**
- * IndexedDB-backed storage: imported stencil images can be megabytes, well past localStorage's ~5 MB cap.
- * Reads fall back to localStorage once so data saved by earlier versions carries over.
- */
-const idbStorage: StateStorage = {
-  getItem: async (name) => (await idbGet<string>(name)) ?? localStorage.getItem(name),
-  setItem: async (name, value) => {
-    await idbSet(name, value);
-    localStorage.removeItem(name);
-  },
-  removeItem: (name) => del(name),
-};
 
 interface Snapshot {
   pages: Page[];
@@ -243,6 +234,8 @@ interface DiagramState {
   openProject: (id: string) => void;
   updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes' | 'quote'>>) => void;
   deleteProject: (id: string) => void;
+  /** File → Restore from backup: adds the backup's clients (same id → a copy), stencils, templates and versions. */
+  restoreBackup: (b: BackupFile) => { clients: number; copies: number; stencils: number; templates: number };
   importProject: (p: Project, stencils?: StencilDef[]) => void;
 
   /**
@@ -507,7 +500,7 @@ let versionsLoaded = false;
  */
 let versionPool: Record<string, string> = {};
 /** What is stored under VERSIONS_KEY (older releases stored the version lists alone). */
-interface StoredVersions { format: 2; versions: Record<string, ProjectVersion[]>; pool: Record<string, string> }
+export interface StoredVersions { format: 2; versions: Record<string, ProjectVersion[]>; pool: Record<string, string> }
 
 /** Contents of the zones being dragged, captured when each drag starts. */
 const zoneDrag = new Map<string, string[]>();
@@ -2006,6 +1999,42 @@ export const useDiagram = create<DiagramState>()(
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, ...patch, updatedAt: Date.now() } } });
         },
+        restoreBackup: (b) => {
+          const projects = { ...get().projects };
+          const ids = new Map<string, string>();
+          let copies = 0;
+          for (const [oldId, raw] of Object.entries(b.projects ?? {})) {
+            let p: Project;
+            try {
+              p = sanitizeProject(raw).project;
+            } catch {
+              continue;
+            }
+            const clash = !!projects[oldId];
+            const id = clash ? uid() : oldId;
+            if (clash) copies++;
+            ids.set(oldId, id);
+            projects[id] = { ...p, id, name: clash ? `${p.name} (restored)` : p.name };
+          }
+          const newStencils = Object.keys(b.customStencils ?? {}).filter((k) => !(k in get().customStencils)).length;
+          const newTemplates = Object.keys(b.templates ?? {}).filter((k) => !(k in get().templates)).length;
+          const customStencils = { ...b.customStencils, ...get().customStencils };
+          const templates = { ...b.templates, ...get().templates };
+          const versions = { ...get().versions };
+          if (b.versions?.format === 2) {
+            versionPool = { ...b.versions.pool, ...versionPool };
+            for (const [oldId, list] of Object.entries(b.versions.versions ?? {})) {
+              const id = ids.get(oldId);
+              if (!id || !Array.isArray(list)) continue;
+              const have = new Set((versions[id] ?? []).map((v) => v.id));
+              versions[id] = [...(versions[id] ?? []), ...list.filter((v) => !have.has(v.id))].sort((a, c) => c.at - a.at);
+            }
+          }
+          set({ projects, customStencils, templates, versions });
+          return {
+            clients: ids.size, copies, stencils: newStencils, templates: newTemplates,
+          };
+        },
         deleteProject: (id) => {
           const rest = { ...get().projects };
           delete rest[id];
@@ -2021,7 +2050,8 @@ export const useDiagram = create<DiagramState>()(
         },
         importProject: (p, stencils) => {
           if (stencils?.length) get().importStencils(stencils);
-          const copy: Project = { ...migrateProject(p), id: uid(), updatedAt: Date.now() };
+          // Checked and repaired first: a damaged file must not crash the app (and keep crashing it on every start).
+          const copy: Project = { ...sanitizeProject(p, p?.name).project, id: uid(), updatedAt: Date.now() };
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
         },
 
@@ -2201,7 +2231,9 @@ export const useDiagram = create<DiagramState>()(
     {
       name: 'netcraft',
       version: 4,
-      storage: createJSONStorage(() => idbStorage),
+      // Coalesced, error-reporting saves (lib/persistence.ts); same stored format as before.
+      storage: rackdrawStorage as never,
+      onRehydrateStorage: () => (_state, error) => { if (error) reportLoadError(error); },
       partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, templates: s.templates, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
         const state = persisted as Partial<DiagramState>;
@@ -2221,6 +2253,12 @@ export const useDiagram = create<DiagramState>()(
     },
   ),
 );
+
+/** Version History as stored (only the pictures some version uses), for File → Back up everything. */
+export function snapshotVersions(): StoredVersions {
+  const versions = useDiagram.getState().versions;
+  return { format: 2, versions, pool: usedPool(versions, versionPool) };
+}
 
 export const useCurrentProject = () => useDiagram((s) => s.projects[s.currentId]);
 

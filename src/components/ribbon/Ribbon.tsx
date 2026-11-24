@@ -12,6 +12,7 @@ import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { exportDeck } from '@/lib/deck';
 import { BomDialog } from '../BomDialog';
+import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { deviceFieldValue, reportFields } from '@/lib/report';
@@ -518,6 +519,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
   onExport: (kind: 'pdf' | 'png' | 'svg' | 'csv' | 'vsdx' | 'docx' | 'pptx' | 'selPng' | 'selSvg' | 'web') => void;
 }) {
   const project = useCurrentProject();
+  const restoreRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', esc);
@@ -546,7 +548,36 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         {item('titleBlock', 'Save as template…', () => void saveTemplate())}
         {item('print', 'Print…', onPrint)}
         <div className="my-2 border-t border-white/20" />
-        {item('delete', 'Delete this client…', () => { if (confirm(`Delete "${project.name}" from this computer? This cannot be undone.`)) { useDiagram.getState().deleteProject(project.id); onClose(); } }, true)}
+        {item('save', 'Back up everything…', () => void downloadBackup().then((n) => alert(`Backed up ${n} client${n === 1 ? '' : 's'}, your stencils, templates, Version History and price book to one file. Keep it somewhere safe (another drive or the cloud).`)))}
+        {item('open', 'Restore from backup…', () => restoreRef.current?.click())}
+        <input
+          ref={restoreRef} type="file" accept=".json" className="hidden" aria-hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (!f) return;
+            try {
+              const b = await readBackup(f);
+              const n = Object.keys(b.projects).length;
+              if (!confirm(`Restore ${n} client${n === 1 ? '' : 's'} from the backup of ${new Date(b.createdAt).toLocaleString()}?
+
+Nothing here is replaced: clients you already have stay as they are, and a client that is already here comes back as a copy named "(restored)".`)) return;
+              const r = await restoreBackup(b);
+              alert(`Restored ${r.clients} client${r.clients === 1 ? '' : 's'}${r.copies ? ` (${r.copies} as copies)` : ''}, ${r.stencils} stencil${r.stencils === 1 ? '' : 's'} and ${r.templates} template${r.templates === 1 ? '' : 's'}.`);
+            } catch (err) {
+              alert((err as Error).message);
+            }
+          }}
+        />
+        <div className="my-2 border-t border-white/20" />
+        {item('delete', 'Delete this client…', () => {
+          if (!confirm(`Delete "${project.name}" from this computer?
+
+A copy is downloaded first (${safeName(project.name)}.rackdraw.json), so you can open it again with File → Open. Its Version History is deleted.`)) return;
+          saveProjectFile(project);
+          useDiagram.getState().deleteProject(project.id);
+          onClose();
+        }, true)}
       </nav>
       <section className="flex-1 overflow-y-auto p-8">
         <h1 className="mb-1 text-2xl font-light text-gray-900">{project.name}</h1>

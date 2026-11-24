@@ -46,6 +46,8 @@ import { Ribbon } from './ribbon/Ribbon';
 import { StatusBar } from './StatusBar';
 import { useDisplay } from './useDisplay';
 import { Legend } from './ViewMenu';
+import { ErrorBoundary, RecoveryScreen, SaveBanner } from './SafetyNet';
+import { useSaveStatus } from '@/lib/persistence';
 
 export function Btn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
@@ -499,6 +501,7 @@ export default function Editor() {
     return unsub;
   }, [hydrated]);
   const view = useDiagram((s) => s.view);
+  const loadError = useSaveStatus((s) => s.loadError);
   // Version History: keep a start-of-day copy of the client that opens.
   useEffect(() => {
     if (!hydrated) return;
@@ -547,11 +550,14 @@ export default function Editor() {
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('fullscreenchange', onFs); };
   }, []);
 
+  if (loadError) return <RecoveryScreen error={loadError} />;
   if (!hydrated) return <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading your diagrams…</div>;
 
   return (
+    <ErrorBoundary>
     <ReactFlowProvider>
       <div className="flex h-screen flex-col bg-gray-50 text-gray-900">
+        <SaveBanner />
         {!presenting && <Ribbon />}
         {view === 'racks' && !presenting ? (
           <RackView />
@@ -574,5 +580,6 @@ export default function Editor() {
         <NumberShapesDialog />
       </div>
     </ReactFlowProvider>
+    </ErrorBoundary>
   );
 }

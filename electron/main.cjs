@@ -16,12 +16,45 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 function resolveFile(urlPath) {
-  let rel = decodeURIComponent(urlPath).replace(/^\/+/, '');
+  let rel;
+  try {
+    rel = decodeURIComponent(urlPath).replace(/^\/+/, '');
+  } catch {
+    return path.join(ROOT, '404.html'); // malformed %-escape
+  }
   if (rel === '' || rel.endsWith('/')) rel += 'index.html';
   const full = path.normalize(path.join(ROOT, rel));
-  // Never serve anything outside out/.
-  if (!full.startsWith(ROOT)) return path.join(ROOT, '404.html');
+  // Never serve anything outside out/ (path.relative also catches sibling folders like "out-x").
+  const inside = path.relative(ROOT, full);
+  if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) return path.join(ROOT, '404.html');
   return full;
+}
+
+/**
+ * True for pages of the app itself: exact scheme and host, so "app://netcraftevil" is not ours. (Node's URL gives
+ * custom schemes an origin of "null", so the origin can't be compared directly.)
+ */
+function isOwn(url) {
+  try {
+    const u = new URL(url);
+    const own = new URL(ORIGIN);
+    return u.protocol === own.protocol && u.host === own.host;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Opens a link from a diagram in the default browser / mail app. Only web and mail links: other schemes (file:,
+ * smb:, ms-msdt:, search-ms:…) can start programs, and links come from user content and imported Visio files.
+ */
+function openOutside(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:' || u.protocol === 'http:' || u.protocol === 'mailto:') void shell.openExternal(u.toString());
+  } catch {
+    // not a URL: ignore
+  }
 }
 
 function createWindow() {
@@ -39,14 +72,32 @@ function createWindow() {
 
   // Links to other sites open in the default browser, not inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url.startsWith(ORIGIN)) shell.openExternal(url);
+    if (!isOwn(url)) openOutside(url);
     return { action: 'deny' };
   });
-  win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(ORIGIN)) {
+  const keepInside = (e, url) => {
+    if (!isOwn(url)) {
       e.preventDefault();
-      shell.openExternal(url);
+      openOutside(url);
     }
+  };
+  win.webContents.on('will-navigate', keepInside);
+  win.webContents.on('will-redirect', keepInside);
+  win.webContents.on('will-attach-webview', (e) => e.preventDefault());
+
+  // Before closing, let the page write any changes it hasn't saved yet (saves are batched; see src/lib/persistence.ts).
+  let flushed = false;
+  win.on('close', (e) => {
+    if (flushed) return;
+    e.preventDefault();
+    const done = () => {
+      flushed = true;
+      if (!win.isDestroyed()) win.close();
+    };
+    const timeout = new Promise((r) => setTimeout(r, 4000));
+    Promise.race([win.webContents.executeJavaScript('window.__rackdrawFlush ? window.__rackdrawFlush() : true', true), timeout])
+      .catch(() => undefined)
+      .then(done);
   });
 
   // Right-click in a text box: spelling suggestions for a misspelt word, then Cut / Copy / Paste. (The drawing has
@@ -89,7 +140,8 @@ if (!app.requestSingleInstanceLock()) {
       Menu.buildFromTemplate([
         { label: 'File', submenu: [{ role: 'quit' }] },
         { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
-        { label: 'View', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' }] },
+        // Developer tools only in development builds.
+        { label: 'View', submenu: [{ role: 'reload' }, ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' }]), { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' }] },
         { label: 'Help', submenu: [{ label: 'About RackDraw', click: () => app.showAboutPanel() }] },
       ]),
     );

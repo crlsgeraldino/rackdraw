@@ -382,6 +382,25 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   drawing: 6.4 MB instead of 20 MB). Pictures no version uses any more are removed. Versions saved by earlier
   releases are compacted the first time they load.
 
+## Keeping your work safe
+
+- **Saving** happens automatically, batched (at most a few times a second instead of on every mouse move), and is
+  written out when the window is hidden or closed; the desktop app waits for the last save before it closes.
+- **If a save fails** (disk full, storage blocked), a red bar says your latest changes are not saved, with **Retry**
+  and **Back up everything now**. Nothing is silently lost.
+- **If the saved data can't be read**, RackDraw shows a recovery screen instead of an empty workspace: download the
+  saved data, try again, or start empty (the unreadable data is kept aside, never overwritten).
+- **If a client can't be drawn** (e.g. a damaged file), an error screen lets you download that client, open another
+  one or back everything up; the rest of the app keeps working.
+- **Opening files**: diagram files are checked and repaired on open (broken items and cables are dropped); files
+  from a newer RackDraw are refused with a message instead of being half-read.
+- **File → Back up everything…** saves every client, your stencils and templates, Version History and price book to
+  one `rackdraw-backup-<date>.json`. **File → Restore from backup…** adds it back without replacing anything: a
+  client that is already here comes back as a copy named "(restored)".
+- **Deleting a client** downloads a copy of it first (`.rackdraw.json`), so it can be opened again.
+- **Security (desktop app)**: links in diagrams open in your browser or mail app only if they are `http`, `https` or
+  `mailto`; other kinds of link (file:, smb:, ms-msdt:…) are ignored. Developer tools are off in the installed app.
+
 ## Templates (File → New client)
 
 - Like Visio's template gallery: start from a **Blank drawing**, a **Small office network** (ISP → firewall → PoE switch

@@ -11,8 +11,9 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 
 export default function Home() {
   useEffect(() => {
-    // Offline support for the installed app. Skipped in dev so hot reload isn't served stale files.
-    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+    // Offline support for the web version. Skipped in dev (stale hot reload) and in the desktop app (app:// pages
+    // already come from disk, and a cached copy could outlive an upgrade).
+    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator && location.protocol !== 'app:') {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);

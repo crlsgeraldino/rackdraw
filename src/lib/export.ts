@@ -12,7 +12,8 @@ import { getStencil } from '@/store/useDiagramStore';
 import { libraryNameFromFile } from './libraries';
 import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
-import { allDevices, migrateProject } from './project';
+import { allDevices } from './project';
+import { PROJECT_FILE_VERSION, sanitizeProject } from './sanitize';
 import { rackLabel } from './rack';
 import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
 
@@ -547,15 +548,20 @@ export function saveProjectFile(p: Project) {
 }
 
 export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[] }> {
-  const json = JSON.parse(await file.text());
+  let json: { format?: string; version?: number; project?: unknown; stencils?: unknown };
+  try {
+    json = JSON.parse(await file.text());
+  } catch {
+    throw new Error('This file could not be read: it is not a RackDraw diagram, or it is damaged.');
+  }
   if (json?.format === 'netcraft-stencils') throw new Error('This is a stencil library. Use "Import library" in the shapes palette.');
-  const p = json?.project ?? json;
-  const valid = p && (Array.isArray(p.pages) || (Array.isArray(p.nodes) && Array.isArray(p.edges)));
-  if (!valid) throw new Error('Not a RackDraw diagram file.');
+  if (json?.format === 'rackdraw-backup') throw new Error('This is a full backup. Use File → Restore from backup.');
+  if (typeof json?.version === 'number' && json.version > PROJECT_FILE_VERSION) throw new Error('This diagram was saved by a newer version of RackDraw. Update RackDraw to open it.');
+  // Checked and repaired here (files saved by v0.2 and earlier have one diagram, which becomes a page).
+  const { project } = sanitizeProject(json?.project ?? json, file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$/i, ''));
   return {
-    // Files saved by v0.2 and earlier have one diagram; migrateProject turns it into a page.
-    project: migrateProject({ name: file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$/i, ''), createdAt: Date.now(), ...p }),
-    stencils: Array.isArray(json.stencils) ? json.stencils : [],
+    project,
+    stencils: Array.isArray(json.stencils) ? json.stencils.filter((x: unknown) => !!x && typeof x === 'object' && typeof (x as StencilDef).id === 'string') : [],
   };
 }
 
