@@ -68,7 +68,11 @@ Requires Node 18.18+.
 ```bash
 npm install
 npm run dev        # http://localhost:3000
+npm test           # unit tests: lengths, prices, auto-rack, Bill of Materials, templates, file checks
 ```
+
+The tests use Node's built-in test runner (Node 22.6+); TypeScript is loaded through jiti, which Tailwind 4 already
+installs.
 
 ## Build and host
 

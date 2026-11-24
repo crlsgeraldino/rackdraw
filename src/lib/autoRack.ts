@@ -15,15 +15,39 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 type Role = 'edge' | 'panel' | 'switch' | 'server' | 'storage' | 'ups' | 'other';
 
+/** Built-in stencils whose role is known exactly. */
+const BUILT_IN_ROLE: [RegExp, Role][] = [
+  [/^patch-panel/, 'panel'],
+  [/^ups$/, 'ups'],
+  [/^(sonicwall|firewall|router|sdwan|vpn-concentrator|wan-optimizer|csu-dsu|metro-ntu)/, 'edge'],
+  [/^switch-/, 'switch'],
+  [/^(nas|san|tape-library)$/, 'storage'],
+  [/^(server|nvr)$/, 'server'],
+];
+
+/** From words: whole words only ("Knowledge base server" is not an edge device, "Ledger DB host" is a host). */
+function roleFromText(text: string): Role | undefined {
+  if (/\bpatch[\s-]*panel\b|\bkeystone\b|\bfiber panel\b/.test(text)) return 'panel';
+  if (/\bups\b|\bbattery backup\b/.test(text)) return 'ups';
+  if (/\b(firewall|router|gateway|sonicwall|fortigate|utm|sd-?wan|vpn|ntu|demarc|csu)\b|\bwan optimi/.test(text)) return 'edge';
+  if (/\bkvm\b|\bpdu\b|\bconsole server\b/.test(text)) return 'other';
+  if (/\bswitch(es)?\b/.test(text)) return 'switch';
+  if (/\b(nas|san|storage|backup)\b/.test(text)) return 'storage';
+  if (/\b(server|host|hypervisor|nvr)\b/.test(text)) return 'server';
+  return undefined;
+}
+
 export function rackRole(d: DeviceNode, st?: StencilDef): Role {
-  const text = `${st?.id ?? ''} ${st?.name ?? ''} ${st?.category ?? ''} ${d.data.model ?? ''} ${d.data.name}`.toLowerCase();
-  if (/patch[\s-]*panel|keystone|fiber panel/.test(text)) return 'panel';
-  if (/\bups\b|battery backup/.test(text)) return 'ups';
-  if (/firewall|router|gateway|sonicwall|fortigate|utm|sd-?wan|edge|vpn|\bntu\b|demarc|csu|wan optimi/.test(text)) return 'edge';
-  if (/switch/.test(text)) return 'switch';
-  if (/\bnas\b|\bsan\b|storage|backup/.test(text)) return 'storage';
-  if (/server|host|hypervisor|nvr/.test(text)) return 'server';
-  return 'other';
+  if (st && !st.custom) {
+    const hit = BUILT_IN_ROLE.find(([re]) => re.test(st.id));
+    if (hit) return hit[1];
+    if (st.category === 'Firewalls') return 'edge';
+    return 'other';
+  }
+  // Imported stencils: what the stencil says it is first, then the device's own model and name.
+  return roleFromText(`${st?.name ?? ''} ${st?.defaults?.model ?? ''}`.toLowerCase())
+    ?? roleFromText(`${d.data.model ?? ''} ${d.data.name}`.toLowerCase())
+    ?? 'other';
 }
 
 /** Rack units a device takes: its stencil's, else none (not rack equipment). */
@@ -98,6 +122,30 @@ export function planRack(name: string, devices: DeviceNode[], stencil: (id: stri
  * Building B…), each group gets its own rack named after it. Devices without a location share a rack named
  * `fallbackName`. Returns the racks (not yet added) and how many devices they hold.
  */
+/** Tallest rack the planner uses. */
+export const MAX_RACK_U = 48;
+
+/**
+ * planRack, split over several racks when one would be taller than MAX_RACK_U: network gear (edge, panels, switches)
+ * in one rack and the rest in others, then halves until each fits.
+ */
+export function planRackSplit(name: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { racks: Rack[]; mounted: number } {
+  const one = planRack(name, devices, stencil, cables, options);
+  const mountable = devices.filter((d) => rackUnitsOf(stencil(d.data.stencilId)) > 0);
+  if (one.rack.units <= MAX_RACK_U || mountable.length < 2) return { racks: [one.rack], mounted: one.mounted };
+  const net = new Set<Role>(['edge', 'panel', 'switch']);
+  let a = mountable.filter((d) => net.has(rackRole(d, stencil(d.data.stencilId))));
+  let b = mountable.filter((d) => !a.includes(d));
+  if (!a.length || !b.length) {
+    const half = Math.ceil(mountable.length / 2);
+    a = mountable.slice(0, half);
+    b = mountable.slice(half);
+  }
+  const first = planRackSplit(`${name} 1`, a, stencil, cables, options);
+  const second = planRackSplit(`${name} 2`, b, stencil, cables, options);
+  return { racks: [...first.racks, ...second.racks], mounted: first.mounted + second.mounted };
+}
+
 export function planRacks(fallbackName: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { racks: Rack[]; mounted: number } {
   const groups = new Map<string, DeviceNode[]>();
   for (const d of devices) {
@@ -108,10 +156,12 @@ export function planRacks(fallbackName: string, devices: DeviceNode[], stencil: 
   const racks: Rack[] = [];
   let mounted = 0;
   for (const [where, list] of groups) {
-    const { rack, mounted: n } = planRack(where ? `${where} rack` : fallbackName, list, stencil, cables, options);
+    const { racks: built, mounted: n } = planRackSplit(where ? `${where} rack` : fallbackName, list, stencil, cables, options);
     if (!n) continue;
-    if (where) rack.location = where;
-    racks.push(rack);
+    for (const rack of built) {
+      if (where) rack.location = where;
+      racks.push(rack);
+    }
     mounted += n;
   }
   return { racks, mounted };

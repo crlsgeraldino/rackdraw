@@ -5,7 +5,7 @@ import { billOfMaterials } from '@/lib/bom';
 import { writeDocx } from '@/lib/docx';
 import { downloadBlob, safeName } from '@/lib/export';
 import { setPref, usePref } from '@/lib/prefs';
-import { LABOR_TASKS, money, priceQuote, QUOTE_DEFAULTS, QUOTE_HEADER, quoteRows, type QuoteSettings } from '@/lib/quote';
+import { LABOR_TASKS, money, parsePrice, priceQuote, QUOTE_DEFAULTS, QUOTE_HEADER, quoteRows, type QuoteSettings } from '@/lib/quote';
 import { writeXlsx } from '@/lib/xlsx';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 
@@ -17,8 +17,7 @@ function PriceInput({ value, onSave, label }: { value?: number; onSave: (v?: num
   const [text, setText] = useState<string | null>(null);
   const commit = () => {
     if (text === null) return;
-    const n = Number(text.replace(/[^0-9.]/g, ''));
-    onSave(text.trim() && Number.isFinite(n) ? n : undefined);
+    onSave(parsePrice(text));
     setText(null);
   };
   return (
@@ -78,7 +77,7 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
       const ls = q.lines.filter((l) => l.section === title);
       return ls.length ? [
         { kind: 'h2' as const, text: title },
-        { kind: 'table' as const, header: ['Qty', 'Item', 'Detail', 'Unit price', 'Amount'], widths: [0.08, 0.36, 0.3, 0.13, 0.13], rows: ls.map((l) => [`${l.qty.toLocaleString()} ${l.unit === 'each' ? '' : l.unit}`.trim(), l.item, l.detail, l.price ? cur(l.price) : '—', l.price ? cur(l.amount) : '—']) },
+        { kind: 'table' as const, header: ['Qty', 'Item', 'Detail', 'Unit price', 'Amount'], widths: [0.08, 0.36, 0.3, 0.13, 0.13], rows: ls.map((l) => [`${l.qty.toLocaleString()} ${l.unit === 'each' ? '' : l.unit}`.trim(), l.item, l.detail, l.price !== undefined ? cur(l.price) : '—', l.price !== undefined ? cur(l.amount) : '—']) },
       ] : [];
     };
     const totals = [
@@ -165,7 +164,7 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
                               <td className="py-1 pr-3 text-gray-800">{r.item}</td>
                               <td className="py-1 pr-3 text-xs text-gray-500">{r.detail}</td>
                               <td className="w-28 py-1 pr-2 text-right"><PriceInput value={price} label={r.item} onSave={(v) => savePrice(r.key, v)} /></td>
-                              <td className="w-28 py-1 text-right tabular-nums text-gray-800">{price ? cur(price * r.qty) : ''}</td>
+                              <td className="w-28 py-1 text-right tabular-nums text-gray-800">{price !== undefined ? cur(price * r.qty) : ''}</td>
                             </tr>
                           );
                         })}

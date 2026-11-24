@@ -3,6 +3,7 @@
  * user's own templates saved from a client. Creating a client from a template copies it with fresh ids.
  */
 import { planRack, planRacks } from './autoRack';
+import { PAGE_LINK } from './links';
 import { newPage } from './project';
 import { STENCIL_MAP } from './stencils';
 import type { AppNode, CableEdge, DeviceNode, Page, Project, Rack } from './types';
@@ -582,6 +583,8 @@ export function projectFromTemplate(t: Template['project'], name: string): Proje
   const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
   const src = clone(t);
   for (const pg of src.pages) for (const n of pg.nodes) fresh(n.id);
+  for (const pg of src.pages) fresh(pg.id);
+  const relink = (address: string) => (address.startsWith(PAGE_LINK) && ids.has(address.slice(PAGE_LINK.length)) ? PAGE_LINK + ids.get(address.slice(PAGE_LINK.length)) : address);
   const pages: Page[] = src.pages.map((pg) => {
     const pid = fresh(pg.id);
     return {
@@ -591,6 +594,16 @@ export function projectFromTemplate(t: Template['project'], name: string): Proje
       nodes: pg.nodes.map((n) => {
         const out = { ...n, id: fresh(n.id), selected: false } as AppNode;
         if (out.type === 'shape' && out.data.target) out.data = { ...out.data, target: fresh(out.data.target) };
+        // Off-page reference pairs and "go to page" links point at ids that change too.
+        const data = out.data as { pair?: string; link?: string; moreLinks?: { address: string }[] };
+        if (data.pair || data.link?.startsWith(PAGE_LINK) || data.moreLinks?.length) {
+          out.data = {
+            ...out.data,
+            ...(data.pair ? { pair: fresh(data.pair) } : {}),
+            ...(data.link ? { link: relink(data.link) } : {}),
+            ...(data.moreLinks ? { moreLinks: data.moreLinks.map((l) => ({ ...l, address: relink(l.address) })) } : {}),
+          } as typeof out.data;
+        }
         return out;
       }),
       edges: pg.edges.map((e) => ({ ...e, id: `e-${uid()}`, source: fresh(e.source), target: fresh(e.target), selected: false })),

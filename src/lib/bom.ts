@@ -3,6 +3,7 @@
  * cable runs and patch cords by type and length, transceivers for fiber / copper SFP ports, wall-end terminations,
  * racks and rack accessories, and the circuits and services the sites need. Plus port capacity per switch.
  */
+import { lengthFt } from './length';
 import { allDevices } from './project';
 import { isPassThrough } from './trace';
 import type { CableData, CableEdge, DeviceNode, PortDef, Project, StencilDef } from './types';
@@ -42,16 +43,21 @@ const SERVICES: Record<string, string> = {
 };
 const NOT_EQUIPMENT = new Set(['building', 'remote-user', ...Object.keys(SERVICES)]);
 
-/** Links that are not a cable you buy. */
+/**
+ * Links that are not a cable you buy. Those that are a recurring service get a line (unless the diagram already
+ * shows the service itself, e.g. an MPLS cloud); Wi-Fi, Bluetooth and VPN tunnels cost nothing and get none.
+ */
 const AIR: Record<string, string> = {
-  Wireless: 'Wireless links (no cable)',
-  Bluetooth: 'Bluetooth pairings (no cable)',
+  Wireless: '',
+  Bluetooth: '',
+  VPN: '',
   Cellular: 'Cellular data plan',
   Microwave: 'Microwave path (licensed / unlicensed)',
   Satellite: 'Satellite service',
-  VPN: 'VPN tunnels',
   MPLS: 'MPLS circuits',
 };
+/** The service node that already stands for a link type's billing. */
+const AIR_SERVICE: Record<string, string> = { MPLS: 'mpls-cloud' };
 const COPPER = new Set(['Cat6', 'Cat6a', 'Cat5e']);
 const FIBER = new Set(['Fiber', 'Fiber SM', 'Fiber MM']);
 const FIBER_NAME: Record<string, string> = { Fiber: 'Fiber cable', 'Fiber SM': 'Single-mode fiber (OS2)', 'Fiber MM': 'Multimode fiber (OM3 / OM4)' };
@@ -60,13 +66,7 @@ const FIBER_NAME: Record<string, string> = { Fiber: 'Fiber cable', 'Fiber SM': '
 const POE_BUDGET: Record<string, number> = { 'switch-16-poe': 240, 'switch-24-poe': 370, 'switch-48-poe': 740 };
 const POE_WATTS: Record<string, number> = { PoE: 15.4, 'PoE+': 30, 'PoE++': 60, 'PoE++ 90W': 90 };
 
-/** "85 ft", "3 m", "1.5m", "10'" → feet (undefined when not a length). */
-export function lengthFt(s?: string): number | undefined {
-  const m = (s ?? '').trim().match(/^(\d+(?:\.\d+)?)\s*(ft|feet|foot|'|m|meters?|metres?)$/i);
-  if (!m) return undefined;
-  const n = Number(m[1]);
-  return /^(ft|feet|foot|')$/i.test(m[2]) ? n : n * 3.28084;
-}
+export { lengthFt };
 const fmtFt = (ft: number) => `${Math.round(ft).toLocaleString()} ft (${Math.round(ft / 3.28084).toLocaleString()} m)`;
 
 /** Runs longer than this are permanent cabling (bulk cable); shorter ones are patch cords. */
@@ -134,13 +134,17 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
     return g >= 40 ? 'QSFP28' : g >= 25 ? 'SFP28' : g >= 10 ? 'SFP+' : 'SFP';
   };
 
+  const stencilsUsed = new Set(devices.map((d) => d.data.stencilId));
   for (const e of edges) {
     const data = (e.data ?? {}) as CableData;
     const t = data.cable ?? 'Cat6';
-    if (AIR[t] || t === 'Line') {
-      if (AIR[t]) count(air, AIR[t]);
+    if (t in AIR || t === 'Line') {
+      if (AIR[t] && !(AIR_SERVICE[t] && stencilsUsed.has(AIR_SERVICE[t]))) count(air, AIR[t]);
       continue;
     }
+    // A drawn SFP module plugged into a port: the module is listed as equipment; that "cable" is not a cable.
+    const ends = [[e.source, e.sourceHandle], [e.target, e.targetHandle]] as const;
+    if (ends.some(([nid, h]) => byId.get(nid)?.data.stencilId === 'sfp-module' && h === 'HOST')) continue;
     const ft = lengthFt(data.length);
     if (ft === undefined) count(unknown, FIBER.has(t) ? FIBER_NAME[t] : `${t} cable`);
     else if (ft > CORD_MAX_FT && t !== 'DAC') {

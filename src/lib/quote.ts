@@ -66,7 +66,7 @@ export function priceQuote(sections: BomSection[], work: WorkCounts, prices: Rec
   const lines: QuoteLine[] = sections.flatMap((sec) =>
     sec.rows.map((r) => {
       const price = prices[r.key];
-      return { section: sec.title, key: r.key, item: r.item, detail: r.detail, qty: r.qty, unit: r.unit, price, amount: price ? price * r.qty : 0, monthly: sec.title === 'Circuits & services' };
+      return { section: sec.title, key: r.key, item: r.item, detail: r.detail, qty: r.qty, unit: r.unit, price, amount: price !== undefined ? price * r.qty : 0, monthly: sec.title === 'Circuits & services' };
     }),
   );
   const materials = lines.filter((l) => !l.monthly).reduce((t, l) => t + l.amount, 0);
@@ -84,8 +84,23 @@ export function priceQuote(sections: BomSection[], work: WorkCounts, prices: Rec
     lines, labor, materials, markup, tax, laborHours, labor$,
     oneTime: materials + markup + tax + labor$,
     monthly: lines.filter((l) => l.monthly).reduce((t, l) => t + l.amount, 0),
-    unpriced: lines.filter((l) => !l.price).length,
+    unpriced: lines.filter((l) => l.price === undefined).length,
   };
+}
+
+/**
+ * A typed price: "$8,500", "1.200,50" (decimal comma), "45,5", "12.99". Text without digits, or a negative number,
+ * is not a price (undefined).
+ */
+export function parsePrice(text: string): number | undefined {
+  let t = text.trim().replace(/[^\d.,-]/g, '');
+  if (!/\d/.test(t) || t.startsWith('-')) return undefined;
+  const lastComma = t.lastIndexOf(','), lastDot = t.lastIndexOf('.');
+  // The last separator is the decimal one when it is followed by 1-2 digits and it's a comma after any dot.
+  if (lastComma > lastDot && /,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
+  else t = t.replace(/,/g, '');
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : undefined;
 }
 
 export function money(n: number, currency = 'USD') {
@@ -101,7 +116,7 @@ export function quoteRows(q: Quote, s: QuoteSettings = {}): (string | number)[][
   const set = { ...QUOTE_DEFAULTS, ...s };
   const r2 = (n: number) => Math.round(n * 100) / 100;
   return [
-    ...q.lines.map((l) => [l.section, l.qty, l.unit, l.item, l.detail, l.price ?? '', l.price ? r2(l.amount) : '', l.monthly ? 'monthly' : '']),
+    ...q.lines.map((l) => [l.section, l.qty, l.unit, l.item, l.detail, l.price ?? '', l.price !== undefined ? r2(l.amount) : '', l.monthly ? 'monthly' : '']),
     ...q.labor.map((l) => ['Labor', l.hours, 'h', l.label, `${l.qty} ${l.unit}${l.qty === 1 ? '' : 's'} × ${l.hoursEach} h`, set.laborRate, r2(l.amount), '']),
     [],
     ['', '', '', 'Materials', '', '', r2(q.materials), ''],

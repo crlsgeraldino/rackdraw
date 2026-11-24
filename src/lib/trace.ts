@@ -1,3 +1,4 @@
+import { totalLength } from './length';
 import { rackLabel } from './rack';
 import type { CableData, CableEdge, DeviceNode, Project, StencilDef } from './types';
 
@@ -9,9 +10,18 @@ import type { CableData, CableEdge, DeviceNode, Project, StencilDef } from './ty
  */
 
 /** Patch panels (and other pass-through equipment): a port's two cables continue one another. */
+const PASS_THROUGH_IDS = /^(patch-panel|wall-jack|splice-closure)/;
+const PASS_THROUGH_TEXT = /\bpatch\s*panel\b|\bkeystone\b|\bwall\s*(jack|plate)\b|\bfaceplate\b|\bcoupler\b|\bsplice\b/i;
+
+/**
+ * A patch panel, wall jack, splice… (its ports carry a cable in and a cable out). Decided by what the device IS —
+ * its stencil, or for an imported stencil its stencil name / model — never by the name the user gave the device
+ * ("Patch Panel Room PC" is a PC).
+ */
 export function isPassThrough(d: DeviceNode | undefined, stencil?: StencilDef) {
   if (!d) return false;
-  return !!(stencil?.id.startsWith('patch-panel') || /patch\s*panel|keystone|wall\s*(jack|plate)|faceplate|coupler|splice/i.test(`${stencil?.name ?? ''} ${d.data.model ?? ''} ${d.data.name}`));
+  if (stencil && !stencil.custom) return PASS_THROUGH_IDS.test(stencil.id);
+  return PASS_THROUGH_TEXT.test(`${stencil?.name ?? ''} ${stencil?.defaults?.model ?? ''} ${d.data.model ?? ''}`);
 }
 
 export interface TraceHop {
@@ -105,18 +115,9 @@ export function tracePath(p: Project, nodeId: string, port: string | undefined, 
   return { hops: [...b.hops.reverse(), start, ...a.hops], links: [...b.links.reverse(), ...a.links] };
 }
 
-/** Total length of a path when every cable has one in the same unit ("85 ft" + "3 ft" → "88 ft"), else ''. */
+/** Total length of a path when every cable has one ("85 ft" + "3 ft" → "88 ft"; mixed units add up in feet), else ''. */
 export function pathLength(t: Trace) {
-  let total = 0, unit = '';
-  for (const l of t.links) {
-    const m = (l.data?.length ?? '').trim().match(/^(\d+(?:\.\d+)?)\s*(ft|feet|'|m|meters?|metres?)$/i);
-    if (!m) return '';
-    const u = /^(ft|feet|')$/i.test(m[2]) ? 'ft' : 'm';
-    if (unit && unit !== u) return '';
-    unit = u;
-    total += Number(m[1]);
-  }
-  return t.links.length && unit ? `${Math.round(total * 10) / 10} ${unit}` : '';
+  return totalLength(t.links.map((l) => l.data?.length));
 }
 
 /** "Core switch 14 → Patch panel A 7 → Front desk PC" */

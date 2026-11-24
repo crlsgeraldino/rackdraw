@@ -19,6 +19,14 @@ import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type
 
 /* ---------- helpers ---------- */
 
+/** jsPDF's built-in fonts only draw Latin-1: arrows, ≈, × and the like become their plain-text equivalents. */
+export function pdfText(s: string) {
+  return s
+    .replace(/[→⟶➝]/g, '->').replace(/[←]/g, '<-').replace(/[↔]/g, '<->').replace(/≈/g, '~').replace(/≤/g, '<=').replace(/≥/g, '>=')
+    .replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/•/g, '-').replace(/⤷/g, '>')
+    .replace(/[^\x00-\xff]/g, '?');
+}
+
 function download(name: string, href: string) {
   const a = document.createElement('a');
   a.href = href;
@@ -386,21 +394,27 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     newPage();
     header(title);
     let y = m + 40;
+    // Every line of a long cell is printed (the row grows to fit), in characters the built-in PDF font can draw.
+    const lines = (cells: string[]) => cells.map((c, i) => doc.splitTextToSize(pdfText(c), widths[i] - 6) as string[]);
     const row = (cells: string[], bold: boolean) => {
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(9);
+      const ls = lines(cells);
+      const n = Math.max(1, ...ls.map((l) => l.length));
       let x = m;
-      cells.forEach((c, i) => {
-        doc.text(doc.splitTextToSize(c, widths[i] - 6)[0] ?? '', x + 3, y);
+      ls.forEach((l, i) => {
+        doc.text(l, x + 3, y);
         x += widths[i];
       });
       doc.setDrawColor(220);
-      doc.line(m, y + 5, W - m, y + 5);
-      y += 16;
+      doc.line(m, y + 5 + (n - 1) * 11, W - m, y + 5 + (n - 1) * 11);
+      y += 16 + (n - 1) * 11;
     };
     row(cols, true);
     for (const r of rows) {
-      if (y > bottom) {
+      doc.setFontSize(9);
+      const n = Math.max(1, ...lines(r).map((l) => l.length));
+      if (y + (n - 1) * 11 > bottom) {
         doc.addPage();
         header(`${title} (cont.)`);
         y = m + 40;

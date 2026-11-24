@@ -536,7 +536,7 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
 
       {face === 'front' && cables && cables.length > 0 && (() => {
         // Patch cords on the front: between two ports in this rack, or a short lead from a port whose cable leaves it.
-        const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId).map((it) => [it.nodeId!, it]));
+        const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId && onFace(it, 'front')).map((it) => [it.nodeId!, it]));
         const at = (nodeId: string, port?: string) => {
           const it = itemOf.get(nodeId);
           if (!it) return null;

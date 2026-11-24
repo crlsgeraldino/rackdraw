@@ -12,6 +12,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --import ./tests/register.mjs --test \"tests/*.test.ts\"",
     "icons": "node scripts/make-icons.mjs",
     "serve": "npx --yes serve@14 out -l 3124",
     "desktop": "next build && electron .",

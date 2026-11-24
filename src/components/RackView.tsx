@@ -300,9 +300,9 @@ function PortCard({ hover }: { hover: { nodeId: string; port: string; x: number;
   const st = findStencil(d.data.stencilId, custom);
   const pd = d.data.ports?.[hover.port] ?? {};
   const label = pd.label || st?.ports.find((q) => q.id === hover.port)?.label || hover.port;
-  // The cable on this port (any page) and its far end.
-  let far = '';
-  let cable: CableData | undefined;
+  // The cables on this port (any page) and their far ends: a patch panel port has two (front cord, back run).
+  const fars: string[] = [];
+  const cables: (CableData | undefined)[] = [];
   for (const pg of project.pages) for (const e of pg.edges) {
     const mine = e.source === d.id && e.sourceHandle === hover.port ? 'source' : e.target === d.id && e.targetHandle === hover.port ? 'target' : null;
     if (!mine) continue;
@@ -313,15 +313,17 @@ function PortCard({ hover }: { hover: { nodeId: string; port: string; x: number;
     const oname = o?.data.name ?? 'item';
     const oport = otherPort ? o?.data.ports?.[otherPort]?.label || ost?.ports.find((q) => q.id === otherPort)?.label || otherPort : '';
     const where = (project.racks ?? []).flatMap((r) => r.items.filter((it) => it.nodeId === otherId).map((it) => `${r.name} ${rackLabel(it)}`))[0];
-    far = [oname, oport && `port ${oport}`].filter(Boolean).join(' · ') + (where ? ` (${where})` : o ? ' (not racked)' : '');
-    cable = e.data;
+    fars.push([oname, oport && `port ${oport}`].filter(Boolean).join(' · ') + (where ? ` (${where})` : o ? ' (not racked)' : ''));
+    cables.push(e.data);
   }
+  const far = fars.join('\n');
+  const cableText = cables.map((cable) => [cable?.cable, cable?.vlan && `VLAN ${cable.vlan}`, cable?.length, cable?.label].filter(Boolean).join(' · ')).filter(Boolean).join('\n');
   const status = PORT_STATUSES.find((s) => s.value === pd.status);
   const trace = tracePath(project, d.id, hover.port, (id) => findStencil(id, custom));
   const rows: [string, string][] = [
     ['Path', trace.hops.length > 2 ? [pathText(trace), pathLength(trace) && `(${pathLength(trace)})`].filter(Boolean).join(' ') : ''],
     ['Cable to', far], ['Connected to', pd.description ?? ''],
-    ['Cable', [cable?.cable, cable?.vlan && `VLAN ${cable.vlan}`, cable?.length, cable?.label].filter(Boolean).join(' · ')],
+    ['Cable', cableText],
     ['Link', [pd.speed, pd.poe].filter(Boolean).join(' · ')], ['IP', pd.ip ?? ''], ['VLAN', pd.vlan ?? ''], ['Notes', pd.notes ?? ''],
   ];
   const shown = rows.filter(([, v]) => v);
@@ -336,7 +338,7 @@ function PortCard({ hover }: { hover: { nodeId: string; port: string; x: number;
       </div>
       {shown.length ? (
         <div className="grid grid-cols-[78px_1fr] gap-x-2 gap-y-0.5">
-          {shown.flatMap(([k, v]) => [<span key={`${k}-k`} className="text-gray-500">{k}</span>, <span key={`${k}-v`} className="break-words text-gray-800">{v}</span>])}
+          {shown.flatMap(([k, v]) => [<span key={`${k}-k`} className="text-gray-500">{k}</span>, <span key={`${k}-v`} className="whitespace-pre-line break-words text-gray-800">{v}</span>])}
         </div>
       ) : (
         <p className="text-gray-400">Nothing plugged in or noted. Select the device on the diagram to add port notes.</p>
