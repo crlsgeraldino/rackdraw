@@ -135,6 +135,16 @@ The installer asks per-user vs. all users; for silent deployment (Intune/RMM) us
 
 The installer is not code-signed, so SmartScreen will warn on first run until it's signed with a code-signing certificate.
 
+**Data folder.** Clients are kept in `%APPDATA%\NetCraft` (the app's original name, so older data is still found). Set
+the environment variable `RACKDRAW_DATA_DIR` to a folder to use that instead: a portable copy on a USB stick, a
+separate test copy, or a second set of clients.
+
+**Security.** The app's pages may load nothing from the internet (a content-security policy allows only the app
+itself and `data:` / `blob:` pictures), so text from an imported file can't send diagrams anywhere or pull code in.
+Links open in the default browser and only for `http`, `https` and `mailto`. The only browser permissions granted are
+the clipboard (Copy buttons), persistent storage and full screen. The installed exe can't be run as Node.js, ignores
+`NODE_OPTIONS` and Node inspect switches, and only loads its own integrity-checked `app.asar` (Electron fuses).
+
 ## License
 
 [MIT](LICENSE)
