@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
-import { openFind, paletteAction } from '@/lib/events';
+import { openFind, openPortMap, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, readProjectFile, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
@@ -1958,6 +1958,11 @@ function DataTab() {
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />
         <Big icon="label" label="Labels" onClick={() => setLabels(true)} title="Print cable labels (both ends), asset labels with a QR code, and patch panel port strips on Avery sheets" />
+        <Big
+          icon="portMap" label="Port Map"
+          title="Every port of a switch, patch panel, firewall or router: where it leads (through patch panels), VLAN, speed, PoE, status and cable label — on screen, printed or to Excel"
+          onClick={() => openPortMap(activePage(useDiagram.getState().projects[useDiagram.getState().currentId]).nodes.find((n) => n.selected && n.type === 'device')?.id)}
+        />
       </Group>
     </>
   );

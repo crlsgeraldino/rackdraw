@@ -1,5 +1,6 @@
 'use client';
 
+import { openPortMap } from '@/lib/events';
 import { CIRCUIT_KINDS, daysUntil, LIFE_STATES, stateOf, whenText, type CircuitInfo } from '@/lib/lifecycle';
 import { parsePrice } from '@/lib/quote';
 import { subnetUsage } from '@/lib/ipam';
@@ -373,6 +374,11 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
     <div className="mt-4">
       <div className="mb-1 flex items-center justify-between">
         <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Ports</h4>
+        {ports.filter((p) => p.kind === 'rj45' || p.kind === 'sfp').length >= 4 && (
+          <button type="button" className="ml-auto mr-2 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-blue-700 hover:bg-blue-50" onClick={() => openPortMap(node.id)} title="This device's port map: its face coloured by port state, where each port leads, VLAN, PoE…; print or copy to Excel">
+            Port map
+          </button>
+        )}
         <label className="flex items-center gap-1 text-[10px] text-gray-500" title="Only ports with notes or a cable">
           <input type="checkbox" checked={onlyNoted} onChange={(e) => setOnlyNoted(e.target.checked)} />
           In use ({noted})

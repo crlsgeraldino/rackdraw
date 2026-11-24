@@ -98,6 +98,7 @@ const P: Record<string, ReactNode> = {
   ipPlan: <><rect x="7" y="2" width="6" height="4.5" rx="1" /><rect x="2" y="13.5" width="6" height="4.5" rx="1" /><rect x="12" y="13.5" width="6" height="4.5" rx="1" /><path d="M10 6.5V10M5 13.5V10h10v3.5" /></>,
   ruler: <><rect x="1.5" y="6" width="17" height="8" /><path d="M4 6v3M7 6v2M10 6v3M13 6v2M16 6v3" /></>,
   grid: <><rect x="2" y="2" width="16" height="16" /><path d="M2 7.3h16M2 12.6h16M7.3 2v16M12.6 2v16" /></>,
+  portMap: <><rect x="1.5" y="5" width="17" height="10" rx="1.2" /><rect x="3.5" y="7" width="2.6" height="2.4" /><rect x="7.2" y="7" width="2.6" height="2.4" /><rect x="10.9" y="7" width="2.6" height="2.4" /><rect x="3.5" y="10.6" width="2.6" height="2.4" /><rect x="7.2" y="10.6" width="2.6" height="2.4" /><path d="M14.6 8.2h2M14.6 11.8h2" /></>,
 };
 
 export type IconName = keyof typeof P;
@@ -125,7 +126,7 @@ const TONE_OF: Record<string, keyof typeof TONES> = {
   // Notes, styles, protection
   note: 'amber', screenTip: 'amber', painter: 'amber', lock: 'amber', unlock: 'amber', fill: 'amber', colors: 'amber', shadow: 'amber', info: 'blue',
   // Equipment
-  device: 'teal', ipPlan: 'teal', lifecycle: 'amber', label: 'purple', racks: 'teal', library: 'teal', keyboard: 'teal', hundred: 'teal', numbering: 'teal', grid: 'teal', edit: 'teal', replace: 'teal',
+  device: 'teal', portMap: 'teal', ipPlan: 'teal', lifecycle: 'amber', label: 'purple', racks: 'teal', library: 'teal', keyboard: 'teal', hundred: 'teal', numbering: 'teal', grid: 'teal', edit: 'teal', replace: 'teal',
   // Destructive
   delete: 'red', cut: 'red', close: 'red',
 };
