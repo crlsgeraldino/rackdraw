@@ -5,6 +5,7 @@ import { del, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { ImportPlan } from '@/lib/dataImport';
+import { pack, unpack, usedPool } from '@/lib/blobPool';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_LIBRARY, libraryOf, resolveLibrary, sameLibrary } from '@/lib/libraries';
 import { STENCIL_MAP, STENCILS } from '@/lib/stencils';
@@ -485,6 +486,13 @@ export interface ProjectVersion {
 /** Version History lives under its own key, written only when the versions change (not on every edit). */
 const VERSIONS_KEY = 'netcraft-versions';
 let versionsLoaded = false;
+/**
+ * Pictures and other big strings in saved versions, each kept once (versions refer to them by key): twenty versions
+ * of a drawing full of pictures cost about one copy of the pictures.
+ */
+let versionPool: Record<string, string> = {};
+/** What is stored under VERSIONS_KEY (older releases stored the version lists alone). */
+interface StoredVersions { format: 2; versions: Record<string, ProjectVersion[]>; pool: Record<string, string> }
 
 /** Contents of the zones being dragged, captured when each drag starts. */
 const zoneDrag = new Map<string, string[]>();
@@ -532,7 +540,7 @@ export const useDiagram = create<DiagramState>()(
         saveVersion: (name, auto) => {
           const p = cur();
           const list = get().versions[p.id] ?? [];
-          const v: ProjectVersion = { id: `v-${uid()}`, name: name?.trim() || 'Version', at: Date.now(), auto: auto || undefined, project: JSON.parse(JSON.stringify(p)) };
+          const v: ProjectVersion = { id: `v-${uid()}`, name: name?.trim() || 'Version', at: Date.now(), auto: auto || undefined, project: pack(p, versionPool) };
           // Keep every named version; trim automatic ones to the latest 20.
           let next = [v, ...list];
           const autos = next.filter((x) => x.auto);
@@ -558,18 +566,27 @@ export const useDiagram = create<DiagramState>()(
           const v = (get().versions[p.id] ?? []).find((x) => x.id === versionId);
           if (!v) return;
           get().saveVersion(`Before restoring "${v.name}"`, true);
-          const restored: Project = { ...JSON.parse(JSON.stringify(v.project)), id: p.id, updatedAt: Date.now() };
+          const restored: Project = { ...unpack(v.project, versionPool), id: p.id, updatedAt: Date.now() };
           set({ projects: { ...get().projects, [p.id]: restored }, past: [], future: [], activeRackId: restored.racks?.[0]?.id ?? null, selectedRackItemId: null });
         },
         versionAsCopy: (versionId) => {
           const v = (get().versions[cur().id] ?? []).find((x) => x.id === versionId);
           if (!v) return;
-          const copy: Project = { ...JSON.parse(JSON.stringify(v.project)), id: uid(), name: `${v.project.name} (${v.name})`, createdAt: Date.now(), updatedAt: Date.now() };
+          const copy: Project = { ...unpack(v.project, versionPool), id: uid(), name: `${v.project.name} (${v.name})`, createdAt: Date.now(), updatedAt: Date.now() };
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
         },
         loadVersions: async () => {
           if (versionsLoaded) return;
-          const saved = await idbGet<Record<string, ProjectVersion[]>>(VERSIONS_KEY).catch(() => undefined);
+          const stored = await idbGet<StoredVersions | Record<string, ProjectVersion[]>>(VERSIONS_KEY).catch(() => undefined);
+          let saved: Record<string, ProjectVersion[]> | undefined;
+          if (stored && (stored as StoredVersions).format === 2) {
+            versionPool = { ...(stored as StoredVersions).pool, ...versionPool };
+            saved = (stored as StoredVersions).versions;
+          } else if (stored) {
+            // Versions saved by older releases hold whole copies: move their pictures into the shared pool.
+            saved = {};
+            for (const [k, list] of Object.entries(stored as Record<string, ProjectVersion[]>)) saved[k] = list.map((v) => ({ ...v, project: pack(v.project, versionPool) }));
+          }
           versionsLoaded = true;
           // Versions saved before loading finished (none normally) are kept on top.
           const now = get().versions;
@@ -2182,6 +2199,11 @@ export const getStencil = (id: string) => findStencil(id, useDiagram.getState().
 // Save the version list whenever it changes (after it has been loaded, so an empty start never overwrites it).
 if (typeof window !== 'undefined') {
   useDiagram.subscribe((s, prev) => {
-    if (versionsLoaded && s.versions !== prev.versions) void idbSet(VERSIONS_KEY, s.versions).catch(() => undefined);
+    if (versionsLoaded && s.versions !== prev.versions) {
+      // Only the pictures some version still uses are kept.
+      versionPool = usedPool(s.versions, versionPool);
+      const stored: StoredVersions = { format: 2, versions: s.versions, pool: versionPool };
+      void idbSet(VERSIONS_KEY, stored).catch(() => undefined);
+    }
   });
 }

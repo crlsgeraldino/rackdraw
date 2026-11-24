@@ -363,6 +363,10 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   **Open as copy** to compare side by side. Restoring first saves the current drawing as a version, so it can be undone.
 - RackDraw also keeps one automatically each day you work on a client (the latest 20 automatic ones are kept; named
   versions stay until you delete them). Versions are stored on this computer, separately from the everyday saves.
+- Pictures (photos, floor-plan backgrounds, imported Visio pictures) are stored once and shared by every version
+  that has them, so many versions of a picture-heavy drawing cost little more than one (four versions of a 5 MB
+  drawing: 6.4 MB instead of 20 MB). Pictures no version uses any more are removed. Versions saved by earlier
+  releases are compacted the first time they load.
 
 ## Templates (File → New client)
 
