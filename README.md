@@ -702,6 +702,10 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - **Layers** (with visible / print / lock), **containers** (zones) and **background pages** go both ways: saved into
   the `.vsdx` and read back from Visio drawings.
 - Lines in a Visio drawing that aren't glued between two shapes come in as drawn lines (or freehand shapes).
+- Flowchart and basic shapes drawn from a master (process boxes, rounded boxes, circles, decision diamonds) open as
+  real, editable RackDraw shapes with their own text, colours, bold and alignment. Network equipment (by its
+  master's name or Shape Data such as *IP Address*) becomes a device; other complex shapes (ER tables, logos) come in
+  as a picture of exactly that copy that cables still connect to.
 - Not carried over yet: Visio themes.
 
 ## Your own stencils (no code needed)
