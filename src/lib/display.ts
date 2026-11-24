@@ -63,11 +63,14 @@ export function displayColors(p: Project): DisplayColors {
   if (s.cableColor === 'vlan') {
     cableTitle = 'VLAN';
     const pal = paletteFor(edges.map((e) => (e.data?.vlan ?? '').trim()));
+    // A VLAN with its own colour in the IP plan uses it; its name goes in the legend.
+    const plan = new Map((p.vlans ?? []).map((v) => [v.vlan.trim(), v]));
+    for (const k of pal.keys()) { const c = plan.get(k)?.color; if (c) pal.set(k, c); }
     cable = (d) => {
       const base = CABLE_STYLES[(d?.cable ?? 'Cat6') as CableType];
       return { ...base, color: pal.get((d?.vlan ?? '').trim()) ?? NONE };
     };
-    cableLegend = [...pal.entries()].map(([label, color]) => ({ label: `VLAN ${label}`, color }));
+    cableLegend = [...pal.entries()].map(([label, color]) => ({ label: `VLAN ${label}${plan.get(label)?.name ? ` ${plan.get(label)!.name}` : ''}`, color }));
     if (edges.some((e) => !(e.data?.vlan ?? '').trim())) cableLegend.push({ label: 'No VLAN', color: NONE });
   } else {
     const used = new Set(edges.map((e) => (e.data?.cable ?? 'Cat6') as CableType));

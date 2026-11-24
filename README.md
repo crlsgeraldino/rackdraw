@@ -756,6 +756,19 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
     single-mode fiber. Four racks (a 32U data center rack and an 18U rack per building).
   - Every drop is traced end to end (endpoint → patch panel → access switch → fiber panels → core), with wall jacks,
     lengths, VLANs (1 / 10 data / 20 voice / 30 cameras), port speeds and PoE filled in.
+- **IP plan** (Data → **IP Plan**): the client's VLANs and subnets.
+  - Each VLAN: number, name, subnet (CIDR, e.g. `10.0.10.0/24`), gateway, DHCP range, a colour and notes. **Add VLANs
+    used in the diagram** fills in the VLAN numbers already on cables and ports (1 Management, 10 Data, 20 Voice,
+    30 Cameras… get their usual names).
+  - How full each subnet is (static addresses used against the space outside the DHCP pool) and its **next free IP**.
+  - **IP addresses** tab: every device IP in order, with its VLAN and anything wrong with it. Copy, CSV or Excel.
+  - **Check Diagram** flags: IPs outside every subnet of the plan, static IPs inside a DHCP range, IPs on a network or
+    broadcast address, a device using a gateway address, overlapping subnets, gateways / DHCP ranges outside their
+    subnet, and cables on a VLAN the plan doesn't list (only once the client has a plan).
+  - In Shape Data, **Next free ▾** beside Management IP fills in the next free address of a VLAN, and VLAN fields
+    suggest the plan's VLANs as you type. Design → Cables by **VLAN** uses the plan's colours and names.
+  - The PDF, Word report and CSV export include the IP plan and the IP address list. The Small, Medium and Large
+    network templates come with a VLAN / IP plan that matches their devices.
 - **Bill of materials** (Data → **Bill of Materials**): what to order for the client, counted from every page and
   rack:
   - **Equipment** by type and model (with rack units); circuits and cloud services are listed separately.

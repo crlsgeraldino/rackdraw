@@ -1,7 +1,7 @@
 'use client';
 
 import { writeDocx, type DocBlock } from './docx';
-import { connectionRows, deviceRows, portRows, rackRows, renderRack, type PageRenderer } from './export';
+import { connectionRows, deviceRows, ipPlanRows, portRows, rackRows, renderRack, type PageRenderer } from './export';
 import { pageAlt, rackAlt } from './altText';
 import type { Project } from './types';
 
@@ -66,6 +66,11 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
   };
   table('Devices', ['Page', 'Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack / location'],
     deviceRows(p).map((d) => [d.page, d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]), [0.1, 0.16, 0.14, 0.13, 0.11, 0.13, 0.09, 0.14]);
+  if (p.vlans?.length) {
+    const ip = ipPlanRows(p);
+    table('IP plan', ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free'], ip.plan.map((r) => [r.vlan, r.name, r.subnet, r.gateway, r.dhcp, r.use, r.next]), [0.07, 0.15, 0.15, 0.12, 0.2, 0.2, 0.11]);
+    table('IP addresses', ['IP', 'Device', 'VLAN', 'Check'], ip.ips.map((r) => [r.ip, r.device, r.vlan, r.check]), [0.15, 0.35, 0.25, 0.25]);
+  }
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]), [0.09, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.16]);
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'],

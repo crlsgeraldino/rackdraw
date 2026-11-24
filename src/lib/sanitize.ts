@@ -62,6 +62,7 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
     pages,
     racks,
     activePageId: pages.some((pg) => pg.id === p.activePageId) ? p.activePageId : pages[0].id,
+    vlans: Array.isArray(p.vlans) ? p.vlans.filter((v) => isObj(v) && typeof v.name === 'string').map((v) => ({ ...v, id: typeof v.id === 'string' ? v.id : `v-${uid()}`, vlan: String(v.vlan ?? '') })) : undefined,
     createdAt: finite(p.createdAt) ? p.createdAt : Date.now(),
     updatedAt: finite(p.updatedAt) ? p.updatedAt : Date.now(),
   };

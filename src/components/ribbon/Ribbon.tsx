@@ -12,6 +12,7 @@ import { exportVsdx } from '@/lib/visio/vsdxExport';
 import { exportWordReport } from '@/lib/wordReport';
 import { exportDeck } from '@/lib/deck';
 import { BomDialog } from '../BomDialog';
+import { IpPlanDialog } from '../IpPlanDialog';
 import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
@@ -1882,11 +1883,13 @@ function DataTab() {
   const quick = usePref('quickInfo');
   const [reports, setReports] = useState(false);
   const [bom, setBom] = useState(false);
+  const [ipPlan, setIpPlan] = useState(false);
   const [defining, setDefining] = useState(false);
   return (
     <>
       {reports && <ReportDialog onClose={() => setReports(false)} />}
       {bom && <BomDialog onClose={() => setBom(false)} />}
+      {ipPlan && <IpPlanDialog onClose={() => setIpPlan(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Show/Hide">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
@@ -1906,6 +1909,9 @@ function DataTab() {
       </Group>
       <Group label="Data Graphics">
         <DataGraphicsMenu />
+      </Group>
+      <Group label="IP Plan">
+        <Big icon="ipPlan" label="IP Plan" onClick={() => setIpPlan(true)} title="VLANs and subnets of this client: gateway, DHCP range, how full each subnet is, the next free IP, and every device IP checked against them" />
       </Group>
       <Group label="Reports">
         <Big icon="excel" label="Reports" onClick={() => setReports(true)} title="Device reports with the fields you pick, to Excel, Word or CSV (like Visio's Report wizard)" />

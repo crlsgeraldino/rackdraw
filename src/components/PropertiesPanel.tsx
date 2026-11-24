@@ -1,5 +1,6 @@
 'use client';
 
+import { subnetUsage } from '@/lib/ipam';
 import { pathLength, tracePath } from '@/lib/trace';
 import { HeaderFooterEditor } from './HeaderFooterEditor';
 
@@ -22,18 +23,52 @@ import { realLength, SET_SCALE_EVENT } from '@/lib/units';
 import type { LengthUnit } from '@/lib/types';
 import { insertPdfBackdrop } from '@/lib/insertPdf';
 
-function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
+function Field({ label, value, onChange, mono, area, list, after }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean; list?: string; after?: React.ReactNode }) {
   const snapshot = useDiagram((s) => s.snapshot);
   const cls = `w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:border-blue-500 ${mono ? 'font-mono' : ''}`;
   return (
     <label className="mb-2 block">
-      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">{label}</span>
+      <span className="mb-0.5 flex items-center text-[11px] font-medium text-gray-500">{label}{after && <span className="ml-auto">{after}</span>}</span>
       {area ? (
         <textarea className={cls} rows={3} value={value ?? ''} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input className={cls} value={value ?? ''} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
+        <input className={cls} value={value ?? ''} list={list} onFocus={snapshot} onChange={(e) => onChange(e.target.value)} />
       )}
     </label>
+  );
+}
+
+/** VLAN fields suggest the client's IP plan (Data → IP Plan) as you type. */
+const VLAN_LIST = 'rd-vlan-plan';
+function VlanOptions() {
+  const vlans = useCurrentProject().vlans ?? [];
+  return (
+    <datalist id={VLAN_LIST}>
+      {vlans.filter((v) => v.vlan.trim()).map((v) => <option key={v.id} value={v.vlan}>{[v.name, v.subnet].filter(Boolean).join(' · ')}</option>)}
+    </datalist>
+  );
+}
+
+/** "Next free ▾" beside a device's IP: the first free static address in each subnet of the IP plan. */
+function NextFreeIp({ onPick }: { onPick: (ip: string) => void }) {
+  const project = useCurrentProject();
+  const [open, setOpen] = useState(false);
+  const usage = useMemo(() => (open ? subnetUsage(project).filter((u) => u.next) : []), [open, project]);
+  if (!(project.vlans ?? []).some((v) => v.subnet)) return null;
+  return (
+    <span className="relative">
+      <button type="button" className="rounded px-1 text-[10px] font-medium text-blue-700 hover:bg-blue-50" onClick={() => setOpen((o) => !o)} title="Fill in the next free IP from the IP plan">Next free ▾</button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-xl" onMouseLeave={() => setOpen(false)}>
+          {usage.length ? usage.map((u) => (
+            <button key={u.vlan.id} type="button" className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-blue-50" onClick={() => { onPick(u.next!); setOpen(false); }}>
+              <span className="font-mono text-gray-900">{u.next}</span>
+              <span className="truncate text-gray-500">VLAN {u.vlan.vlan} {u.vlan.name}</span>
+            </button>
+          )) : <p className="px-3 py-1 text-gray-500">No free addresses in the plan&apos;s subnets.</p>}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -157,7 +192,7 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         <LayerSelect value={d.layer} onChange={(layer) => { snapshot(); update(node.id, { layer }); }} />
       </div>
       <Field label="Model" value={d.model} onChange={set('model')} />
-      <Field label="Management IP" value={d.ip} onChange={set('ip')} mono />
+      <Field label="Management IP" value={d.ip} onChange={set('ip')} mono after={<NextFreeIp onPick={(ip) => { snapshot(); update(node.id, { ip }); }} />} />
       <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />
       <Field label="Serial number" value={d.serial} onChange={set('serial')} mono />
       <ExtraFieldsEditor node={node} />
@@ -292,7 +327,8 @@ function PortList({ node, ports, peer }: { node: DeviceNode; ports: PortDef[]; p
                     </label>
                     <label className="block flex-1">
                       <span className="text-[10px] text-gray-500">VLAN</span>
-                      <input className={`${input} font-mono`} value={pd.vlan ?? ''} onFocus={snapshot} onChange={(e) => set({ vlan: e.target.value })} />
+                      <input className={`${input} font-mono`} value={pd.vlan ?? ''} list={VLAN_LIST} onFocus={snapshot} onChange={(e) => set({ vlan: e.target.value })} />
+                      <VlanOptions />
                     </label>
                   </div>
                   <div className="flex gap-1.5">
@@ -700,7 +736,8 @@ function CableProps({ edge }: { edge: CableEdge }) {
       <CableColorEditor edges={[edge]} />
       <Field label="Label" value={data.label} onChange={(v) => update(id, { label: v })} />
       <CableLength id={id} data={data} />
-      <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono />
+      <Field label="VLAN(s)" value={data.vlan} onChange={(v) => update(id, { vlan: v })} mono list={VLAN_LIST} />
+      <VlanOptions />
       <div className="flex gap-2">
         <label className="mb-2 block flex-1">
           <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Route</span>

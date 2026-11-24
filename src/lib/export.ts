@@ -2,6 +2,7 @@ import { expandHF, hasHeaderFooter } from './headerFooter';
 import { patchRows, rackCables, rackPortStates } from './rackPatching';
 import { allPaths, pathLength, type TraceHop } from './trace';
 import { billOfMaterials, bomRows } from './bom';
+import { deviceIps, ipPlanProblems, subnetUsage, vlanOfIp } from './ipam';
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { createElement } from 'react';
@@ -140,6 +141,23 @@ export function portRows(p: Project) {
         }));
     });
   });
+}
+
+/** Data → IP Plan as table rows: each VLAN / subnet with its use, and every device IP with its VLAN. */
+export function ipPlanRows(p: Project) {
+  const vlans = p.vlans ?? [];
+  const problems = ipPlanProblems(p);
+  return {
+    plan: subnetUsage(p).map((u) => ({
+      vlan: u.vlan.vlan, name: u.vlan.name, subnet: u.vlan.subnet ?? '', gateway: u.vlan.gateway ?? '',
+      dhcp: u.vlan.dhcpStart && u.vlan.dhcpEnd ? `${u.vlan.dhcpStart} - ${u.vlan.dhcpEnd}` : '',
+      use: u.subnet ? `${u.used} static, ${u.dhcp} DHCP, ${u.free} free of ${u.subnet.hosts}` : '', next: u.next ?? '', notes: u.vlan.notes ?? '',
+    })),
+    ips: deviceIps(p).sort((a, b) => a.n - b.n).map((x) => {
+      const v = vlanOfIp(x.ip, vlans);
+      return { ip: x.ip, device: x.device.data.name, vlan: v ? `${v.vlan} ${v.name}`.trim() : '', check: problems.filter((pr) => pr.deviceId === x.device.id).map((pr) => pr.rule).join('; ') };
+    }),
+  };
 }
 
 export function rackRows(p: Project) {
@@ -440,6 +458,12 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     table('Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], [0.18, 0.24, 0.07, 0.07, 0.07, 0.12, 0.25].map((f) => f * avail),
       capacity.map((c) => [c.device, c.model, String(c.ports), String(c.used), String(c.free), c.poeBudgetW ? `${c.poeW} / ${c.poeBudgetW}` : '', c.warning]));
   }
+  if (p.vlans?.length) {
+    const ip = ipPlanRows(p);
+    table('IP plan', ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free', 'Notes'], [0.06, 0.13, 0.13, 0.1, 0.18, 0.2, 0.09, 0.11].map((f) => f * avail),
+      ip.plan.map((r) => [r.vlan, r.name, r.subnet, r.gateway, r.dhcp, r.use, r.next, r.notes]));
+    table('IP addresses', ['IP', 'Device', 'VLAN', 'Check'], [0.15, 0.35, 0.25, 0.25].map((f) => f * avail), ip.ips.map((r) => [r.ip, r.device, r.vlan, r.check]));
+  }
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
@@ -526,6 +550,12 @@ export function exportCsv(p: Project) {
     [],
     ['CABLE PATHS'], ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'],
     ...cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]),
+    [],
+    ['IP PLAN'], ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free IP', 'Notes'],
+    ...ipPlanRows(p).plan.map((r) => [r.vlan, r.name, r.subnet, r.gateway, r.dhcp, r.use, r.next, r.notes]),
+    [],
+    ['IP ADDRESSES'], ['IP', 'Device', 'VLAN', 'Check'],
+    ...ipPlanRows(p).ips.map((r) => [r.ip, r.device, r.vlan, r.check]),
     [],
     ['BILL OF MATERIALS'], ['Section', 'Item', 'Detail', 'Qty', 'Unit'],
     ...bomRows(billOfMaterials(p, getStencil).sections),

@@ -232,7 +232,7 @@ interface DiagramState {
   // projects
   newProject: (name: string) => void;
   openProject: (id: string) => void;
-  updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes' | 'quote'>>) => void;
+  updateProject: (patch: Partial<Pick<Project, 'name' | 'site' | 'address' | 'contact' | 'notes' | 'quote' | 'vlans'>>) => void;
   deleteProject: (id: string) => void;
   /** File → Restore from backup: adds the backup's clients (same id → a copy), stencils, templates and versions. */
   restoreBackup: (b: BackupFile) => { clients: number; copies: number; stencils: number; templates: number };

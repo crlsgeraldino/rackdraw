@@ -6,6 +6,7 @@ import { planRack, planRacks } from './autoRack';
 import { PAGE_LINK } from './links';
 import { newPage } from './project';
 import { STENCIL_MAP } from './stencils';
+import type { VlanDef } from './ipam';
 import type { AppNode, CableEdge, DeviceNode, Page, Project, Rack } from './types';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -150,8 +151,19 @@ function officeWithRack(): Template['project'] {
   const page = newPage('Network', 'network', nodes, edges);
   const { rack } = planRack('Rack A', nodes.filter((n): n is DeviceNode => n.type === 'device'), (id) => STENCIL_MAP[id], edges.map((e) => ({ a: e.source, b: e.target })), { spare: 6 });
   rack.location = 'Server closet';
-  return { pages: [page], activePageId: page.id, racks: [rack] };
+  const vlans = [
+    vl('1', 'Management', '10.0.0.0/24', '10.0.0.1', '#64748b', ['10.0.0.100', '10.0.0.199'], 'Network gear, servers, APs'),
+    vl('10', 'Data', '10.0.10.0/24', '10.0.10.1', '#2563eb', ['10.0.10.50', '10.0.10.250']),
+    vl('20', 'Voice', '10.0.20.0/24', '10.0.20.1', '#eab308', ['10.0.20.50', '10.0.20.250']),
+    vl('30', 'Cameras', '10.0.30.0/24', '10.0.30.1', '#dc2626', undefined, 'Static addresses'),
+  ];
+  return { pages: [page], activePageId: page.id, racks: [rack], vlans };
 }
+
+
+/** A VLAN of a template's IP plan. */
+const vl = (vlan: string, name: string, subnet: string, gateway: string, color: string, dhcp?: [string, string], notes?: string): VlanDef =>
+  ({ id: `v-${vlan}`, vlan, name, subnet, gateway, color, ...(dhcp ? { dhcpStart: dhcp[0], dhcpEnd: dhcp[1] } : {}), ...(notes ? { notes } : {}) });
 
 /* ------------------------------------------------------------------ */
 /*  Medium and large networks                                          */
@@ -280,7 +292,14 @@ function mediumNetwork(): Template['project'] {
   });
   const page = newPage('Network', 'network', nodes, edges);
   const { racks } = planRacks('Rack A', nodes.filter((n): n is DeviceNode => n.type === 'device'), (id) => STENCIL_MAP[id], edges.map((e) => ({ a: e.source, b: e.target })), { spare: 6 });
-  return { pages: [page], activePageId: page.id, racks };
+  const vlans = [
+    vl('1', 'Management', '10.10.0.0/22', '10.10.0.1', '#64748b', undefined, 'Firewall, core, servers (10.10.0.x); closet switches 10.10.1-3.x'),
+    vl('10', 'Data', '10.10.10.0/23', '10.10.10.1', '#2563eb', ['10.10.10.50', '10.10.11.250']),
+    vl('20', 'Voice', '10.10.20.0/24', '10.10.20.1', '#eab308', ['10.10.20.50', '10.10.20.250']),
+    vl('30', 'Cameras', '10.10.30.0/24', '10.10.30.1', '#dc2626', undefined, 'Static addresses'),
+    vl('40', 'Guest Wi-Fi', '10.10.40.0/24', '10.10.40.1', '#16a34a', ['10.10.40.20', '10.10.40.250'], 'Internet only'),
+  ];
+  return { pages: [page], activePageId: page.id, racks, vlans };
 }
 
 /**
@@ -367,7 +386,17 @@ function largeNetwork(): Template['project'] {
   });
   const page = newPage('Campus network', 'network', nodes, edges);
   const { racks } = planRacks('Rack A', nodes.filter((n): n is DeviceNode => n.type === 'device'), (id) => STENCIL_MAP[id], edges.map((e) => ({ a: e.source, b: e.target })), { spare: 6 });
-  return { pages: [page], activePageId: page.id, racks };
+  const vlans = [
+    vl('1', 'Network management', '10.0.0.0/24', '10.0.0.1', '#64748b', undefined, 'Firewalls (.2/.3), cores (.11/.12); gateway is the firewall VIP'),
+    vl('10', 'Data', '10.1.0.0/22', '10.1.0.1', '#2563eb', ['10.1.0.50', '10.1.3.250']),
+    vl('20', 'Voice', '10.1.20.0/24', '10.1.20.1', '#eab308', ['10.1.20.50', '10.1.20.250']),
+    vl('30', 'Cameras', '10.1.30.0/24', '10.1.30.1', '#dc2626', undefined, 'Static addresses'),
+    vl('99', 'Out-of-band management', '10.0.99.0/24', '10.0.99.1', '#0f766e', undefined, 'iDRAC / iLO, UPS cards'),
+    vl('100', 'Switch management', '10.0.100.0/22', '10.0.100.254', '#7c3aed', undefined, 'One /24 per building'),
+    vl('110', 'Servers', '10.0.10.0/24', '10.0.10.1', '#0891b2'),
+    vl('120', 'Storage', '10.0.20.0/24', '10.0.20.1', '#9333ea'),
+  ];
+  return { pages: [page], activePageId: page.id, racks, vlans };
 }
 
 /**

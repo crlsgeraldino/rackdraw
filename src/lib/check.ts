@@ -1,3 +1,4 @@
+import { ipOf, ipPlanProblems } from './ipam';
 import { resolveLink } from './links';
 import { isPassThrough } from './trace';
 import { isDocumented, type AppNode, type DeviceNode, type Project, type StencilDef } from './types';
@@ -21,11 +22,7 @@ export interface Issue {
 
 const MANAGED = new Set(['Firewalls', 'Switching', 'Wireless', 'Servers', 'WAN']);
 
-/** The IPv4 address in a field, if any ("https://10.0.0.1:8443/" → "10.0.0.1"). */
-export function ipOf(v?: string) {
-  const m = v?.match(/\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/);
-  return m?.[0];
-}
+export { ipOf };
 
 /** Rough box of a node on the diagram (devices from their stencil size, others from their set size). */
 function rect(n: AppNode, stencilOf: (id: string) => StencilDef | undefined) {
@@ -68,8 +65,22 @@ export function checkProject(p: Project, stencilOf: (id: string) => StencilDef |
     for (const x of list) add('warning', 'Duplicate IP', `${x.n.data.name} port ${x.label}: IP ${ip} is noted on ${list.length} ports`, x.pg.id, 'node', x.n.id);
   }
 
+  // VLAN / IP plan (Data → IP Plan): IPs outside the plan, in a DHCP pool, on network / broadcast addresses; clashes.
+  const pageOf = new Map(devices.map(({ n, pg }) => [n.id, pg.id]));
+  for (const pr of ipPlanProblems(p)) {
+    if (pr.deviceId) add(pr.severity, pr.rule, pr.message, pageOf.get(pr.deviceId) ?? p.pages[0].id, 'node', pr.deviceId);
+    else add(pr.severity, pr.rule, pr.message, p.pages[0].id, 'node', '');
+  }
+  const definedVlans = new Set((p.vlans ?? []).map((v) => v.vlan.trim()).filter(Boolean));
+
   for (const pg of p.pages) {
     const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+    // Cables on a VLAN the IP plan doesn't list (only once the client has a plan).
+    if (definedVlans.size) for (const e of pg.edges) {
+      for (const v of (e.data?.vlan ?? '').split(/[,;\s]+/).map((x) => x.trim()).filter((x) => /^\d+$/.test(x))) {
+        if (!definedVlans.has(v)) add('warning', 'VLAN not in plan', `A cable is on VLAN ${v}, which the IP plan doesn't define`, pg.id, 'edge', e.id);
+      }
+    }
     const portName = (n: AppNode | undefined, pid?: string | null) =>
       n?.type === 'device' && pid ? n.data.ports?.[pid]?.label || stencilOf(n.data.stencilId)?.ports.find((x) => x.id === pid)?.label || pid : pid ?? '';
 
