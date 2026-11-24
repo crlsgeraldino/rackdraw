@@ -8,7 +8,13 @@ import type { Pt } from './router';
  * Each right-angle cable publishes its corner points here so the others can find where they cross it.
  */
 const routes = new Map<string, Pt[]>();
+/*
+ * Two change counters: raw routes (what lanes are worked out from) and drawn routes (what line jumps use). Keeping
+ * them apart means a cable settling into its lane only re-checks line jumps, instead of making every cable work out
+ * its lanes again (a second pass over all cable pairs after every drop).
+ */
 let version = 0;
+let drawnVersion = 0;
 const listeners = new Set<() => void>();
 
 /**
@@ -16,12 +22,23 @@ const listeners = new Set<() => void>();
  * moving), and redrawing every cable for each one made big pages slow.
  */
 let pending = false;
-function changed() {
-  version++;
+function notify() {
   if (pending) return;
   pending = true;
   queueMicrotask(() => { pending = false; listeners.forEach((l) => l()); });
 }
+function changed() {
+  version++;
+  notify();
+}
+function drawnChanged() {
+  drawnVersion++;
+  notify();
+}
+const subscribe = (cb: () => void) => {
+  listeners.add(cb);
+  return () => { listeners.delete(cb); };
+};
 
 const same = (a?: Pt[], b?: Pt[]) => !!a && !!b && a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
 
@@ -32,15 +49,14 @@ export function publishRoute(id: string, pts: Pt[] | null) {
   changed();
 }
 
+/** Changes when any cable's raw route changes (re-work out lanes). */
 export function useRoutesVersion() {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
-    () => version,
-    () => 0,
-  );
+  return useSyncExternalStore(subscribe, () => version, () => 0);
+}
+
+/** Changes when any cable is drawn somewhere else (re-check line jumps). */
+export function useDrawnVersion() {
+  return useSyncExternalStore(subscribe, () => drawnVersion, () => 0);
 }
 
 export const otherRoutes = (id: string) => [...routes.entries()].filter(([k]) => k !== id).map(([, v]) => v);
@@ -54,7 +70,7 @@ export function publishDrawn(id: string, pts: Pt[] | null) {
   if (pts ? same(drawn.get(id), pts) : !drawn.has(id)) return;
   if (pts) drawn.set(id, pts);
   else drawn.delete(id);
-  changed();
+  drawnChanged();
 }
 export const otherDrawnRoutes = (id: string) => [...drawn.entries()].filter(([k]) => k !== id).map(([, v]) => v);
 

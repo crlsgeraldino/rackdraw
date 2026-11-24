@@ -178,12 +178,14 @@ function Canvas() {
   // What the canvas got for each item last time: an item that hasn't changed is handed over as the very same object,
   // so React Flow doesn't redraw it (and its cables). Copying every item on every change made big pages slow.
   const derived = useRef(new Map<string, { src: AppNode; ctx: string; out: AppNode }>());
-  const nodes = useMemo(
-    () => [...bg.nodes, ...page.nodes].map((src) => {
+  const nodes = useMemo(() => {
+    // Only items still shown are kept (the cache used to hold every item ever shown, on any page or client).
+    const keep = new Map<string, { src: AppNode; ctx: string; out: AppNode }>();
+    const list = [...bg.nodes, ...page.nodes].map((src) => {
       const layerOf = (src.type === 'device' || src.type === 'shape' || src.type === 'measure') ? src.data.layer : undefined;
       const ctx = `${labelBeside.has(src.id) ? 1 : 0}${layerOf && display.hidden.has(layerOf) ? 1 : 0}${layerOf && layerProps.locked.has(layerOf) ? 1 : 0}${layerOf && layerProps.noPrint.has(layerOf) ? 1 : 0}`;
       const hit = derived.current.get(src.id);
-      if (hit && hit.src === src && hit.ctx === ctx) return hit.out;
+      if (hit && hit.src === src && hit.ctx === ctx) { keep.set(src.id, hit); return hit.out; }
       let n = src;
       if (n.type === 'device') {
         const beside = labelBeside.has(n.id) || n.data.labelSide === 'left';
@@ -207,11 +209,12 @@ function Canvas() {
           ...(noPrint ? { className: [n.className, 'nc-noprint'].filter(Boolean).join(' ') } : {}),
         } as AppNode;
       })();
-      derived.current.set(src.id, { src, ctx, out });
+      keep.set(src.id, { src, ctx, out });
       return out;
-    }),
-    [page.nodes, bg.nodes, display.hidden, layerProps, labelBeside],
-  );
+    });
+    derived.current = keep;
+    return list;
+  }, [page.nodes, bg.nodes, display.hidden, layerProps, labelBeside]);
   const edges = useMemo(
     () =>
       [...bg.edges, ...page.edges].map((e) => {

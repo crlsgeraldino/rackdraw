@@ -196,8 +196,14 @@ export function DeviceTable() {
       } else if (tab === 'ports') {
         // Every port of every device (in the device's own port order), with what its cable goes to.
         const byId = new Map(pg.nodes.map((n) => [n.id, n]));
+        // The cable on each port, looked up (searching every cable for every port of every device was very slow).
+        const onPort = new Map<string, (typeof pg.edges)[number]>();
+        for (const x of pg.edges) {
+          if (x.sourceHandle && !onPort.has(`${x.source}|${x.sourceHandle}`)) onPort.set(`${x.source}|${x.sourceHandle}`, x);
+          if (x.targetHandle && !onPort.has(`${x.target}|${x.targetHandle}`)) onPort.set(`${x.target}|${x.targetHandle}`, x);
+        }
         const peerOf = (deviceId: string, portId: string) => {
-          const e = pg.edges.find((x) => (x.source === deviceId && x.sourceHandle === portId) || (x.target === deviceId && x.targetHandle === portId));
+          const e = onPort.get(`${deviceId}|${portId}`);
           if (!e) return '';
           const mine = e.source === deviceId, o = byId.get(mine ? e.target : e.source), h = mine ? e.targetHandle : e.sourceHandle;
           const name = o?.type === 'device' ? o.data.name : o?.type === 'shape' ? o.data.text : '';

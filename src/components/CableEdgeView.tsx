@@ -3,10 +3,10 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath, getStraightPath, useNodesStore, useReactFlow, type EdgeProps, type NodesStore } from '@xyflow/react';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { roundedPath, routeOrthogonal, type Obstacle, type Pt, type Side } from '@/lib/router';
-import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
+import { INFO_GAP, overlaySize, overlayVersion, useOverlayVersion } from '@/lib/overlays';
 import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
 import { getStencil, useDiagram } from '@/store/useDiagramStore';
-import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useRoutesVersion } from '@/lib/jumps';
+import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useDrawnVersion, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
 /** Items cables steer around: devices, notes and drawing shapes (not zones or the backdrop). */
@@ -15,16 +15,19 @@ const BLOCKING = new Set(['device', 'note', 'shape']);
 /** How far (px) around a cable's two ends obstacles still count: the router's search grows into this area. */
 const NEAR = 400;
 
+type Box = { id: string; x: number; y: number; w: number; h: number; text: string };
+
 /**
- * A compact string of the boxes of the obstacles near a cable (within NEAR of the box round its two ends), so a cable
- * only re-routes when something near it actually moved or resized, not whenever anything on the page moves.
+ * Every obstacle box on the canvas (items, device labels, info boxes), worked out once per change of the canvas and
+ * shared by all cables: each cable used to walk every item itself, on every move (cables × items each time).
  */
-function obstacleKey(s: NodesStore, win: { left: number; top: number; right: number; bottom: number }) {
-  let key = '';
-  const add = (id: string, x: number, y: number, w: number, h: number) => {
-    if (x > win.right || x + w < win.left || y > win.bottom || y + h < win.top) return;
-    key += `${id},${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)};`;
-  };
+let boxCache: { s: NodesStore; ov: number; boxes: Box[] } | null = null;
+function obstacleBoxes(s: NodesStore): Box[] {
+  const ov = overlayVersion();
+  if (boxCache && boxCache.s === s && boxCache.ov === ov) return boxCache.boxes;
+  const boxes: Box[] = [];
+  const add = (id: string, x: number, y: number, w: number, h: number) =>
+    boxes.push({ id, x, y, w, h, text: `${id},${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)};` });
   for (const n of s.nodeLookup.values()) {
     if (n.hidden || !BLOCKING.has(n.type ?? '')) continue;
     const w = n.measured?.width, h = n.measured?.height;
@@ -46,6 +49,20 @@ function obstacleKey(s: NodesStore, win: { left: number; top: number; right: num
       const o = d.infoBox?.offset ?? { x: 0, y: 0 };
       add(`${n.id}#info`, x + w + INFO_GAP + o.x, y + o.y, info.w, info.h);
     }
+  }
+  boxCache = { s, ov, boxes };
+  return boxes;
+}
+
+/**
+ * A compact string of the boxes of the obstacles near a cable (within NEAR of the box round its two ends), so a cable
+ * only re-routes when something near it actually moved or resized, not whenever anything on the page moves.
+ */
+function obstacleKey(s: NodesStore, win: { left: number; top: number; right: number; bottom: number }) {
+  let key = '';
+  for (const b of obstacleBoxes(s)) {
+    if (b.x > win.right || b.x + b.w < win.left || b.y > win.bottom || b.y + b.h < win.top) continue;
+    key += b.text;
   }
   return key;
 }
@@ -116,6 +133,7 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   }, [id, pts, dragState]);
   useEffect(() => () => { publishRoute(id, null); publishDrawn(id, null); }, [id]);
   const routesVersion = useRoutesVersion();
+  const drawnVersion = useDrawnVersion();
   // Spread into lanes where it would run on top of other cables.
   const laned = useMemo(
     () => (pts ? separateParallel(id, pts, otherRouteEntries(id)) : null),
@@ -137,9 +155,9 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
     }
     // No clear path (e.g. devices overlapping): fall back to a plain right-angle line.
     return getSmoothStepPath({ ...pos, borderRadius: 8, offset: 16 }).slice(0, 3) as [string, number, number];
-    // routesVersion: recompute hops when another cable moves.
+    // drawnVersion: recompute hops when another cable is drawn somewhere else.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, laned, jumpsOn, jumpStyle, jumpR, corners, routesVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+  }, [route, laned, jumpsOn, jumpStyle, jumpR, corners, drawnVersion, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   // Text position along the cable (Visio lets you drag connector text); the middle unless moved.
   const at = data?.labelAt;

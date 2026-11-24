@@ -39,7 +39,9 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
   const project = useCurrentProject();
   const updateProject = useDiagram((s) => s.updateProject);
   const book = usePref('priceBook');
-  const { sections, capacity, work } = useMemo(() => billOfMaterials(project, getStencil), [project]);
+  // Recounted when the drawing changes (pages, racks), not when a quote setting is typed.
+  const pages = project.pages, racks = project.racks;
+  const { sections, capacity, work } = useMemo(() => billOfMaterials({ ...project, pages, racks }, getStencil), [pages, racks]); // eslint-disable-line react-hooks/exhaustive-deps
   const qs: QuoteSettings = useMemo(() => project.quote ?? {}, [project.quote]);
   const set = { ...QUOTE_DEFAULTS, ...qs };
   const q = useMemo(() => priceQuote(sections, work, book, qs), [sections, work, book, qs]);
