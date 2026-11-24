@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { allDevices } from '@/lib/project';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
+import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
 import { STENCILS } from '@/lib/stencils';
 import type { Rack, RackDepth, RackItem, StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -140,8 +141,12 @@ function SideList({ rack }: { rack: Rack | undefined }) {
 
 /* ------------------------------------------------------------------ */
 
-function Elevations({ rack }: { rack: Rack }) {
+function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null }) {
   const devices = useDevices();
+  const project = useCurrentProject();
+  const [showCables, setShowCables] = useState(true);
+  const portStates = useMemo(() => rackPortStates(project), [project]);
+  const cables = useMemo(() => (showCables ? rackCables(project, rack) : []), [project, rack, showCables]);
   const custom = useDiagram((s) => s.customStencils);
   const selectedId = useDiagram((s) => s.selectedRackItemId);
   const { placeRackItem, updateRackItem, addDeviceToRack, selectRackItem } = useDiagram.getState();
@@ -221,7 +226,10 @@ function Elevations({ rack }: { rack: Rack }) {
     <div className="flex min-w-0 flex-1 flex-col bg-gray-50">
       <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600">
         <span>Drag devices and accessories from the left into the rack. Drag mounted items to move them.</span>
-        <div className="ml-auto flex items-center gap-1">
+        <label className="ml-auto flex items-center gap-1" title="Draw the cables between this rack's equipment on its front (from the diagram)">
+          <input type="checkbox" checked={showCables} onChange={(e) => setShowCables(e.target.checked)} /> Patch cables
+        </label>
+        <div className="ml-2 flex items-center gap-1">
           <button className="rounded border border-gray-200 px-2 py-0.5 hover:bg-gray-50" onClick={() => setWidth((w) => Math.max(160, w - 40))}>−</button>
           <span className="w-12 text-center">{Math.round((width / INNER_W) * 100)}%</span>
           <button className="rounded border border-gray-200 px-2 py-0.5 hover:bg-gray-50" onClick={() => setWidth((w) => Math.min(900, w + 40))}>+</button>
@@ -242,6 +250,9 @@ function Elevations({ rack }: { rack: Rack }) {
               onItemPointerDown={onItemPointerDown(face)}
               svgRef={refs[face]}
               width={width * (rackSize(rack).width / INNER_W)}
+              portStates={portStates}
+              cables={cables}
+              hotCable={hotCable}
             />
           </div>
         ))}
@@ -252,7 +263,7 @@ function Elevations({ rack }: { rack: Rack }) {
 
 /* ------------------------------------------------------------------ */
 
-function ItemProps({ rack, item }: { rack: Rack; item: RackItem }) {
+function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (id: string | null) => void }) {
   const devices = useDevices();
   const { updateRackItem, removeRackItem, updateNodeData, snapshot, setView, selectOnlyNode } = useDiagram.getState();
   const [err, setErr] = useState('');
@@ -318,11 +329,54 @@ function ItemProps({ rack, item }: { rack: Rack; item: RackItem }) {
         </button>
       </div>
       {device && <p className="mt-2 text-[10px] text-gray-400">Removing it from the rack keeps the device on the diagram.</p>}
+      {device && <Patching rack={rack} onlyNode={device.id} onHot={onHot} />}
     </>
   );
 }
 
-function RackProps({ rack }: { rack: Rack }) {
+/**
+ * The rack's patching schedule (Visio-style port-to-port list): every cable from equipment in this rack, from the
+ * diagram. Pointing at a row highlights its patch cord; with `onlyNode`, just that device's connections.
+ */
+function Patching({ rack, onlyNode, onHot }: { rack: Rack; onlyNode?: string; onHot: (id: string | null) => void }) {
+  const project = useCurrentProject();
+  const custom = useDiagram((s) => s.customStencils);
+  const rows = useMemo(() => {
+    const all = patchRows(project, rack, (id) => findStencil(id, custom));
+    if (!onlyNode) return all;
+    const ids = new Set(rackCables(project, rack).filter((c) => c.a.nodeId === onlyNode || c.b.nodeId === onlyNode).map((c) => c.id));
+    return all.filter((r) => ids.has(r.id));
+  }, [project, rack, custom, onlyNode]);
+  const end = (e: { position: string; device: string; port: string; where: string }) => (
+    <span className="min-w-0">
+      <span className="font-medium">{e.device}</span>{e.port && <span className="font-mono"> · {e.port}</span>}
+      <span className="block text-[10px] text-gray-400">{[e.position, e.where].filter(Boolean).join(' · ')}</span>
+    </span>
+  );
+  return (
+    <div className="mt-4">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{onlyNode ? 'Connections' : 'Patching'} ({rows.length})</div>
+      {rows.length === 0 ? (
+        <p className="text-[11px] text-gray-400">{onlyNode ? 'No cables on this device yet.' : 'No cables yet: draw them port to port on the diagram and they show here and in the rack.'}</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 rounded border border-gray-200 text-xs">
+          {rows.map((r) => (
+            <li key={r.id} className="flex items-start gap-1.5 px-2 py-1 hover:bg-blue-50" onPointerEnter={() => onHot(r.id)} onPointerLeave={() => onHot(null)}>
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} title={r.cable} />
+              <span className="grid min-w-0 flex-1 gap-0.5">
+                {end(r.from)}
+                <span className="text-[10px] text-gray-500">→ {[r.cable, r.vlan && `VLAN ${r.vlan}`, r.length, r.label].filter(Boolean).join(' · ')}</span>
+                {end(r.to)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function RackProps({ rack, onHot }: { rack: Rack; onHot: (id: string | null) => void }) {
   const devices = useDevices();
   const { updateRack, deleteRack, snapshot } = useDiagram.getState();
   const [err, setErr] = useState('');
@@ -358,6 +412,7 @@ function RackProps({ rack }: { rack: Rack }) {
         <dt className="text-gray-500">Power</dt><dd>{power ? `${power} W` : '—'}</dd>
       </dl>
       <p className="mt-1 text-[10px] text-gray-400">Power adds up each mounted device&apos;s Power (W) field.</p>
+      <Patching rack={rack} onHot={onHot} />
 
       <button
         className="mt-4 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
@@ -379,6 +434,7 @@ export function RackView() {
   const racks = project.racks ?? [];
   const rack = racks.find((r) => r.id === activeId) ?? racks[0];
   const item = rack?.items.find((it) => it.id === selectedId);
+  const [hot, setHot] = useState<string | null>(null);
 
   useEffect(() => {
     if (rack && rack.id !== activeId) selectRack(rack.id);
@@ -398,7 +454,7 @@ export function RackView() {
     <div className="flex min-h-0 flex-1">
       <SideList rack={rack} />
       {rack ? (
-        <Elevations rack={rack} />
+        <Elevations rack={rack} hotCable={hot} />
       ) : (
         <div className="flex flex-1 items-center justify-center bg-gray-50">
           <div className="max-w-sm rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
@@ -409,7 +465,7 @@ export function RackView() {
         </div>
       )}
       <aside className="w-72 shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-3">
-        {rack && item ? <ItemProps rack={rack} item={item} /> : rack ? <RackProps rack={rack} /> : <p className="text-sm text-gray-500">Add a rack to get started.</p>}
+        {rack && item ? <ItemProps rack={rack} item={item} onHot={setHot} /> : rack ? <RackProps rack={rack} onHot={setHot} /> : <p className="text-sm text-gray-500">Add a rack to get started.</p>}
       </aside>
     </div>
   );

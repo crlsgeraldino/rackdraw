@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { rackLabel } from '@/lib/rack';
 import { IconArt, PanelArt } from '@/lib/stencils';
+import type { RackCable } from '@/lib/rackPatching';
+import type { PortState } from '@/lib/stencils';
 import type { DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
 
 /*
@@ -52,6 +54,28 @@ interface Props {
   svgRef?: React.Ref<SVGSVGElement>;
   /** Rendered width in px; height follows the rack's proportions. */
   width?: number;
+  /** Ports with a cable, per device: lit like on the diagram. */
+  portStates?: Map<string, Record<string, PortState>>;
+  /** The rack's cables: patch cords between its own equipment are drawn on the front; others get a short lead. */
+  cables?: RackCable[];
+  /** Cable highlighted (hovered in the patching list). */
+  hotCable?: string | null;
+}
+
+/** Where a port sits on the rack's front (its centre), in the elevation's coordinates. */
+function portPoint(rack: Rack, it: RackItem, st: StencilDef | undefined, port: string | undefined): [number, number] {
+  const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W, pad = 3;
+  const p = st && st.style !== 'icon' && port ? st.ports.find((q) => q.id === port) : undefined;
+  if (!st || !p) return [RAIL + 24, y + h / 2];
+  const k = Math.min((w - pad * 2) / st.width, (h - pad * 2) / st.height);
+  const ax = RAIL + (w - st.width * k) / 2, ay = y + (h - st.height * k) / 2;
+  return [ax + (p.x + p.w / 2) * k, ay + (p.y + p.h / 2) * k];
+}
+
+/** Patch cords hang between the two ports, sagging more the further apart they are. */
+function cordPath([ax, ay]: [number, number], [bx, by]: [number, number]) {
+  const sag = 14 + Math.abs(bx - ax) * 0.06 + Math.abs(by - ay) * 0.15;
+  return `M${ax} ${ay} C${ax} ${ay + sag} ${bx} ${by + sag} ${bx} ${by}`;
 }
 
 function onFace(it: RackItem, face: 'front' | 'rear') {
@@ -92,7 +116,7 @@ function earFill(it: RackItem, face: 'front' | 'rear') {
   return '#3f3f46';
 }
 
-function ItemArt({ it, face, x, y, h, device, stencil }: { it: RackItem; face: 'front' | 'rear'; x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef }) {
+function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; face: 'front' | 'rear'; x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState> }) {
   const w = INNER_W;
   const parts: ReactNode[] = [];
 
@@ -119,7 +143,7 @@ function ItemArt({ it, face, x, y, h, device, stencil }: { it: RackItem; face: '
         parts.push(
           stencil.style === 'image'
             ? <image key="a" href={stencil.image} x={ax} y={ay} width={aw} height={ah} preserveAspectRatio="xMidYMid meet" />
-            : <g key="a" transform={`translate(${ax},${ay})`}><PanelArt stencil={stencil} portStates={{}} width={aw} height={ah} /></g>,
+            : <g key="a" transform={`translate(${ax},${ay})`}><PanelArt stencil={stencil} portStates={ports ?? {}} width={aw} height={ah} /></g>,
         );
       }
     }
@@ -142,7 +166,7 @@ function ItemArt({ it, face, x, y, h, device, stencil }: { it: RackItem; face: '
   return <>{parts}</>;
 }
 
-export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width }: Props) {
+export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width, portStates, cables, hotCable }: Props) {
   const size = rackSize(rack);
   const x0 = RAIL;
   const frameR = RAIL * 2 + INNER_W;
@@ -205,7 +229,7 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
             opacity={ghost ? 0.4 : 1}
           >
             {earFill(it, face) && <Ears x={x0} y={y} h={h} units={it.height} fill={earFill(it, face)!} />}
-            <ItemArt it={it} face={face} x={x0} y={y} h={h} device={device} stencil={st} />
+            <ItemArt it={it} face={face} x={x0} y={y} h={h} device={device} stencil={st} ports={device ? portStates?.get(device.id) : undefined} />
             <line x1={frameR + 2} x2={labelX - 4} y1={y + h / 2} y2={y + h / 2} stroke="#9ca3af" strokeWidth={1} strokeDasharray="3 2" />
             <circle cx={labelX - 4} cy={y + h / 2} r={2} fill="#9ca3af" />
             {selectedId === it.id && <rect x={x0 - 2} y={y - 1} width={INNER_W + 4} height={h + 2} fill="none" stroke="#3b82f6" strokeWidth={3} rx={3} />}
@@ -216,6 +240,36 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
           </g>
         );
       })}
+
+      {face === 'front' && cables && cables.length > 0 && (() => {
+        // Patch cords on the front: between two ports in this rack, or a short lead from a port whose cable leaves it.
+        const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId).map((it) => [it.nodeId!, it]));
+        const at = (nodeId: string, port?: string) => {
+          const it = itemOf.get(nodeId);
+          if (!it) return null;
+          const d = devices.get(nodeId);
+          return portPoint(rack, it, d ? stencil(d.data.stencilId) : undefined, port);
+        };
+        return (
+          <g pointerEvents="none">
+            {cables.map((c) => {
+              const a = at(c.a.nodeId, c.a.port);
+              if (!a) return null;
+              const b = c.inside ? at(c.b.nodeId, c.b.port) : null;
+              const hot = hotCable === c.id;
+              const w = Math.max(2, Math.min(4, c.width)) + (hot ? 2 : 0);
+              const d = b ? cordPath(a, b) : `M${a[0]} ${a[1]} q 0 16 ${a[0] < RAIL + INNER_W / 2 ? -14 : 14} 22`;
+              return (
+                <g key={c.id} opacity={hotCable && !hot ? 0.35 : 1}>
+                  <path d={d} fill="none" stroke="#111827" strokeWidth={w + 2} strokeLinecap="round" opacity={0.5} />
+                  <path d={d} fill="none" stroke={c.color} strokeWidth={w} strokeLinecap="round" strokeDasharray={b ? undefined : '4 3'} />
+                  {[a, b].filter(Boolean).map((p, i) => <circle key={i} cx={p![0]} cy={p![1]} r={w / 2 + 1.5} fill={c.color} stroke="#111827" strokeWidth={1} />)}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
 
       {preview && (
         <rect

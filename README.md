@@ -704,6 +704,17 @@ Switch to **Racks** in the toolbar to draw rack elevations for the client.
 - Exports: the **PDF** gets a front/rear elevation page per rack and a **Rack contents** table; the **CSV** gets a
   RACKS section and rack positions in the device list.
 
+### Rack connections (patching)
+
+- Cables you draw on the diagram show in the rack: ports with a cable **light up** on mounted equipment, and
+  **patch cords** are drawn on the rack's front between connected ports (in each cable's colour). A port whose cable
+  leaves the rack (another rack, a desk, an AP) gets a short dashed lead. Untick **Patch cables** to hide them.
+- **Patching** list (right panel, nothing selected): every cable from this rack, top of the rack down, e.g.
+  `Patch panel A · 7 → Front desk PC (Not racked) · Cat6 · VLAN 10 · 85 ft`. Point at a row to highlight its cord.
+- Select a mounted device to see just its **Connections**.
+- The PDF and printout draw the cords on the elevations and add a **Patching** table (rack, position, device, port,
+  far end, where it is, cable, VLAN); the CSV gets a PATCHING section.
+
 ## Visio drawings (.vsdx)
 
 - **File → Save as Visio drawing** writes a `.vsdx` that opens in Microsoft Visio, one Visio page per page:

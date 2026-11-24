@@ -1,4 +1,4 @@
-import { connectionRows, deviceRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
+import { connectionRows, deviceRows, patchingRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
 import { FRAME_COLOR, type Project } from './types';
 import { hasHeaderFooter, hfCss } from './headerFooter';
 
@@ -86,6 +86,8 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
         deviceRows(p).map((d) => [d.page, d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location])),
       tableHtml(p, 'Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'],
         rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`])),
+      tableHtml(p, 'Patching', ['Rack', 'Position', 'Device', 'Port', 'To device', 'Port', 'Where', 'Cable', 'VLAN'],
+        patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan])),
       tableHtml(p, 'Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
         connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label])),
       tableHtml(p, 'Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'],

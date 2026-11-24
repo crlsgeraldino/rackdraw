@@ -1,4 +1,5 @@
 import { expandHF, hasHeaderFooter } from './headerFooter';
+import { patchRows, rackCables, rackPortStates } from './rackPatching';
 import { getViewportForBounds, type Rect } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { createElement } from 'react';
@@ -149,6 +150,14 @@ export function rackRows(p: Project) {
   );
 }
 
+/** Every rack's patching schedule: each cable from mounted equipment, port to port, with where the far end is. */
+export function patchingRows(p: Project) {
+  return (p.racks ?? []).flatMap((r) => patchRows(p, r, getStencil).map((x) => ({
+    rack: r.name, fromPosition: x.from.position, fromDevice: x.from.device, fromPort: x.from.port,
+    toDevice: x.to.device, toPort: x.to.port, toWhere: x.to.where ? x.to.where : x.to.position, cable: x.cable, vlan: x.vlan, length: x.length,
+  })));
+}
+
 /* ---------- rack elevations ---------- */
 
 /** Renders a rack's front and rear elevations side by side into a PNG, using the same component as the screen. */
@@ -164,8 +173,8 @@ export async function renderRack(p: Project, rack: Rack) {
         createElement(
           'div',
           null,
-          createElement(RackElevation, { rack, face: 'front', devices, stencil: getStencil }),
-          createElement(RackElevation, { rack, face: 'rear', devices, stencil: getStencil }),
+          createElement(RackElevation, { rack, face: 'front', devices, stencil: getStencil, portStates: rackPortStates(p), cables: rackCables(p, rack) }),
+          createElement(RackElevation, { rack, face: 'rear', devices, stencil: getStencil, portStates: rackPortStates(p) }),
         ),
       ),
     );
@@ -386,6 +395,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]));
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'], [0.13, 0.1, 0.07, 0.2, 0.15, 0.14, 0.11, 0.1].map((f) => f * avail),
     rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
+  table('Patching', ['Rack', 'Position', 'Device', 'Port', 'To device', 'Port', 'Where', 'Cable', 'VLAN'], [0.11, 0.08, 0.17, 0.07, 0.17, 0.07, 0.13, 0.1, 0.1].map((f) => f * avail),
+    patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan]));
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.16, 0.08, 0.07, 0.22, 0.12, 0.07, 0.28].map((f) => f * avail),
@@ -466,6 +477,9 @@ export function exportCsv(p: Project) {
     [],
     ['RACKS'], ['Rack', 'Position', 'Height', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power (W)'],
     ...rackRows(p).map((r) => [r.rack, r.position, r.height, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW]),
+    [],
+    ['PATCHING'], ['Rack', 'Position', 'Device', 'Port', 'To device', 'To port', 'Where', 'Cable', 'VLAN', 'Length'],
+    ...patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan, r.length]),
     [],
     ['PORT NOTES'], ['Page', 'Device', 'Port', 'Uplink', 'Connected to', 'IP', 'VLAN', 'Notes'],
     ...portRows(p).map((r) => [r.page, r.device, r.port, r.uplink, r.connectedTo, r.ip, r.vlan, r.notes]),
