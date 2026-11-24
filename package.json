@@ -23,6 +23,15 @@
     "productName": "RackDraw",
     "copyright": "MIT License",
     "electronLanguages": ["en-US"],
+    "fileAssociations": [
+      {
+        "ext": "rackdraw",
+        "name": "RackDraw drawing",
+        "description": "RackDraw client drawing",
+        "mimeType": "application/vnd.rackdraw+zip",
+        "role": "Editor"
+      }
+    ],
     "electronFuses": {
       "runAsNode": false,
       "enableNodeOptionsEnvironmentVariable": false,

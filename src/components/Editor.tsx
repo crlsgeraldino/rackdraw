@@ -18,6 +18,9 @@ import { askText, PromptHost } from './PromptHost';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { PortMapHost } from './PortMapDialog';
 import { ChangeLogHost, ChangeLogRecorder } from './ChangeLogDialog';
+import { DesktopFiles } from './DesktopFiles';
+import { Toast } from './Toast';
+import { saveClient } from '@/lib/fileSave';
 import { ChangeShapeDialog } from './ChangeShapeDialog';
 import { VersionsDialog } from './VersionsDialog';
 import { NumberShapesDialog } from './NumberShapesDialog';
@@ -376,6 +379,8 @@ function Canvas() {
       if (!e.shiftKey && key in tools) { e.preventDefault(); setTool(tools[key]); return; }
       if (!e.shiftKey && key === '2') { e.preventDefault(); const c = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); s.addShape('text', c); return; }
       if (e.shiftKey && key === 'w') { e.preventDefault(); safeFitView(rf, { padding: 0.1, duration: 200 }); return; }
+      // Ctrl+S: save the client to its file (asks where the first time); Ctrl+Shift+S: Save As.
+      if (key === 's') { e.preventDefault(); void saveClient(e.shiftKey); return; }
       if (key === 'd' && !e.shiftKey) { e.preventDefault(); duplicateSelected(); }
       else if (key === 'g') { e.preventDefault(); if (e.shiftKey) s.ungroupSelected(); else s.groupSelected(); }
       else if (key === 'a' && !e.shiftKey) { e.preventDefault(); s.selectAll(); }
@@ -584,6 +589,8 @@ export default function Editor() {
         <PortMapHost />
         <ChangeLogHost />
         <ChangeLogRecorder />
+        <DesktopFiles />
+        <Toast />
         <ChangeShapeDialog />
         <VersionsDialog />
         <NumberShapesDialog />

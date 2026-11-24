@@ -145,6 +145,13 @@ The installer asks per-user vs. all users; for silent deployment (Intune/RMM) us
 
 The installer is not code-signed, so SmartScreen will warn on first run until it's signed with a code-signing certificate.
 
+**Client files (.rackdraw).** File → Save (Ctrl+S) saves the client to a `.rackdraw` file: the first time it asks
+where, after that it writes back to the same file; Save As (Ctrl+Shift+S) always asks. Double-click a `.rackdraw`
+file in Explorer to open it (the installer registers the file type). A `.rackdraw` file is a ZIP package like Office
+files: `mimetype`, `manifest.json` (version, checksum), `project.json` (the client) and `media/` (pictures as real
+files), so it is small and a damaged copy is refused cleanly. Older `.rackdraw.json` / `.netcraft.json` files still
+open; saving one asks for a new `.rackdraw` name. Your work is also kept automatically inside RackDraw, as before.
+
 **Data folder.** Clients are kept in `%APPDATA%\NetCraft` (the app's original name, so older data is still found). Set
 the environment variable `RACKDRAW_DATA_DIR` to a folder to use that instead: a portable copy on a USB stick, a
 separate test copy, or a second set of clients.
