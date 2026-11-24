@@ -1,7 +1,7 @@
 'use client';
 
 import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type NodeProps } from '@xyflow/react';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, textDirStyle, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
@@ -34,21 +34,48 @@ const SIDE: Record<PortDef['side'], Position> = {
   right: Position.Right,
 };
 
-function usePortStates(nodeId: string) {
-  // The page's cable list only (it stays the same object while cables don't change).
-  const edges = useDiagram((s) => activePage(s.projects[s.currentId]).edges);
-  return useMemo(() => {
-    const states: Record<string, PortState> = {};
-    for (const e of edges) {
-      for (const [n, h] of [[e.source, e.sourceHandle], [e.target, e.targetHandle]] as const) {
-        if (n !== nodeId || !h) continue;
-        if (e.selected) states[h] = 'selected';
-        else if (states[h] !== 'selected') states[h] = 'connected';
-      }
+/*
+ * Port states of every device, worked out once per change of the page's cables (not once per device), and kept as
+ * the same object for a device whose ports didn't change: selecting one cable re-draws only the two devices it joins.
+ */
+const NO_PORTS: Record<string, PortState> = {};
+const portIndex = new WeakMap<object, Map<string, Record<string, PortState>>>();
+let lastPortIndex = new Map<string, Record<string, PortState>>();
+function portStatesOf(edges: readonly { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; selected?: boolean }[]) {
+  let ix = portIndex.get(edges);
+  if (ix) return ix;
+  const next = new Map<string, Record<string, PortState>>();
+  for (const e of edges) {
+    for (const [n, h] of [[e.source, e.sourceHandle], [e.target, e.targetHandle]] as const) {
+      if (!h) continue;
+      let st = next.get(n);
+      if (!st) { st = {}; next.set(n, st); }
+      if (e.selected) st[h] = 'selected';
+      else if (st[h] !== 'selected') st[h] = 'connected';
     }
-    return states;
-  }, [edges, nodeId]);
+  }
+  const same = (a: Record<string, PortState>, b: Record<string, PortState>) => {
+    const ka = Object.keys(a);
+    return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+  };
+  for (const [n, st] of next) { const prev = lastPortIndex.get(n); if (prev && same(prev, st)) next.set(n, prev); }
+  ix = next;
+  lastPortIndex = next;
+  portIndex.set(edges, ix);
+  return ix;
 }
+function usePortStates(nodeId: string) {
+  return useDiagram((s) => portStatesOf(activePage(s.projects[s.currentId]).edges).get(nodeId) ?? NO_PORTS);
+}
+
+/** Size a user set on each item, by id, worked out once per change of a node list (not once per device). */
+const widthIndex = new WeakMap<object, Map<string, number | undefined>>();
+function widthsOf(nodes: readonly { id: string; width?: number }[]) {
+  let ix = widthIndex.get(nodes);
+  if (!ix) { ix = new Map(nodes.map((n) => [n.id, n.width])); widthIndex.set(nodes, ix); }
+  return ix;
+}
+const allNodesIndex = new WeakMap<object, Map<string, number | undefined>>();
 
 /** Imported artwork with a highlight drawn over each connected or selected port. */
 function ImageArt({ stencil, portStates, k }: { stencil: StencilDef; portStates: Record<string, PortState>; k: number }) {
@@ -170,8 +197,12 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   const width = useDiagram((s) => {
     const p = s.projects[s.currentId];
     // Devices from a background page are shown with an id prefixed "bg:".
-    if (id.startsWith('bg:')) return p.pages.flatMap((pg) => pg.nodes).find((n) => n.id === id.slice(3))?.width;
-    return activePage(p).nodes.find((n) => n.id === id)?.width;
+    if (id.startsWith('bg:')) {
+      let ix = allNodesIndex.get(p.pages);
+      if (!ix) { ix = new Map(p.pages.flatMap((pg) => pg.nodes).map((n) => [n.id, n.width])); allNodesIndex.set(p.pages, ix); }
+      return ix.get(id.slice(3));
+    }
+    return widthsOf(activePage(p).nodes).get(id);
   });
   const states = usePortStates(id);
   const snapshot = useDiagram((s) => s.snapshot);

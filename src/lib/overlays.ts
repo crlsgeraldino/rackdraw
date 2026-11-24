@@ -23,6 +23,8 @@ function set(key: string, size: { w: number; h: number } | null) {
 }
 
 export const overlaySize = (key: string) => sizes.get(key);
+/** Changes whenever a label or info box changes size (for caches of obstacle boxes). */
+export const overlayVersion = () => version;
 
 /** Re-renders when any overlay changes size. */
 export function useOverlayVersion() {
