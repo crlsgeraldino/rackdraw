@@ -447,6 +447,15 @@ export class VisioPackage {
         items.push({ ...base, kind: 'window', x: wx, y: wy, w: Math.max(...pts.map((p) => p[0])) - wx, h: Math.max(...pts.map((p) => p[1])) - wy });
         continue;
       }
+      // Visio rooms ("Room", "L" Room): their walls become RackDraw walls, and the room's name stays as text.
+      if (hasKids && (/\broom\b/i.test(masterName ?? '') || /^room$/i.test(data['Shape type'] ?? ''))) {
+        const walls = roomWalls(s, t.m);
+        if (walls.length) {
+          for (const w of walls) items.push({ ...base, kind: 'wall', points: [toPx(w.a), toPx(w.b)], thicknessPx: Math.max(2, w.thick * PX * sc), lineColor: lineColor ?? '#000000' });
+          if (text) items.push({ ...base, kind: 'text' });
+          continue;
+        }
+      }
       // Visio doors (single and double): each swing arc becomes a RackDraw door, measured from how it is drawn
       // (hinge = the arc's centre, in the wall; one end on the wall, the other the open leaf), so flips and
       // rotations come out right without evaluating Visio's formulas.
@@ -917,7 +926,32 @@ function styleCell(s: Element, name: string, kind: 'line' | 'fill' | 'text', sty
 
 type M = [number, number, number, number, number, number]; // SVG matrix(a b c d e f)
 
-/** parent ∘ child: apply the child transform first, then the parent's. */
+/**
+ * The walls inside a Visio Room shape (a group of Wall sub-shapes kept joined by formulas): each wall's centre line
+ * and thickness, in the coordinates `m` maps to (the room's parent). Visio draws a wall's body across its local
+ * height, on one side of its begin–end line, so the centre line runs half-way up it.
+ */
+function roomWalls(s: Element, m: M): { a: [number, number]; b: [number, number]; thick: number }[] {
+  const out: ReturnType<typeof roomWalls> = [];
+  const visit = (el: Element, mm: M) => {
+    const sub = children(el, 'Shapes')[0];
+    if (!sub) return;
+    for (const k of children(sub, 'Shape')) {
+      const tk = xf(k);
+      const km = compose(mm, tk.m);
+      const prop = section(k, 'Property');
+      const isWall = !!prop && children(prop, 'Row').some((r) => r.getAttribute('N') === 'ShapeType' && /^wall$/i.test(cell(r, 'Value') ?? ''));
+      if (isWall && tk.w > 1e-6) {
+        const tRow = children(prop!, 'Row').find((r) => r.getAttribute('N') === 'T');
+        const thick = tk.h > 1e-6 ? tk.h : realInches((tRow ? cell(tRow, 'Value') : null) ?? '') ?? 4;
+        out.push({ a: apply(km, 0, tk.h / 2), b: apply(km, tk.w, tk.h / 2), thick });
+      } else visit(k, km);
+    }
+  };
+  visit(s, m);
+  return out;
+}
+
 /** How far up and down (local y) a shape's visible parts draw, in its own coordinates; [0, 0] when nothing does. */
 function localYExtent(s: Element): [number, number] {
   let lo = Infinity, hi = -Infinity;
