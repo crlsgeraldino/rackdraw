@@ -151,6 +151,8 @@ file in Explorer to open it (the installer registers the file type). A `.rackdra
 files: `mimetype`, `manifest.json` (version, checksum), `project.json` (the client) and `media/` (pictures as real
 files), so it is small and a damaged copy is refused cleanly. Older `.rackdraw.json` / `.netcraft.json` files still
 open; saving one asks for a new `.rackdraw` name. Your work is also kept automatically inside RackDraw, as before.
+The title bar shows the client's file, with a dot while there are changes not saved to it. File shows Recent
+files (also on the taskbar icon's right-click list) and Open file location.
 
 **Data folder.** Clients are kept in `%APPDATA%\NetCraft` (the app's original name, so older data is still found). Set
 the environment variable `RACKDRAW_DATA_DIR` to a folder to use that instead: a portable copy on a USB stick, a

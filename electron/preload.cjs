@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('rackdrawDesktop', {
   },
   /** The page is ready for opened files. */
   ready: () => ipcRenderer.send('rd:ready'),
+  /** Opens a client file from the Recent list (false if it is gone). */
+  openPath: (path) => ipcRenderer.invoke('rd:open-path', path),
+  /** Shows a client file in Explorer. */
+  showInFolder: (path) => ipcRenderer.invoke('rd:show-in-folder', path),
   /** Where a file chosen in File → Open is on disk ('' if unknown), so Save can write back to it. */
   pathOf: (file) => {
     try { return webUtils.getPathForFile(file) || ''; } catch { return ''; }

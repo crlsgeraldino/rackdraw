@@ -14,6 +14,7 @@ const files = createRequire(import.meta.url)('../electron/files.cjs') as {
   writeAtomic: (p: string, b: Uint8Array) => Promise<void>;
   filesIn: (argv: string[]) => string[];
   suggestedPath: (given: unknown, name: string, docs: string) => string;
+  isClientFile: (p: unknown) => boolean;
 };
 
 describe('desktop file rules', () => {
@@ -63,5 +64,19 @@ describe('desktop file rules', () => {
     assert.equal(files.suggestedPath(join(dir, 'Old.rackdraw.json'), 'x', dir), join(dir, 'Old.rackdraw'));
     assert.equal(files.suggestedPath(join(dir, 'Older.netcraft.json'), 'x', dir), join(dir, 'Older.rackdraw'));
     assert.equal(files.suggestedPath(undefined, 'Acme: HQ/Main', 'C:\\Docs'), join('C:\\Docs', 'Acme- HQ-Main.rackdraw'));
+  });
+  it('opens from Recent / shows in Explorer only existing client files', () => {
+    assert.equal(files.isClientFile(drawing), true);
+    assert.equal(files.isClientFile(doc), false, 'not a client file type');
+    assert.equal(files.isClientFile(join(dir, 'gone.rackdraw')), false);
+    assert.equal(files.isClientFile('Acme.rackdraw'), false, 'relative path');
+    assert.equal(files.isClientFile(42), false);
+  });
+  it('two saves of the same file land in the order they were asked for', async () => {
+    const target = join(dir, 'Twice.rackdraw');
+    const big = new Uint8Array(30 * 1024 * 1024).fill(1);
+    await Promise.all([files.writeAtomic(target, big), files.writeAtomic(target, new Uint8Array([9]))]);
+    assert.deepEqual([...readFileSync(target)], [9], 'the second (newer) save wins even though the first was bigger');
+    assert.ok(!readdirSync(dir).some((f) => f.endsWith('.tmp')));
   });
 });
