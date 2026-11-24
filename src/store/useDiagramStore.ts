@@ -285,8 +285,11 @@ interface DiagramState {
   setBackgroundOf: (pageId: string, backgroundId: string | null) => void;
   /** Adds a background page and uses it behind every page that has none. */
   addBackgroundPage: () => void;
-  /** Puts a floor plan / photo behind the active page (replacing any existing one). */
-  setBackdrop: (image: string, naturalWidth: number, naturalHeight: number) => void;
+  /**
+   * Puts a floor plan / photo behind the active page (replacing any existing one), fitted to ~1600 px or at
+   * `size` (e.g. a PDF at its printed size, so a printed drawing scale applies).
+   */
+  setBackdrop: (image: string, naturalWidth: number, naturalHeight: number, size?: { width: number; height: number }) => void;
   updateBackdrop: (patch: Partial<Pick<BackdropData, 'opacity' | 'locked'>> | null) => void;
 
   // racks (current project)
@@ -1936,7 +1939,7 @@ export const useDiagram = create<DiagramState>()(
           [pages[i], pages[j]] = [pages[j], pages[i]];
           commit({ pages });
         },
-        setBackdrop: (image, naturalWidth, naturalHeight) => {
+        setBackdrop: (image, naturalWidth, naturalHeight, size) => {
           get().snapshot();
           // Fit the long side to ~1600px so a floor plan starts at a workable size.
           const k = 1600 / Math.max(naturalWidth, naturalHeight);
@@ -1945,8 +1948,8 @@ export const useDiagram = create<DiagramState>()(
             id: old?.id ?? `b-${uid()}`,
             type: 'backdrop',
             position: old?.position ?? { x: 0, y: 0 },
-            width: naturalWidth * k,
-            height: naturalHeight * k,
+            width: size?.width ?? naturalWidth * k,
+            height: size?.height ?? naturalHeight * k,
             zIndex: -10,
             draggable: false,
             selectable: false,

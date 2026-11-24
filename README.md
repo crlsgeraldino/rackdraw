@@ -239,6 +239,17 @@ The installer is not code-signed, so SmartScreen will warn on first run until it
   type, colour and VLAN carry over to both halves; the label stays on the first. One Ctrl+Z undoes it.
 - **Reverse ends** (right-click a cable) swaps its two ends; one-way arrows turn round with it.
 
+## PDF floor plans (Insert → PDF Floor Plan)
+
+- Architects and building owners usually send floor plans as PDF. **Insert → PDF Floor Plan** (or a `.pdf` in the
+  page panel's background picker) puts one page of the PDF behind the page, rendered sharply, at its **printed
+  size** (an 11 × 17 sheet is 11 × 17 in on the page). For a multi-page PDF, RackDraw asks which page.
+- Then type the scale printed on the plan (`1/8" = 1'-0"`, `1/4" = 1'`, `1" = 10'`, `1:100`…) and the page scale is
+  set, so dimension lines, wall lengths, room areas and cable lengths read in real feet or metres. Leave it empty
+  to set the scale later with Design → Set Scale on a known length.
+- Works offline; the PDF reader (pdf.js) only loads when a PDF is inserted. Password-protected PDFs need the
+  password removed first.
+
 ## CAD floor plans (Insert → CAD Drawing)
 
 - Like Visio's Insert CAD Drawing: pick an AutoCAD **.dxf** file and it goes behind the page as a crisp vector

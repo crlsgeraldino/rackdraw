@@ -18,6 +18,7 @@ import { editStencil } from './ContextMenu';
 import { useFollowLink } from './NodeBadges';
 import { realLength, SET_SCALE_EVENT } from '@/lib/units';
 import type { LengthUnit } from '@/lib/types';
+import { insertPdfBackdrop } from '@/lib/insertPdf';
 
 function Field({ label, value, onChange, mono, area }: { label: string; value?: string; onChange: (v: string) => void; mono?: boolean; area?: boolean }) {
   const snapshot = useDiagram((s) => s.snapshot);
@@ -784,8 +785,11 @@ function PageProps() {
     if (!f) return;
     setBusy(true);
     try {
-      const img = await loadImageFile(f);
-      setBackdrop(img.dataUrl, img.width, img.height);
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') await insertPdfBackdrop(f);
+      else {
+        const img = await loadImageFile(f);
+        setBackdrop(img.dataUrl, img.width, img.height);
+      }
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -825,7 +829,7 @@ function PageProps() {
           {busy ? 'Loading…' : '+ Add image (floor plan, site photo, PNG/JPG/SVG)'}
         </button>
       )}
-      <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.svg,image/*" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.svg,image/*,.pdf,application/pdf" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
       <ScaleProps />
     </>
   );

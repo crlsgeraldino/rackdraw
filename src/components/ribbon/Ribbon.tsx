@@ -30,6 +30,7 @@ import { importVsdx } from '@/lib/visio/vsdxImport';
 import { loadImageFile } from '@/lib/imageImport';
 import { insertPictureFile } from '@/lib/pictures';
 import { parseDxf } from '@/lib/dxf';
+import { insertPdfBackdrop } from '@/lib/insertPdf';
 import { describeStep, type HistoryState } from '@/lib/history';
 import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
@@ -858,6 +859,7 @@ function InsertTab() {
   const pictureRef = useRef<HTMLInputElement>(null);
   const shapePicRef = useRef<HTMLInputElement>(null);
   const cadRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
   const project = useCurrentProject();
   const n = project.pages.length + 1;
   const shape = (kind: ShapeKind) => s.addShape(kind, center());
@@ -881,10 +883,17 @@ function InsertTab() {
         <Column>
           <Small icon="picture" label="Background Picture" onClick={() => pictureRef.current?.click()} title="Put a floor plan or site photo behind this page" />
           <Small icon="dimension" label="CAD Drawing" onClick={() => cadRef.current?.click()} title="A floor plan from AutoCAD (.dxf) behind this page, with its real-world scale (like Visio's Insert CAD Drawing)" />
+          <Small icon="floorplan" label="PDF Floor Plan" onClick={() => pdfRef.current?.click()} title="A page of a PDF (an architect's or building owner's plan) behind this page, at its printed size and scale" />
           <Small icon="device" label="Image as Device" onClick={() => paletteAction('import-image')} title="Import a picture and mark its ports" />
           <Small icon="visio" label="Visio Stencil" onClick={() => paletteAction('import-visio')} title="Import shapes from a Visio stencil (.vssx)" />
           <Small icon="library" label="Stencil Library" onClick={() => paletteAction('import-library')} title="Import a .rackdraw-stencils.json library" />
         </Column>
+        <input ref={pdfRef} type="file" hidden accept=".pdf,application/pdf" onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          try { await insertPdfBackdrop(f); } catch (err) { alert((err as Error).message); }
+        }} />
         <input ref={cadRef} type="file" hidden accept=".dxf,.dwg" onChange={async (e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
