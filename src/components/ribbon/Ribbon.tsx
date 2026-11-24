@@ -6,7 +6,8 @@ import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openChangeLog, openFind, openHelp, openPortMap, openSwitchConfig, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
-import { desktop, openClientFile, openRecent, saveClient, showFileInFolder, useFileStatus } from '@/lib/fileSave';
+import { desktop, isProtected, openClientFile, openRecent, saveClient, setClientPassword, showFileInFolder, useFileStatus } from '@/lib/fileSave';
+import { askPassword } from '../PasswordHost';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
 import { exportVsdx } from '@/lib/visio/vsdxExport';
@@ -592,7 +593,7 @@ function FileName() {
       className="hidden max-w-48 truncate text-xs text-white/80 md:inline"
       title={f.dirty ? `Changes not saved to ${f.path} (Ctrl+S saves them)` : `Saved in ${f.path}`}
     >
-      {f.name}{f.dirty && <span className="ml-1 text-amber-300" aria-label="unsaved changes">●</span>}
+      {f.locked && <span className="mr-1" aria-label="password-protected" title="Password-protected file">🔒</span>}{f.name}{f.dirty && <span className="ml-1 text-amber-300" aria-label="unsaved changes">●</span>}
     </span>
   );
 }
@@ -664,12 +665,21 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         {item('open', 'Open… (RackDraw, Visio .vsdx or template .vstx)', onOpen)}
         {item('save', 'Save', onSave)}
         {item('save', 'Save As…', () => { onClose(); void saveClient(true); })}
+        {item('lock', isProtected(project.id) ? 'Password (protected)…' : 'Protect with password…', () => { onClose(); void setClientPassword(); })}
         {item('visio', 'Save as Visio drawing…', () => onExport('vsdx'))}
         {item('open', 'Version History…', () => { onClose(); openVersions(); })}
         {item('titleBlock', 'Save as template…', () => void saveTemplate())}
         {item('print', 'Print…', onPrint)}
         <div className="my-2 border-t border-white/20" />
-        {item('save', 'Back up everything…', () => void downloadBackup().then((n) => alert(`Backed up ${n} client${n === 1 ? '' : 's'}, your stencils, templates, Version History and price book to one file. Keep it somewhere safe (another drive or the cloud).`)))}
+        {item('save', 'Back up everything…', async () => {
+          const pw = await askPassword({
+            title: 'Back up everything', message: 'Protect the backup with a password? Leave it empty for no password.\nThe backup holds every client, your stencils, templates, Version History and price book.',
+            confirm: true, optional: true, okLabel: 'Back up',
+          });
+          if (pw === null) return;
+          const n = await downloadBackup(pw || undefined);
+          alert(`Backed up ${n} client${n === 1 ? '' : 's'}, your stencils, templates, Version History and price book to one file${pw ? ', protected with your password' : ''}. Keep it somewhere safe (another drive or the cloud).`);
+        })}
         {item('open', 'Restore from backup…', () => restoreRef.current?.click())}
         <input
           ref={restoreRef} type="file" accept=".json" className="hidden" aria-hidden
@@ -678,7 +688,8 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
             e.target.value = '';
             if (!f) return;
             try {
-              const b = await readBackup(f);
+              const b = await readBackup(f, (error) => askPassword({ title: 'Password needed', message: `"${f.name}" is a password-protected backup.`, error, okLabel: 'Open' }));
+              if (!b) return;
               const n = Object.keys(b.projects).length;
               if (!confirm(`Restore ${n} client${n === 1 ? '' : 's'} from the backup of ${new Date(b.createdAt).toLocaleString()}?
 

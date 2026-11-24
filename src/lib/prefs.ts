@@ -42,7 +42,7 @@ export interface Prefs {
   /** Your price book: unit price per Bill of Materials item (key → price), used for every client's quote. */
   priceBook: Record<string, number>;
   /** The .rackdraw file each client is saved to on this computer (client id → file), so Save writes back to it. */
-  fileLinks: Record<string, { path: string; name: string; sig?: string }>;
+  fileLinks: Record<string, { path: string; name: string; sig?: string; protected?: boolean; check?: import('./fileCrypto').PasswordCheck }>;
   /** Client files opened or saved lately (desktop app), newest first: File → Recent and the taskbar list. */
   recentFiles: { path: string; name: string; at: number }[];
   /** The RackDraw version last used on this computer (What's new shows what came after it). */

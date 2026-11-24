@@ -9,6 +9,7 @@ import { getPref, setPref } from './prefs';
 import { snapshotVersions, useDiagram, type StoredVersions } from '@/store/useDiagramStore';
 import type { Project, StencilDef } from './types';
 import type { Template } from './templates';
+import { protectText, unlockJson } from './fileCrypto';
 
 export interface BackupFile {
   format: 'rackdraw-backup';
@@ -21,7 +22,8 @@ export interface BackupFile {
   prefs?: { priceBook?: Record<string, number>; favorites?: string[] };
 }
 
-export async function downloadBackup() {
+/** Downloads the backup; with a password it is protected (File → Restore asks for it). */
+export async function downloadBackup(password?: string) {
   const s = useDiagram.getState();
   await s.loadVersions();
   const b: BackupFile = {
@@ -35,17 +37,22 @@ export async function downloadBackup() {
     prefs: { priceBook: getPref('priceBook'), favorites: getPref('favorites') },
   };
   const day = new Date().toISOString().slice(0, 10);
-  downloadBlob(`rackdraw-backup-${day}.json`, new Blob([JSON.stringify(b)], { type: 'application/json' }));
+  const text = JSON.stringify(b);
+  const body = password ? JSON.stringify(await protectText(text, password)) : text;
+  downloadBlob(`rackdraw-backup-${day}${password ? '-protected' : ''}.json`, new Blob([body], { type: 'application/json' }));
   return Object.keys(b.projects).length;
 }
 
-export async function readBackup(file: File): Promise<BackupFile> {
+/** Reads a backup; a protected one asks for its password through `ask` (null = cancelled). */
+export async function readBackup(file: File, ask?: (error?: string) => Promise<string | null>): Promise<BackupFile | null> {
   let j: unknown;
   try {
     j = JSON.parse(await file.text());
   } catch {
     throw new Error('That file is not a RackDraw backup (it could not be read).');
   }
+  j = await unlockJson(j, ask);
+  if (j === null) return null;
   const b = j as BackupFile;
   if (b?.format !== 'rackdraw-backup') throw new Error('That file is not a RackDraw backup. To open one client, use File → Open.');
   if (b.version > 1) throw new Error('This backup was made by a newer version of RackDraw. Update RackDraw, then restore it.');

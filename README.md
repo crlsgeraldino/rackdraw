@@ -166,6 +166,15 @@ open; saving one asks for a new `.rackdraw` name. Your work is also kept automat
 The title bar shows the client's file, with a dot while there are changes not saved to it. File shows Recent
 files (also on the taskbar icon's right-click list) and Open file location.
 
+**Password-protected files.** File → Protect with password locks the client's `.rackdraw` file: anyone opening it
+(in RackDraw, from email, a shared folder or a USB stick) needs the password, and Save keeps it protected (a 🔒 shows
+next to the file name). The password becomes a key with PBKDF2-SHA256 (600,000 rounds) and the drawing is encrypted
+with AES-256-GCM, so a wrong password or a changed file is refused. The password itself is never stored and a
+forgotten one can't be recovered: keep it in your password manager. RackDraw remembers only that the file is
+protected, so after a restart Save asks for the password instead of writing the file unprotected. The same menu
+item changes or removes it. The copy RackDraw keeps on this computer and exports (PDF, Visio, Word…) are not
+protected.
+
 **Data folder.** Clients are kept in `%APPDATA%\NetCraft` (the app's original name, so older data is still found). Set
 the environment variable `RACKDRAW_DATA_DIR` to a folder to use that instead: a portable copy on a USB stick, a
 separate test copy, or a second set of clients.
@@ -483,6 +492,7 @@ the clipboard (Copy buttons), persistent storage and full screen. The installed 
 - **File → Back up everything…** saves every client, your stencils and templates, Version History and price book to
   one `rackdraw-backup-<date>.json`. **File → Restore from backup…** adds it back without replacing anything: a
   client that is already here comes back as a copy named "(restored)".
+  The backup can be protected with a password too (same encryption); Restore asks for it.
 - **Deleting a client** downloads a copy of it first (`.rackdraw.json`), so it can be opened again.
 - **Security (desktop app)**: links in diagrams open in your browser or mail app only if they are `http`, `https` or
   `mailto`; other kinds of link (file:, smb:, ms-msdt:…) are ignored. Developer tools are off in the installed app.
