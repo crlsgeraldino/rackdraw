@@ -22,6 +22,8 @@ export interface QuoteSettings {
   validDays?: number;
   /** Notes / terms printed on the quote. */
   notes?: string;
+  /** The prices this client's quote used (so the file / backup quotes the same on another computer). */
+  prices?: Record<string, number>;
 }
 
 export const LABOR_TASKS: { key: LaborTask; label: string; unit: string; hours: number }[] = [
@@ -33,7 +35,7 @@ export const LABOR_TASKS: { key: LaborTask; label: string; unit: string; hours: 
   { key: 'cords', label: 'Patch and label cords', unit: 'cord', hours: 0.1 },
 ];
 
-export const QUOTE_DEFAULTS: Required<Omit<QuoteSettings, 'hours' | 'notes'>> = { currency: 'USD', markupPct: 20, taxPct: 0, laborRate: 95, validDays: 30 };
+export const QUOTE_DEFAULTS: Required<Omit<QuoteSettings, 'hours' | 'notes' | 'prices'>> = { currency: 'USD', markupPct: 20, taxPct: 0, laborRate: 95, validDays: 30 };
 
 export interface QuoteLine {
   section: string;

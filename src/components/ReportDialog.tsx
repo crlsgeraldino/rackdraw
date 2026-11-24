@@ -75,7 +75,12 @@ export function ReportDialog({ onClose }: { onClose: () => void }) {
   const copy = async () => {
     // Tab-separated, so it pastes into Excel or Word as a table.
     const tsv = [result.header, ...result.rows].map((r) => r.map((c) => String(c).replace(/[\t\n]+/g, ' ')).join('\t')).join('\n');
-    await navigator.clipboard.writeText(tsv);
+    try {
+      await navigator.clipboard.writeText(tsv);
+    } catch {
+      alert('Copying was blocked by the system. Click inside RackDraw and press Copy again, or use CSV / Excel.');
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

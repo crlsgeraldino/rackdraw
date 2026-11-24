@@ -26,7 +26,7 @@ function signature(p: Project): string {
   switch (s?.deviceColor) {
     case 'status': dev = uniq(devices.map((n) => (n.type === 'device' ? n.data.status ?? 'active' : ''))); break;
     case 'location': case 'model': case 'layer': dev = field(s.deviceColor); break;
-    case 'warranty': dev = field('warrantyEnd'); break;
+    case 'warranty': dev = `${new Date().toDateString()}|${field('warrantyEnd')}`; break;
     default: dev = '';
   }
   const cab = s?.cableColor === 'vlan' ? uniq(edges.map((e) => e.data?.vlan)) : uniq(edges.map((e) => e.data?.cable ?? 'Cat6'));

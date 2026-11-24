@@ -45,7 +45,13 @@ function ownFields(n: AppNode): { item: string; fields: { path: string[]; label:
         ...f(['ports', pid, 'notes'], `Port ${pd.label || pid} notes`, pd.notes),
       ]);
       const extra = (d.extraFields ?? []).flatMap((x, i) => f(['extraFields', String(i), 'value'], x.label || 'Field', x.value));
-      return { item: d.name || 'Device', fields: [...DEVICE_FIELDS.flatMap(([k, l]) => f([k], l, d[k])), ...ports, ...extra] };
+      const c = d.circuit;
+      const circuit = c ? [
+        ...f(['circuit', 'carrier'], 'Carrier', c.carrier), ...f(['circuit', 'circuitId'], 'Circuit ID', c.circuitId),
+        ...f(['circuit', 'accountNumber'], 'Account number', c.accountNumber), ...f(['circuit', 'supportPhone'], 'Support phone', c.supportPhone),
+        ...f(['circuit', 'staticIps'], 'Static IPs', c.staticIps), ...f(['circuit', 'notes'], 'Circuit notes', c.notes),
+      ] : [];
+      return { item: d.name || 'Device', fields: [...DEVICE_FIELDS.flatMap(([k, l]) => f([k], l, d[k])), ...ports, ...extra, ...circuit] };
     }
     case 'zone':
       return { item: n.data.title || 'Zone', fields: [...f(['title'], 'Zone title', n.data.title), ...f(['link'], 'Link', n.data.link)] };

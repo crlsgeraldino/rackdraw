@@ -56,12 +56,19 @@ export interface CableLabelOptions {
 
 /** Cables in print order, with the number each gets when it has no label ("C-001"). */
 export function labelledCables(p: Project, pageId?: string): { e: CableEdge; id: string }[] {
+  const all = p.pages.flatMap((pg) => pg.edges.map((e) => ({ e, pageId: pg.id }))).filter(({ e }) => !NOT_A_CABLE.has(e.data?.cable ?? 'Cat6'));
+  const used = new Set(p.pages.flatMap((pg) => pg.edges.map((e) => e.data?.label?.trim()).filter(Boolean)) as string[]);
   let n = 0;
-  return p.pages
-    .filter((pg) => !pageId || pg.id === pageId)
-    .flatMap((pg) => pg.edges)
-    .filter((e) => !NOT_A_CABLE.has(e.data?.cable ?? 'Cat6'))
-    .map((e) => ({ e, id: e.data?.label?.trim() || `C-${String(++n).padStart(3, '0')}` }));
+  const next = () => {
+    let id: string;
+    do id = `C-${String(++n).padStart(3, '0')}`; while (used.has(id));
+    used.add(id);
+    return id;
+  };
+  // Numbers are worked out over the whole client (in page order), so "only this page" gives the same numbers.
+  return all.map(({ e, pageId: pg }) => ({ e, pg, id: e.data?.label?.trim() || next() }))
+    .filter((x) => !pageId || x.pg === pageId)
+    .map(({ e, id }) => ({ e, id }));
 }
 
 export function cableLabels(p: Project, stencil: Stencils, o: CableLabelOptions, colorOf?: (d?: CableData) => string): Label[] {
@@ -101,7 +108,8 @@ export function assetLabels(p: Project, stencil: Stencils, o: AssetLabelOptions)
       const lines = [x.model, x.serial && `S/N ${x.serial}`, x.assetTag && `Asset ${x.assetTag}`, x.ip && `IP ${x.ip}`].filter(Boolean) as string[];
       const details = [p.name, x.name, x.model, x.serial && `S/N ${x.serial}`, x.assetTag && `Asset ${x.assetTag}`, x.ip && `IP ${x.ip}`, x.location].filter(Boolean).join('\n');
       const link = /^https?:\/\//i.test(x.link ?? '') ? x.link : undefined;
-      const qr = o.qr === 'none' ? undefined : (o.qr === 'link' && link) || truncateUtf8(details, 200);
+      const fits = (s?: string) => !!s && new TextEncoder().encode(s).length <= 200;
+      const qr = o.qr === 'none' ? undefined : (o.qr === 'link' && fits(link) ? link : truncateUtf8(details, 200));
       return { title: x.name, lines, qr };
     });
 }
@@ -161,7 +169,9 @@ export function labelSheetsHtml(labels: Label[], sheet: LabelSheet, opts: { skip
       if (!l) return '';
       const c = i % sheet.cols, r = Math.floor(i / sheet.cols);
       const x = sheet.left + c * (sheet.w + sheet.gapX), y = sheet.top + r * (sheet.h + sheet.gapY);
-      const qr = l.qr ? `<div class="qr" style="width:${qrSize}in;height:${qrSize}in">${qrSvg(l.qr, 96)}</div>` : '';
+      let code = '';
+      try { code = l.qr ? qrSvg(l.qr, 96) : ''; } catch { code = ''; }
+      const qr = code ? `<div class="qr" style="width:${qrSize}in;height:${qrSize}in">${code}</div>` : '';
       return `<div class="lb${opts.outlines ? ' ol' : ''}${small ? ' sm' : ''}" style="left:${x}in;top:${y}in;width:${sheet.w}in;height:${sheet.h}in">`
         + (l.color ? `<i style="background:${esc(l.color)}"></i>` : '')
         + `<div class="tx"><b>${esc(l.title)}</b>${l.lines.map((t) => `<span>${esc(t)}</span>`).join('')}</div>${qr}</div>`;

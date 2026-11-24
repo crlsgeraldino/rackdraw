@@ -161,6 +161,10 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
   assetTag?: string;
   /** Typical power draw in watts, for rack power totals. */
   powerW?: number;
+  /** Weight in pounds, for rack weight totals. */
+  weightLb?: number;
+  /** UPS rating (UPS devices): output watts and datasheet runtime at half load. */
+  ups?: import('./rackPower').UpsInfo;
   /** Lifecycle dates (YYYY-MM-DD): Data → Lifecycle, Check Diagram, Design → Devices by Warranty. */
   purchaseDate?: string;
   warrantyEnd?: string;
@@ -577,6 +581,10 @@ export interface Rack {
   units: number;
   location?: string;
   notes?: string;
+  /** The rack's power circuit: volts, amps, and whether it has A + B feeds (each must carry the whole load). */
+  feedVolts?: number;
+  feedAmps?: number;
+  redundantFeeds?: boolean;
   items: RackItem[];
 }
 

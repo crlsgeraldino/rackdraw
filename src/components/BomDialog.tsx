@@ -44,7 +44,9 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
   const { sections, capacity, work } = useMemo(() => billOfMaterials({ ...project, pages, racks }, getStencil), [pages, racks]); // eslint-disable-line react-hooks/exhaustive-deps
   const qs: QuoteSettings = useMemo(() => project.quote ?? {}, [project.quote]);
   const set = { ...QUOTE_DEFAULTS, ...qs };
-  const q = useMemo(() => priceQuote(sections, work, book, qs), [sections, work, book, qs]);
+  // Your price book first, then the prices this client's quote was made with (from its file or backup).
+  const prices = useMemo(() => ({ ...qs.prices, ...book }), [qs.prices, book]);
+  const q = useMemo(() => priceQuote(sections, work, prices, qs), [sections, work, prices, qs]);
   const [tab, setTab] = useState<Tab>('bom');
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,6 +57,11 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
     if (v === undefined) delete next[key];
     else next[key] = v;
     setPref('priceBook', next);
+    // Also kept with the client, so its quote is the same when the file is opened on another computer.
+    const own = { ...qs.prices };
+    if (v === undefined) delete own[key];
+    else own[key] = v;
+    setQuote({ prices: own });
   };
 
   const capRows = capacity.map((c) => [c.device, c.model, c.ports, c.used, c.free, c.poePorts || '', c.poeW || '', c.poeBudgetW || '', c.warning]);
@@ -67,7 +74,12 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
     downloadBlob(`${file}.csv`, new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
   };
   const copy = async () => {
-    await navigator.clipboard.writeText([header, ...rows].map((r) => r.map((c) => String(c ?? '').replace(/[\t\n]+/g, ' ')).join('\t')).join('\n'));
+    try {
+      await navigator.clipboard.writeText([header, ...rows].map((r) => r.map((c) => String(c ?? '').replace(/[\t\n]+/g, ' ')).join('\t')).join('\n'));
+    } catch {
+      alert('Copying was blocked by the system. Click inside RackDraw and press Copy again, or use CSV / Excel.');
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -158,7 +170,7 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
                     <table className="w-full text-sm">
                       <tbody>
                         {s.rows.map((r) => {
-                          const price = r.price ?? book[r.key];
+                          const price = r.price ?? prices[r.key];
                           return (
                             <tr key={r.key} className="border-b border-gray-100">
                               <td className="w-16 py-1 pr-3 text-right font-semibold tabular-nums text-gray-900">{r.qty.toLocaleString()}</td>

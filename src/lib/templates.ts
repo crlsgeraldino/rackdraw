@@ -257,6 +257,9 @@ function mediumNetwork(): Template['project'] {
     stacks: [{ name: 'MDF-SW1', drops: [['ap', 'AP-1 Lobby', '90 ft'], ['pc', 'Reception PC', '70 ft'], ['pc', 'Accounting PC', '120 ft'], ['printer', 'Floor 1 MFP', '60 ft'], ['phone', 'Reception phone', '70 ft'], ['camera', 'Camera Entrance', '150 ft']] }],
   });
   nodes.push(...mdf.nodes);
+  // The MDF also powers the servers and the core: a bigger UPS than the floor closets' 1500 VA units.
+  const mdfUps = mdf.nodes.find((n) => n.id === 'n-mdf-ups');
+  if (mdfUps?.type === 'device') mdfUps.data = { ...mdfUps.data, model: '3000VA rack UPS', ups: { capacityW: 2700, runtimeHalfMin: 18 } };
   edges.push(...mdf.edges);
   // The MDF zone is wider: core switch and servers sit to the right of the closet.
   (nodes.find((n) => n.id === 'z-mdf') as { style: { width: number } }).style.width = 1420;
@@ -302,6 +305,7 @@ function mediumNetwork(): Template['project'] {
     vl('30', 'Cameras', '10.10.30.0/24', '10.10.30.1', '#dc2626', undefined, 'Static addresses'),
     vl('40', 'Guest Wi-Fi', '10.10.40.0/24', '10.10.40.1', '#16a34a', ['10.10.40.20', '10.10.40.250'], 'Internet only'),
   ];
+  for (const r of racks) { r.feedVolts = 120; r.feedAmps = r.location === 'MDF' ? 20 : 15; }
   return { pages: [page], activePageId: page.id, racks, vlans };
 }
 
@@ -399,6 +403,7 @@ function largeNetwork(): Template['project'] {
     vl('110', 'Servers', '10.0.10.0/24', '10.0.10.1', '#0891b2'),
     vl('120', 'Storage', '10.0.20.0/24', '10.0.20.1', '#9333ea'),
   ];
+  for (const r of racks) Object.assign(r, r.location === 'Data center' ? { feedVolts: 208, feedAmps: 30, redundantFeeds: true } : { feedVolts: 120, feedAmps: 20 });
   return { pages: [page], activePageId: page.id, racks, vlans };
 }
 
@@ -667,7 +672,19 @@ export function projectFromTemplate(t: Template['project'], name: string): Proje
 
 /** What a client becomes as a template: its drawing without the client's own details. */
 export function templateFromProject(p: Project, name: string, description: string): Template {
-  const { id: _id, name: _n, createdAt: _c, updatedAt: _u, site: _s, address: _a, contact: _ct, dataLink: _d, ...rest } = p;
-  void _id; void _n; void _c; void _u; void _s; void _a; void _ct; void _d;
-  return { id: `tpl-${uid()}`, name, description, project: JSON.parse(JSON.stringify(rest)) };
+  const { id: _id, name: _n, createdAt: _c, updatedAt: _u, site: _s, address: _a, contact: _ct, dataLink: _d, notes: _no, quote: _q, ...rest } = p;
+  void _id; void _n; void _c; void _u; void _s; void _a; void _ct; void _d; void _no; void _q;
+  const project = JSON.parse(JSON.stringify(rest)) as Template['project'];
+  // The client's own paperwork stays with the client: serials, asset tags, MACs, purchase / warranty dates, and the
+  // circuit's account number, circuit ID, static IPs and support phone.
+  for (const pg of project.pages) {
+    pg.nodes = pg.nodes.map((n) => {
+      if (n.type !== 'device') return n;
+      const { serial: _1, assetTag: _2, mac: _3, purchaseDate: _4, warrantyEnd: _5, endOfLife: _6, circuit, ...data } = n.data;
+      void _1; void _2; void _3; void _4; void _5; void _6;
+      const c = circuit ? { carrier: circuit.carrier, kind: circuit.kind, bandwidth: circuit.bandwidth } : undefined;
+      return { ...n, data: { ...data, ...(c && Object.values(c).some(Boolean) ? { circuit: c } : {}) } } as AppNode;
+    });
+  }
+  return { id: `tpl-${uid()}`, name, description, project };
 }

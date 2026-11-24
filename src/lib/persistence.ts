@@ -45,16 +45,27 @@ function schedule(delay = SAVE_DELAY) {
   timer = setTimeout(() => { timer = null; void flushSave(); }, delay);
 }
 
-/** Writes pending changes now (also used before the window closes). Resolves when they are on disk or failed. */
+/**
+ * Writes pending changes now (also used before the window closes). Resolves only when nothing is waiting and no write
+ * is in flight (true) or a write failed (false): several callers can wait at once, and none returns early while
+ * another one's write is still running.
+ */
 export async function flushSave(): Promise<boolean> {
   if (timer) { clearTimeout(timer); timer = null; }
-  if (writing) await writing;
-  if (!latest || blocked) return useSaveStatus.getState().state !== 'error';
-  const job = latest;
+  for (;;) {
+    while (writing) await writing;
+    if (!latest || blocked) return useSaveStatus.getState().state !== 'error';
+    if (!(await writeOnce())) return false;
+  }
+}
+
+/** Writes the latest state once (sets `writing` before its first await, so others see it in flight). */
+function writeOnce(): Promise<boolean> {
+  const job = latest!;
   latest = null;
   useSaveStatus.setState({ state: 'saving' });
   let ok = true;
-  writing = (async () => {
+  const run = (async () => {
     try {
       await idbSet(job.name, JSON.stringify(job.value));
       try { localStorage.removeItem(job.name); } catch { /* not needed */ }
@@ -66,10 +77,8 @@ export async function flushSave(): Promise<boolean> {
       useSaveStatus.setState({ state: 'error', error: describe(e) });
     }
   })();
-  await writing;
-  writing = null;
-  if (latest && ok) schedule();
-  return ok;
+  writing = run.then(() => { writing = null; });
+  return writing.then(() => ok);
 }
 
 /** Retry after a failed save (the banner's Retry button). */

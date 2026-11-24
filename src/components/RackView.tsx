@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { fmtRuntime, rackPower, upsRating } from '@/lib/rackPower';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { allDevices } from '@/lib/project';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
@@ -250,6 +251,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-gray-50">
       <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600">
+        <BackToDiagram />
         <span>Drag devices and accessories from the left into the rack. Drag mounted items to move them.</span>
         <label className="ml-auto flex items-center gap-1" title="Draw the cables between this rack's equipment on its front (from the diagram)">
           <input type="checkbox" checked={showCables} onChange={(e) => setShowCables(e.target.checked)} /> Patch cables
@@ -371,7 +373,20 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
             <Field label="Power (W)">
               <input type="number" min={0} className={inputCls} value={d.powerW ?? ''} onFocus={snapshot} onChange={(e) => updateNodeData(device.id, { powerW: e.target.value === '' ? undefined : Number(e.target.value) })} />
             </Field>
+            <Field label="Weight (lb)">
+              <input type="number" min={0} className={inputCls} value={d.weightLb ?? ''} onFocus={snapshot} onChange={(e) => updateNodeData(device.id, { weightLb: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            </Field>
           </div>
+          {d.stencilId === 'ups' && (
+            <div className="flex gap-2">
+              <Field label="UPS output (W)">
+                <input type="number" min={0} className={inputCls} value={d.ups?.capacityW ?? ''} placeholder={String(upsRating(device).capacityW)} onFocus={snapshot} onChange={(e) => updateNodeData(device.id, { ups: { ...d.ups, capacityW: e.target.value === '' ? undefined : Number(e.target.value) } })} />
+              </Field>
+              <Field label="Runtime at half load (min)">
+                <input type="number" min={0} className={inputCls} value={d.ups?.runtimeHalfMin ?? ''} placeholder="15" onFocus={snapshot} onChange={(e) => updateNodeData(device.id, { ups: { ...d.ups, runtimeHalfMin: e.target.value === '' ? undefined : Number(e.target.value) } })} />
+              </Field>
+            </div>
+          )}
         </>
       ) : item.kind === 'device' ? (
         <p className="mb-2 text-xs text-red-600">This device was removed from the diagram.</p>
@@ -466,11 +481,12 @@ function Patching({ rack, onlyNode, onHot }: { rack: Rack; onlyNode?: string; on
 }
 
 function RackProps({ rack, onHot }: { rack: Rack; onHot: (id: string | null) => void }) {
-  const devices = useDevices();
   const { updateRack, deleteRack, snapshot } = useDiagram.getState();
   const [err, setErr] = useState('');
   const used = usedUnits(rack);
-  const power = rack.items.reduce((sum, it) => sum + (it.nodeId ? Number(devices.get(it.nodeId)?.data.powerW ?? 0) : 0), 0);
+  const project = useCurrentProject();
+  const custom = useDiagram((s) => s.customStencils);
+  const pw = useMemo(() => rackPower(project, rack, (id) => findStencil(id, custom)), [project, rack, custom]);
   const deviceCount = rack.items.filter((it) => it.kind === 'device').length;
   const largestFree = (() => {
     for (let h = rack.units; h >= 1; h--) if (findFreeU(rack, h, 'full') !== null) return h;
@@ -498,9 +514,48 @@ function RackProps({ rack, onHot }: { rack: Rack; onHot: (id: string | null) => 
         <dt className="text-gray-500">Used</dt><dd>{used}U of {rack.units}U</dd>
         <dt className="text-gray-500">Free</dt><dd>{rack.units - used}U (largest {largestFree}U)</dd>
         <dt className="text-gray-500">Devices</dt><dd>{deviceCount}</dd>
-        <dt className="text-gray-500">Power</dt><dd>{power ? `${power} W` : '—'}</dd>
       </dl>
-      <p className="mt-1 text-[10px] text-gray-400">Power adds up each mounted device&apos;s Power (W) field.</p>
+
+      <div className="mt-3 text-[11px] uppercase tracking-wide text-gray-500">Power &amp; cooling</div>
+      <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 rounded border border-gray-200 p-2 text-xs">
+        <dt className="text-gray-500">Power draw</dt><dd>{pw.totalW ? `${pw.totalW.toLocaleString()} W` : '—'}{pw.poeW > 0 && <span className="text-gray-400"> (PoE {pw.poeW} W)</span>}</dd>
+        <dt className="text-gray-500">Heat</dt><dd>{pw.btu ? `${pw.btu.toLocaleString()} BTU/h` : '—'}</dd>
+        <dt className="text-gray-500">Weight</dt><dd>{pw.weightLb ? `${pw.weightLb} lb (${Math.round(pw.weightLb * 0.4536)} kg)` : '—'}</dd>
+        {pw.circuit && (
+          <>
+            <dt className="text-gray-500">Circuit load</dt>
+            <dd>
+              <span className="inline-block h-1.5 w-12 overflow-hidden rounded bg-gray-200 align-middle"><span className={`block h-full ${pw.circuit.pct > 1 ? 'bg-red-500' : pw.circuit.pct > 0.8 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, pw.circuit.pct * 100)}%` }} /></span>
+              <span className="ml-1.5">{Math.round(pw.circuit.pct * 100)}% of {Math.round(pw.circuit.continuousW)} W</span>
+            </dd>
+          </>
+        )}
+        {pw.ups.map((u) => (
+          <Fragment key={u.id}>
+            <dt className="truncate text-gray-500" title={u.name}>{u.name}</dt>
+            <dd title={u.assumed ? 'Rating assumed (set Capacity and Runtime at half load on the UPS for an exact figure)' : undefined}>
+              {Math.round(u.pct * 100)}% load · ~{fmtRuntime(u.runtimeMin)}{u.assumed && <span className="text-gray-400"> *</span>}
+            </dd>
+          </Fragment>
+        ))}
+      </dl>
+      <div className="mt-2 flex items-end gap-2">
+        <Field label="Circuit (V)">
+          <select className={inputCls} value={rack.feedVolts ?? ''} onChange={(e) => { snapshot(); updateRack(rack.id, { feedVolts: e.target.value ? Number(e.target.value) : undefined }); }}>
+            <option value="">—</option>{[120, 208, 230, 240].map((v) => <option key={v} value={v}>{v} V</option>)}
+          </select>
+        </Field>
+        <Field label="Breaker (A)">
+          <select className={inputCls} value={rack.feedAmps ?? ''} onChange={(e) => { snapshot(); updateRack(rack.id, { feedAmps: e.target.value ? Number(e.target.value) : undefined }); }}>
+            <option value="">—</option>{[10, 15, 16, 20, 30, 32].map((a) => <option key={a} value={a}>{a} A</option>)}
+          </select>
+        </Field>
+      </div>
+      <label className="mb-1 flex items-center gap-1.5 text-xs text-gray-700"><input type="checkbox" className="accent-blue-600" checked={!!rack.redundantFeeds} onChange={(e) => { snapshot(); updateRack(rack.id, { redundantFeeds: e.target.checked || undefined }); }} /> A + B feeds (each carries the whole rack)</label>
+      {pw.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-700">⚠ {w}</p>)}
+      <p className="mt-1 text-[10px] text-gray-400">
+        Adds each device&apos;s Power (W) and Weight, or a typical figure for built-in equipment{pw.typicalCount ? ` (${pw.typicalCount} typical)` : ''}, plus the PoE switches deliver. Heat = W × 3.412.{pw.ups.some((u) => u.assumed) ? ' * UPS rating assumed: set it on the UPS.' : ''}
+      </p>
       <Patching rack={rack} onHot={onHot} />
 
       <button
@@ -514,6 +569,19 @@ function RackProps({ rack, onHot }: { rack: Rack; onHot: (id: string | null) => 
 }
 
 /* ------------------------------------------------------------------ */
+
+/** Back to the drawing (the same as View → Diagram, which is easy to miss from here). */
+function BackToDiagram() {
+  return (
+    <button
+      className="flex shrink-0 items-center gap-1 rounded border border-blue-300 bg-blue-50 px-2 py-0.5 font-medium text-blue-700 hover:bg-blue-100"
+      onClick={() => useDiagram.getState().setView('diagram')}
+      title="Go back to the drawing (View → Diagram)"
+    >
+      <span aria-hidden>←</span> Diagram
+    </button>
+  );
+}
 
 export function RackView() {
   const project = useCurrentProject();
@@ -532,7 +600,7 @@ export function RackView() {
   // Delete removes the selected rack item (not the device itself).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea, select')) return;
+      if (e.target instanceof Element && e.target.closest('input, textarea, select')) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && rack && item) removeRackItem(rack.id, item.id);
     };
     window.addEventListener('keydown', onKey);
@@ -548,6 +616,7 @@ export function RackView() {
         <div className="flex flex-1 items-center justify-center bg-gray-50">
           <div className="max-w-sm rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
             <p className="mb-3">No racks for <b>{project.name}</b> yet.</p>
+            <div className="mb-3 flex justify-center"><BackToDiagram /></div>
             <div className="flex flex-col items-center gap-2">
               <BuildFromDiagram className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700" />
               <button className="rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50" onClick={() => addRack('Rack A', 42)}>Add an empty 42U rack</button>

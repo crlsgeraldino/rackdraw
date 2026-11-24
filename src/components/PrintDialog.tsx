@@ -40,6 +40,9 @@ export function PrintDialog({ onPrint, onClose }: { onPrint: (o: PrintOptions) =
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose}>
       <form
         className="w-[420px] max-w-full rounded-lg bg-white shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Print"
         onMouseDown={(e) => e.stopPropagation()}
         onSubmit={(e) => { e.preventDefault(); submit(); }}
       >

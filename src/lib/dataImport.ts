@@ -3,6 +3,7 @@
  * device fields, match rows to devices, and preview/apply the changes. The mapping is remembered per client so the
  * same sheet can be re-applied ("Refresh") after it is edited.
  */
+import { DEVICE_STATUSES } from './types';
 import { unzipSync } from 'fflate';
 import type { DeviceData, DeviceNode, Project } from './types';
 import { allDevices } from './project';
@@ -99,7 +100,8 @@ export async function readTable(file: File): Promise<Table> {
 /*  Mapping and matching                                               */
 /* ------------------------------------------------------------------ */
 
-export type FieldKey = 'id' | 'name' | 'type' | 'model' | 'ip' | 'mac' | 'serial' | 'assetTag' | 'location' | 'powerW' | 'notes';
+export type FieldKey = 'id' | 'name' | 'type' | 'model' | 'ip' | 'mac' | 'serial' | 'assetTag' | 'location' | 'powerW' | 'notes'
+  | 'status' | 'purchaseDate' | 'warrantyEnd' | 'endOfLife' | 'weightLb';
 
 export const FIELDS: { key: FieldKey; label: string; aliases: string[] }[] = [
   { key: 'id', label: 'RackDraw ID', aliases: ['rackdraw id', 'netcraft id', 'id', 'device id'] },
@@ -113,7 +115,28 @@ export const FIELDS: { key: FieldKey; label: string; aliases: string[] }[] = [
   { key: 'location', label: 'Location', aliases: ['location', 'room', 'site', 'closet'] },
   { key: 'powerW', label: 'Power (W)', aliases: ['power', 'power (w)', 'watts', 'power w', 'wattage'] },
   { key: 'notes', label: 'Notes', aliases: ['notes', 'note', 'comments', 'description'] },
+  { key: 'status', label: 'Status', aliases: ['status', 'state'] },
+  { key: 'purchaseDate', label: 'Purchased', aliases: ['purchased', 'purchase date', 'bought', 'install date', 'installed'] },
+  { key: 'warrantyEnd', label: 'Warranty ends', aliases: ['warranty ends', 'warranty end', 'warranty', 'warranty expiry', 'warranty expiration', 'support ends'] },
+  { key: 'endOfLife', label: 'End of life', aliases: ['end of life', 'eol', 'end of support', 'eos'] },
+  { key: 'weightLb', label: 'Weight (lb)', aliases: ['weight', 'weight (lb)', 'weight lb', 'lbs'] },
 ];
+
+/** A cell as the device field wants it: numbers, a known status, dates as YYYY-MM-DD; '' when it can't be read. */
+export function normalizeCell(f: FieldKey, v: string): string {
+  const t = v.trim();
+  if (!t) return '';
+  if (f === 'powerW' || f === 'weightLb') { const n = Number(t.replace(',', '.')); return Number.isFinite(n) && n >= 0 ? String(n) : ''; }
+  if (f === 'status') return DEVICE_STATUSES.find((s) => s.value === t.toLowerCase() || s.label.toLowerCase() === t.toLowerCase())?.value ?? '';
+  if (f === 'purchaseDate' || f === 'warrantyEnd' || f === 'endOfLife') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    const at = Date.parse(t);
+    if (!Number.isFinite(at)) return '';
+    const d = new Date(at);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  return t;
+}
 
 /** Fields that can identify a device. */
 export const MATCH_KEYS: FieldKey[] = ['id', 'name', 'assetTag', 'serial', 'ip', 'mac'];
@@ -164,7 +187,8 @@ export interface ImportPlan {
   skipped: { row: number; reason: string }[];
 }
 
-const EDITABLE: FieldKey[] = ['name', 'model', 'ip', 'mac', 'serial', 'assetTag', 'location', 'powerW', 'notes'];
+const EDITABLE: FieldKey[] = ['name', 'model', 'ip', 'mac', 'serial', 'assetTag', 'location', 'powerW', 'notes', 'status', 'purchaseDate', 'warrantyEnd', 'endOfLife', 'weightLb'];
+const NUMERIC = new Set<FieldKey>(['powerW', 'weightLb']);
 
 /**
  * Works out what an import would do. Empty cells never erase existing values, so a sheet with only a few
@@ -193,8 +217,8 @@ export function planImport(p: Project, t: Table, m: Mapping, matchKey: FieldKey,
       if (!createMissing) { plan.skipped.push({ row: rowNo, reason: `no device "${cell(row, matchKey)}"` }); return; }
       const data: PlannedCreate['data'] = { name };
       for (const f of EDITABLE) {
-        const v = cell(row, f);
-        if (v && f !== 'name') (data as Record<string, unknown>)[f] = f === 'powerW' ? Number(v) || undefined : v;
+        const v = normalizeCell(f, cell(row, f));
+        if (v && f !== 'name') (data as Record<string, unknown>)[f] = NUMERIC.has(f) ? Number(v) : v;
       }
       plan.creates.push({ data, type: cell(row, 'type') });
       return;
@@ -204,10 +228,10 @@ export function planImport(p: Project, t: Table, m: Mapping, matchKey: FieldKey,
     seen.add(d.id);
     const changes: PlannedUpdate['changes'] = [];
     for (const f of EDITABLE) {
-      const to = cell(row, f);
+      const to = normalizeCell(f, cell(row, f));
       if (!to) continue;
       const from = deviceValue(d, f);
-      if (f === 'powerW' ? Number(to) !== Number(from) : to !== from) changes.push({ field: f, from, to });
+      if (NUMERIC.has(f) ? Number(to) !== Number(from) : to !== from) changes.push({ field: f, from, to });
     }
     if (changes.length) plan.updates.push({ nodeId: d.id, name: d.data.name, changes });
     else plan.unchanged++;
@@ -217,11 +241,12 @@ export function planImport(p: Project, t: Table, m: Mapping, matchKey: FieldKey,
 
 /** One flat sheet of every device, with the RackDraw ID so edits can be matched back exactly. */
 export function deviceListRows(p: Project, stencilName: (id: string) => string): string[][] {
-  const head = ['RackDraw ID', 'Page', 'Name', 'Type', 'Model', 'IP', 'MAC', 'Serial', 'Asset tag', 'Location', 'Power (W)', 'Notes'];
+  const head = ['RackDraw ID', 'Page', 'Name', 'Type', 'Model', 'IP', 'MAC', 'Serial', 'Asset tag', 'Location', 'Power (W)', 'Notes', 'Status', 'Purchased', 'Warranty ends', 'End of life', 'Weight (lb)'];
   const rows = p.pages.flatMap((pg) =>
     pg.nodes.filter((n): n is DeviceNode => n.type === 'device').map((n) => [
       n.id, pg.name, n.data.name, stencilName(n.data.stencilId), n.data.model ?? '', n.data.ip ?? '', n.data.mac ?? '',
       n.data.serial ?? '', n.data.assetTag ?? '', n.data.location ?? '', n.data.powerW == null ? '' : String(n.data.powerW), n.data.notes ?? '',
+      n.data.status ?? 'active', n.data.purchaseDate ?? '', n.data.warrantyEnd ?? '', n.data.endOfLife ?? '', n.data.weightLb == null ? '' : String(n.data.weightLb),
     ]),
   );
   return [head, ...rows];

@@ -1,7 +1,7 @@
 // RackDraw desktop shell (formerly NetCraft): serves the static Next.js export (out/) from a private app:// origin.
 // A custom scheme (rather than file://) keeps absolute asset paths working and gives the app a
 // stable origin, so diagrams saved in localStorage persist between launches.
-const { app, BrowserWindow, Menu, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, net, protocol, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -87,17 +87,35 @@ function createWindow() {
 
   // Before closing, let the page write any changes it hasn't saved yet (saves are batched; see src/lib/persistence.ts).
   let flushed = false;
+  let closing = false;
   win.on('close', (e) => {
     if (flushed) return;
     e.preventDefault();
+    if (closing) return;
+    closing = true;
     const done = () => {
       flushed = true;
       if (!win.isDestroyed()) win.close();
+      if (quitting) app.quit();
     };
-    const timeout = new Promise((r) => setTimeout(r, 4000));
+    const timeout = new Promise((r) => setTimeout(() => r('timeout'), 4000));
     Promise.race([win.webContents.executeJavaScript('window.__rackdrawFlush ? window.__rackdrawFlush() : true', true), timeout])
-      .catch(() => undefined)
-      .then(done);
+      .catch(() => true)
+      .then(async (saved) => {
+        // The last save failed (disk full…): say so instead of quietly losing the changes.
+        if (saved === false && !win.isDestroyed()) {
+          const r = await dialog.showMessageBox(win, {
+            type: 'warning',
+            buttons: ['Keep RackDraw open', 'Close anyway'],
+            defaultId: 0,
+            cancelId: 0,
+            message: 'Your latest changes could not be saved.',
+            detail: 'Keep RackDraw open, then use the red bar to retry or back up everything. Closing now loses those changes.',
+          });
+          if (r.response !== 1) { closing = false; quitting = false; return; }
+        }
+        done();
+      });
   });
 
   // Right-click in a text box: spelling suggestions for a misspelt word, then Cut / Copy / Paste. (The drawing has
@@ -121,6 +139,11 @@ function createWindow() {
 
   win.loadURL(`${ORIGIN}/`);
 }
+
+// Set when the user quits (Cmd+Q / File → Quit): after the windows have saved, the app quits too (macOS keeps
+// running with no windows otherwise).
+let quitting = false;
+app.on('before-quit', () => { quitting = true; });
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

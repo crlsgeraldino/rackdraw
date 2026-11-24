@@ -57,7 +57,12 @@ export function IpPlanDialog({ onClose }: { onClose: () => void }) {
   const toExcel = () => downloadBlob(`${file}.xlsx`, new Blob([writeXlsx(tab === 'plan' ? 'IP plan' : 'IP addresses', header, rows) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const toCsv = () => downloadBlob(`${file}.csv`, new Blob(['﻿' + [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   const copy = async () => {
-    await navigator.clipboard.writeText([header, ...rows].map((r) => r.map((c) => String(c).replace(/[\t\n]+/g, ' ')).join('\t')).join('\n'));
+    try {
+      await navigator.clipboard.writeText([header, ...rows].map((r) => r.map((c) => String(c).replace(/[\t\n]+/g, ' ')).join('\t')).join('\n'));
+    } catch {
+      alert('Copying was blocked by the system. Click inside RackDraw and press Copy again, or use CSV / Excel.');
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

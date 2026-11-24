@@ -309,7 +309,7 @@ interface DiagramState {
    * firewall at the top, panels above their switches, servers, UPS at the bottom. Returns how many were mounted.
    */
   buildRackFromDiagram: (name?: string) => number;
-  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes'>>) => boolean;
+  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes' | 'feedVolts' | 'feedAmps' | 'redundantFeeds'>>) => boolean;
   deleteRack: (id: string) => void;
   /** Places an item if it fits; returns false otherwise. */
   placeRackItem: (rackId: string, item: Omit<RackItem, 'id'>) => boolean;
@@ -1765,7 +1765,7 @@ export const useDiagram = create<DiagramState>()(
               const u = byId.get(n.id);
               if (!u || n.type !== 'device') return n;
               const data = { ...n.data };
-              for (const c of u.changes) (data as Record<string, unknown>)[c.field] = c.field === 'powerW' ? Number(c.to) : c.to;
+              for (const c of u.changes) (data as Record<string, unknown>)[c.field] = c.field === 'powerW' || c.field === 'weightLb' ? Number(c.to) : c.to;
               return { ...n, data };
             }),
           }));
@@ -2026,10 +2026,14 @@ export const useDiagram = create<DiagramState>()(
             ids.set(oldId, id);
             projects[id] = { ...p, id, name: clash ? `${p.name} (restored)` : p.name };
           }
-          const newStencils = Object.keys(b.customStencils ?? {}).filter((k) => !(k in get().customStencils)).length;
-          const newTemplates = Object.keys(b.templates ?? {}).filter((k) => !(k in get().templates)).length;
-          const customStencils = { ...b.customStencils, ...get().customStencils };
-          const templates = { ...b.templates, ...get().templates };
+          // Only well-formed stencils and templates come in: a damaged one would break the palette on every start.
+          const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object';
+          const goodStencils = Object.fromEntries(Object.entries(b.customStencils ?? {}).filter(([, s]) => isObj(s) && typeof s.id === 'string' && Array.isArray(s.ports) && typeof s.width === 'number' && typeof s.height === 'number'));
+          const goodTemplates = Object.fromEntries(Object.entries(b.templates ?? {}).filter(([, t]) => isObj(t) && isObj(t.project) && Array.isArray((t.project as { pages?: unknown }).pages)));
+          const newStencils = Object.keys(goodStencils).filter((k) => !(k in get().customStencils)).length;
+          const newTemplates = Object.keys(goodTemplates).filter((k) => !(k in get().templates)).length;
+          const customStencils = { ...goodStencils, ...get().customStencils } as Record<string, StencilDef>;
+          const templates = { ...goodTemplates, ...get().templates } as Record<string, Template>;
           const versions = { ...get().versions };
           if (b.versions?.format === 2) {
             versionPool = { ...b.versions.pool, ...versionPool };
@@ -2059,9 +2063,10 @@ export const useDiagram = create<DiagramState>()(
           set({ projects: rest, currentId, past: [], future: [] });
         },
         importProject: (p, stencils) => {
-          if (stencils?.length) get().importStencils(stencils);
           // Checked and repaired first: a damaged file must not crash the app (and keep crashing it on every start).
+          // (Before its stencils are added, so a refused file leaves nothing behind.)
           const copy: Project = { ...sanitizeProject(p, p?.name).project, id: uid(), updatedAt: Date.now() };
+          if (stencils?.length) get().importStencils(stencils);
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
         },
 
