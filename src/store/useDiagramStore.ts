@@ -1,6 +1,7 @@
 'use client';
 
 import { appendEntries, type ChangeEntry } from '@/lib/changeLog';
+import { applyScanRows, type ScanRow } from '@/lib/scanImport';
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
 import { planRacks } from '@/lib/autoRack';
@@ -252,6 +253,8 @@ interface DiagramState {
    * (stencil picked from the row's Type when it names one, else `defaultStencilId`). Returns counts.
    */
   applyImport: (plan: ImportPlan, defaultStencilId: string, link: DataLink) => { updated: number; created: number };
+  /** Data → Import Network Scan: adds the new hosts and updates the matched devices (one undo step). */
+  applyScan: (rows: ScanRow[], target: 'new-page' | 'active-page', pageName: string) => { updated: number; created: number };
 
   // layers and data colors (current project)
   addLayer: (name: string) => string;
@@ -1769,6 +1772,13 @@ export const useDiagram = create<DiagramState>()(
           commit({ nodes: [...pg.nodes.map((n) => ({ ...n, selected: false })), ...copies], edges: [...pg.edges.map((e) => (e.selected ? { ...e, selected: false } : e)), ...cables] });
         },
 
+        applyScan: (rows, target, pageName) => {
+          get().snapshot();
+          const custom = get().customStencils;
+          const r = applyScanRows(cur(), rows, { target, pageName, date: new Date().toISOString().slice(0, 10), id: () => `n-${uid()}` }, (id) => findStencil(id, custom));
+          commit({ pages: r.pages, activePageId: r.activePageId });
+          return { updated: r.updated, created: r.created };
+        },
         applyImport: (plan, defaultStencilId, link) => {
           get().snapshot();
           const custom = get().customStencils;

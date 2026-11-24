@@ -14,6 +14,7 @@ import { exportDeck } from '@/lib/deck';
 import { BomDialog } from '../BomDialog';
 import { IpPlanDialog } from '../IpPlanDialog';
 import { LifecycleDialog } from '../LifecycleDialog';
+import { ScanImportDialog } from '../ScanImportDialog';
 import { LabelsDialog } from '../LabelsDialog';
 import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
 import { ReportDialog } from '../ReportDialog';
@@ -1921,6 +1922,7 @@ function DataTab() {
   const [lifecycle, setLifecycle] = useState(false);
   const [labels, setLabels] = useState(false);
   const [defining, setDefining] = useState(false);
+  const [scan, setScan] = useState(false);
   return (
     <>
       {reports && <ReportDialog onClose={() => setReports(false)} />}
@@ -1928,6 +1930,7 @@ function DataTab() {
       {ipPlan && <IpPlanDialog onClose={() => setIpPlan(false)} />}
       {lifecycle && <LifecycleDialog onClose={() => setLifecycle(false)} />}
       {labels && <LabelsDialog onClose={() => setLabels(false)} />}
+      {scan && <ScanImportDialog onClose={() => setScan(false)} />}
       {defining && <DefineShapeDataDialog onClose={() => setDefining(false)} />}
       <Group label="Shape Data">
         <Big icon="panes" label="Shape Data" active={propsPane} onClick={() => setPref('propsPane', !propsPane)} title="Show or hide the Shape Data pane" />
@@ -1938,6 +1941,7 @@ function DataTab() {
       </Group>
       <Group label="External Data">
         <DataMenu />
+        <Big icon="scan" label="Network Scan" onClick={() => setScan(true)} title="Import an IP scan (nmap XML, Advanced IP Scanner or Angry IP Scanner CSV, a DHCP list): new hosts become devices by kind, devices already drawn are matched by MAC / IP / name and updated" />
       </Group>
       <Group label="Layers">
         <ViewMenu label="Layers" />

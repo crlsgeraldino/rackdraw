@@ -41,6 +41,10 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Bill of Materials**: what to order (equipment, cable footage, patch cords, transceivers, jacks, racks), with a
   price book, labor estimate, markup, tax and a Word / Excel quote; port and PoE capacity per switch.
 - **Labels**: cable labels, asset labels with QR codes, patch panel strips, on Avery sheets.
+- **Network scan import**: open an nmap XML file or an Advanced IP Scanner / Angry IP Scanner CSV (or paste a DHCP
+  list); each host gets a guessed kind of device (printer, camera, NAS, server, AP…), devices already drawn are
+  matched by MAC, IP or name and updated, new ones are laid out on a new page, and devices that didn't answer are
+  listed (Data → Network Scan).
 - **Change log**: every client records what changed and when (devices added or removed, IPs, serials, warranty
   and port details, cables connected or removed, rack moves, the IP plan), plus notes of your own such as ticket
   numbers; filter, search, save as CSV (Review → Change Log). It is saved with the client.
