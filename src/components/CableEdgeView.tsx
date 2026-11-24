@@ -6,6 +6,8 @@ import { roundedPath, routeOrthogonal, type Obstacle, type Pt, type Side } from 
 import { INFO_GAP, overlaySize, overlayVersion, useOverlayVersion } from '@/lib/overlays';
 import { lookStyle, type CableEdge, type DeviceData } from '@/lib/types';
 import { getStencil, useDiagram } from '@/store/useDiagramStore';
+import { cableText, edgeRole, type CableTag } from '@/lib/cableRole';
+import { activePage } from '@/lib/project';
 import { findJumps, JUMP_R, otherDrawnRoutes, otherRouteEntries, publishDrawn, publishRoute, separateParallel, useDrawnVersion, useRoutesVersion } from '@/lib/jumps';
 import { useDisplay } from './useDisplay';
 
@@ -83,7 +85,7 @@ function parseObstacles(key: string): Obstacle[] {
 }
 
 function CableEdgeView(props: EdgeProps<CableEdge>) {
-  const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, markerStart, markerEnd } = props;
+  const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, markerStart, markerEnd, sourceHandleId, targetHandleId } = props;
   const route = data?.route ?? 'step';
   // Only right-angle cables are routed around devices; subscribing costs nothing for the others.
   useOverlayVersion(); // re-route when a label or info box changes size
@@ -167,7 +169,15 @@ function CableEdgeView(props: EdgeProps<CableEdge>) {
   const snapshot = useDiagram((s) => s.snapshot);
   const dragging = useRef(false);
   const style = useDisplay().cable(data);
-  const text = [data?.label, data?.vlan && `VLAN ${data.vlan}`, data?.showLength && data.length].filter(Boolean).join(' · ');
+  // Text on the cable: the client's choice (Design → Cable Text) unless this cable has its own; the function is only
+  // worked out when the text shows it (a string from the store, so the cable re-draws only when it changes).
+  const tag: CableTag = useDiagram((s) => data?.tag ?? s.projects[s.currentId]?.display?.cableTag ?? 'label');
+  const role = useDiagram((s) => {
+    if (tag !== 'role' && tag !== 'role-type') return undefined;
+    const p = s.projects[s.currentId];
+    return p ? edgeRole(activePage(p).nodes, { source, target, sourceHandle: sourceHandleId, targetHandle: targetHandleId, data }, getStencil) : undefined;
+  });
+  const text = cableText(data, role, tag);
 
   return (
     <>

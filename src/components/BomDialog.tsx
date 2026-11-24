@@ -4,7 +4,8 @@ import { useMemo, useRef, useState } from 'react';
 import { billOfMaterials } from '@/lib/bom';
 import { writeDocx } from '@/lib/docx';
 import { downloadBlob, safeName } from '@/lib/export';
-import { setPref, usePref } from '@/lib/prefs';
+import { setPref } from '@/lib/prefs';
+import { usePriceBook } from './usePriceBook';
 import { LABOR_TASKS, money, parsePrice, priceQuote, QUOTE_DEFAULTS, QUOTE_HEADER, quoteRows, type QuoteSettings } from '@/lib/quote';
 import { writeXlsx } from '@/lib/xlsx';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -38,31 +39,18 @@ function PriceInput({ value, onSave, label }: { value?: number; onSave: (v?: num
 export function BomDialog({ onClose }: { onClose: () => void }) {
   const project = useCurrentProject();
   const updateProject = useDiagram((s) => s.updateProject);
-  const book = usePref('priceBook');
+  const { prices, book, savePrice } = usePriceBook();
   // Recounted when the drawing changes (pages, racks), not when a quote setting is typed.
   const pages = project.pages, racks = project.racks;
   const { sections, capacity, work } = useMemo(() => billOfMaterials({ ...project, pages, racks }, getStencil), [pages, racks]); // eslint-disable-line react-hooks/exhaustive-deps
   const qs: QuoteSettings = useMemo(() => project.quote ?? {}, [project.quote]);
   const set = { ...QUOTE_DEFAULTS, ...qs };
-  // Your price book first, then the prices this client's quote was made with (from its file or backup).
-  const prices = useMemo(() => ({ ...qs.prices, ...book }), [qs.prices, book]);
   const q = useMemo(() => priceQuote(sections, work, prices, qs), [sections, work, prices, qs]);
   const [tab, setTab] = useState<Tab>('bom');
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cur = (n: number) => money(n, set.currency);
   const setQuote = (patch: Partial<QuoteSettings>) => updateProject({ quote: { ...qs, ...patch } });
-  const savePrice = (key: string, v?: number) => {
-    const next = { ...book };
-    if (v === undefined) delete next[key];
-    else next[key] = v;
-    setPref('priceBook', next);
-    // Also kept with the client, so its quote is the same when the file is opened on another computer.
-    const own = { ...qs.prices };
-    if (v === undefined) delete own[key];
-    else own[key] = v;
-    setQuote({ prices: own });
-  };
 
   const capRows = capacity.map((c) => [c.device, c.model, c.ports, c.used, c.free, c.poePorts || '', c.poeW || '', c.poeBudgetW || '', c.warning]);
   const file = `${safeName(project.name)}-${tab === 'capacity' ? 'port-capacity' : 'quote'}`;

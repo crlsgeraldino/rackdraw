@@ -85,8 +85,8 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
   { const st = siteRowsForReport(p); table('Sites', st.header, st.rows, [0.12, 0.06, 0.06, 0.06, 0.07, 0.12, 0.09, 0.04, 0.08, 0.16, 0.07, 0.07]); }
   table('Port maps (ports in use)', PORT_MAP_TABLE, portMapTableRows(p), [0.16, 0.08, 0.22, 0.18, 0.06, 0.07, 0.08, 0.15]);
   table('Recent changes (90 days)', CHANGE_TABLE, recentChangeRows(p), [0.14, 0.08, 0.28, 0.5]);
-  table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
-    connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]), [0.09, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.16]);
+  table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'Function', 'VLAN', 'Length', 'Label'],
+    connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.role, c.vlan, c.length, c.label]), [0.09, 0.15, 0.07, 0.15, 0.07, 0.08, 0.1, 0.07, 0.08, 0.14]);
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'],
     rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`]));
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],

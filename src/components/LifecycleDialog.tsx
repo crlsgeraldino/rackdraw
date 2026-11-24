@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { downloadBlob, safeName } from '@/lib/export';
 import { circuitRows, LIFE_STATES, lifecycleRows, SOON_DAYS, whenText, type LifeState } from '@/lib/lifecycle';
-import { money, QUOTE_DEFAULTS } from '@/lib/quote';
+import { FORECAST_HEADER, forecastRows, replacementForecast, type Forecast } from '@/lib/forecast';
+import { money, parsePrice, QUOTE_DEFAULTS } from '@/lib/quote';
 import { writeXlsx } from '@/lib/xlsx';
-import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { usePriceBook } from './usePriceBook';
 
 const DEV_HEADER = ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'Warranty', 'End of life', 'End of life in', 'State'];
 const CIR_HEADER = ['Device', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Static IPs', 'Support phone', 'Account', 'Contract ends', 'Monthly cost'];
@@ -18,7 +20,9 @@ export function LifecycleDialog({ onClose }: { onClose: () => void }) {
   const openPage = useDiagram((s) => s.setActivePage);
   const rows = useMemo(() => lifecycleRows(project), [project]);
   const circuits = useMemo(() => circuitRows(project), [project]);
-  const [tab, setTab] = useState<'devices' | 'circuits'>('devices');
+  const [tab, setTab] = useState<'devices' | 'circuits' | 'budget'>('devices');
+  const { prices, savePrice } = usePriceBook();
+  const forecast = useMemo(() => replacementForecast(project, getStencil, prices), [project, prices]);
   const [filter, setFilter] = useState<Filter>(() => (rows.some((r) => r.state === 'expired' || r.state === 'soon') ? 'attention' : 'all'));
   const currency = project.quote?.currency ?? QUOTE_DEFAULTS.currency;
 
@@ -37,9 +41,9 @@ export function LifecycleDialog({ onClose }: { onClose: () => void }) {
 
   const devRows = shown.map((r) => [r.device, r.model, r.serial, r.purchase, r.warrantyEnd, whenText(r.warrantyDays), r.endOfLife, whenText(r.eolDays), LIFE_STATES.find((x) => x.value === r.state)!.label]);
   const cirRows = circuits.map((c) => [c.device, c.carrier ?? '', c.circuitId ?? '', c.kind ?? '', c.bandwidth ?? '', c.staticIps ?? '', c.supportPhone ?? '', c.accountNumber ?? '', c.contractEnd ?? '', c.monthlyCost ?? '']);
-  const [header, data] = tab === 'devices' ? [DEV_HEADER, devRows] : [CIR_HEADER, cirRows];
-  const file = `${safeName(project.name)}-${tab === 'devices' ? 'lifecycle' : 'circuits'}`;
-  const toExcel = () => downloadBlob(`${file}.xlsx`, new Blob([writeXlsx(tab === 'devices' ? 'Lifecycle' : 'Circuits', header, data) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const [header, data] = tab === 'devices' ? [DEV_HEADER, devRows] : tab === 'circuits' ? [CIR_HEADER, cirRows] : [FORECAST_HEADER, forecastRows(forecast)];
+  const file = `${safeName(project.name)}-${tab === 'devices' ? 'lifecycle' : tab === 'circuits' ? 'circuits' : 'replacement-forecast'}`;
+  const toExcel = () => downloadBlob(`${file}.xlsx`, new Blob([writeXlsx(tab === 'devices' ? 'Lifecycle' : tab === 'circuits' ? 'Circuits' : 'Replacement forecast', header, data) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const toCsv = () => downloadBlob(`${file}.csv`, new Blob(['﻿' + [header, ...data].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   const goTo = (deviceId: string) => {
     const pg = project.pages.find((x) => x.nodes.some((n) => n.id === deviceId));
@@ -63,7 +67,7 @@ export function LifecycleDialog({ onClose }: { onClose: () => void }) {
           <button className="ml-auto rounded px-2 text-lg text-gray-500 hover:bg-gray-100" onClick={onClose} aria-label="Close">×</button>
         </div>
         <div className="flex items-center gap-1 border-b border-gray-200 px-4 py-1.5" role="tablist">
-          {([['devices', `Devices (${rows.length})`], ['circuits', `Circuits (${circuits.length})`]] as const).map(([t, label]) => (
+          {([['devices', `Devices (${rows.length})`], ['circuits', `Circuits (${circuits.length})`], ['budget', 'Replacement budget']] as const).map(([t, label]) => (
             <button key={t} role="tab" aria-selected={tab === t} className={`rounded px-3 py-1 text-sm ${tab === t ? 'bg-blue-50 font-medium text-blue-800' : 'text-gray-600 hover:bg-gray-50'}`} onClick={() => setTab(t)}>{label}</button>
           ))}
           <div className="ml-auto flex gap-1.5">
@@ -107,6 +111,8 @@ export function LifecycleDialog({ onClose }: { onClose: () => void }) {
             </>
           )}
 
+          {tab === 'budget' && <BudgetTab forecast={forecast} currency={currency} savePrice={savePrice} goTo={goTo} />}
+
           {tab === 'circuits' && (circuits.length ? (
             <>
               <table className="w-full text-sm">
@@ -134,5 +140,93 @@ export function LifecycleDialog({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** A unit price, typed like the Bill of Materials' (commits on Enter / leaving the box). */
+function PriceCell({ value, currency, onSave }: { value?: number; currency: string; onSave: (v?: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const t = draft.trim();
+    onSave(t ? parsePrice(t) : undefined);
+    setDraft(null);
+  };
+  return (
+    <input
+      className="w-24 rounded border border-gray-300 px-1.5 py-0.5 text-right text-xs tabular-nums outline-none focus:border-blue-500"
+      value={draft ?? (value !== undefined ? String(value) : '')} placeholder="price" aria-label="Unit price" inputMode="decimal"
+      title={value !== undefined ? money(value, currency) : 'Unit price: the same price book as the Bill of Materials'}
+      onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setDraft(null); }}
+    />
+  );
+}
+
+/** Replacement budget: what is due for replacement each year and what it costs, plus circuits as a yearly cost. */
+function BudgetTab({ forecast, currency, savePrice, goTo }: { forecast: Forecast; currency: string; savePrice: (key: string, v?: number) => void; goTo: (id: string) => void }) {
+  const [showUndated, setShowUndated] = useState(false);
+  const cur = (n: number) => money(n, currency);
+  const label = (y: number) => (y === 0 ? 'Overdue' : String(y));
+  const grand = forecast.years.reduce((t, y) => t + y.total, 0);
+  const anyPrice = forecast.items.some((i) => i.price !== undefined);
+  return (
+    <>
+      <p className="mb-3 text-xs text-gray-500">
+        Due for replacement at its <b>End of life</b> date, else its purchase date plus a typical service life for its kind (PCs 4 years,
+        switches 7, servers and firewalls 5…), else its warranty end. Prices are per unit, from the same price book as the Bill of Materials:
+        a price typed here applies to every device of that model.
+      </p>
+      <div className="mb-4 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+        {forecast.years.map((y) => (
+          <div key={y.year} className={`rounded-lg border p-2 ${y.year === 0 && y.items.length ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
+            <div className={`text-xs font-semibold ${y.year === 0 && y.items.length ? 'text-red-700' : 'text-gray-600'}`}>{label(y.year)}</div>
+            <div className="text-lg font-semibold tabular-nums text-gray-900">{cur(y.total)}</div>
+            <div className="text-[11px] text-gray-500">
+              {y.items.length} to replace{y.unpriced ? <span className="text-amber-700"> · {y.unpriced} without price</span> : ''}
+              {y.recurring ? <div>incl. circuits {cur(y.recurring)}</div> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+      {forecast.items.length ? (
+        <table className="w-full text-sm">
+          <thead><tr className="border-b border-gray-300 text-left text-xs text-gray-500">{['Due', '', 'Device', 'Equipment / model', 'Basis', 'Unit price', ''].map((h, i) => <th key={i} className="py-1 pr-3 font-medium">{h}</th>)}</tr></thead>
+          <tbody>
+            {forecast.years.flatMap((y) => y.items.map((i) => (
+              <tr key={i.deviceId} className="border-b border-gray-100">
+                <td className="py-1 pr-3 font-mono text-xs">{i.due}</td>
+                <td className="py-1 pr-3 text-xs"><span className={`rounded px-1 ${y.year === 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'}`}>{label(y.year)}</span></td>
+                <td className="py-1 pr-3 font-medium text-gray-800">{i.device}</td>
+                <td className="py-1 pr-3 text-xs text-gray-600">{i.kind}{i.model ? <span className="text-gray-400"> · {i.model}</span> : ''}</td>
+                <td className="py-1 pr-3 text-xs text-gray-600">{i.basis === 'Typical life' ? `typical life (${i.years} y)` : i.basis.toLowerCase()}</td>
+                <td className="py-1 pr-3"><PriceCell value={i.price} currency={currency} onSave={(v) => savePrice(i.key, v)} /></td>
+                <td className="py-1 text-right"><button className="rounded px-1.5 text-xs text-blue-700 hover:bg-blue-50" onClick={() => goTo(i.deviceId)}>Show</button></td>
+              </tr>
+            )))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-sm text-gray-500">Nothing is due for replacement in the next {forecast.years.length - 1} years{forecast.undated.length ? ' among the devices with dates' : ''}.</p>
+      )}
+      {(anyPrice || forecast.recurringPerYear > 0) && (
+        <p className="mt-3 text-right text-sm text-gray-700">
+          {forecast.years.length - 1}-year total, with what is overdue: <b>{cur(grand)}</b>
+          {forecast.recurringPerYear > 0 && <span className="text-xs text-gray-500"> (circuits {cur(forecast.recurringPerYear)} a year)</span>}
+        </p>
+      )}
+      {forecast.undated.length > 0 && (
+        <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <button type="button" className="font-medium hover:underline" onClick={() => setShowUndated(!showUndated)}>
+            {showUndated ? '▾' : '▸'} {forecast.undated.length} device{forecast.undated.length === 1 ? ' has' : 's have'} no dates yet
+          </button>{' '}
+          — add a purchase date, warranty end or End of life in Shape Data (or the Device Table) to put {forecast.undated.length === 1 ? 'it' : 'them'} in the forecast.
+          {showUndated && (
+            <ul className="mt-1 columns-2 gap-6">
+              {forecast.undated.map((u) => <li key={u.deviceId}><button type="button" className="text-left hover:underline" onClick={() => goTo(u.deviceId)}>{u.device}</button> <span className="text-amber-700">{u.kind}</span></li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </>
   );
 }

@@ -41,6 +41,15 @@ Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React 
 - **Bill of Materials**: what to order (equipment, cable footage, patch cords, transceivers, jacks, racks), with a
   price book, labor estimate, markup, tax and a Word / Excel quote; port and PoE capacity per switch.
 - **Labels**: cable labels, asset labels with QR codes, patch panel strips, on Avery sheets.
+- **Cable function and text**: every cable knows what it is for - WAN uplink, Uplink, Backbone, Access, Patch,
+  Server link, Storage, Stacking, HA / sync, Management, Console - worked out from the devices and ports it connects
+  (or chosen in Shape Data). Design -> Cable Text shows the function, the cable type or both on every cable
+  ("WAN uplink · Cat6", "Uplink · DAC"); a cable can have its own. The function is in the Connections tables and
+  Visio Shape Data.
+- **Replacement budget**: when each piece of equipment is due for replacement (its End of life, else purchase date
+  plus a typical service life for its kind, else warranty end) and what that costs per year for the next 5 years plus
+  anything overdue, from the same price book as the Bill of Materials; circuits as a yearly cost (Data → Lifecycle →
+  Replacement budget, to Excel / CSV).
 - **Sites**: the network place by place (HQ, branches, IDFs, buildings), from each device's Location or its rack's;
   devices without one count at the site they are cabled to. Per site: equipment, racks, free switch ports, PoE,
   rack power, VLANs, circuits and their monthly cost, warranties; plus the links between sites (Data → Sites, and in

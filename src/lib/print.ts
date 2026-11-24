@@ -104,8 +104,8 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
         lifecycleTableRows(p).devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state])),
       tableHtml(p, 'Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends'],
         lifecycleTableRows(p).circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd])),
-      tableHtml(p, 'Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
-        connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label])),
+      tableHtml(p, 'Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'Function', 'VLAN', 'Length', 'Label'],
+        connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.role, c.vlan, c.length, c.label])),
       tableHtml(p, 'Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],
         portRows(p).map((r) => [r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes])),
     );

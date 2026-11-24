@@ -12,6 +12,7 @@ import { resolveLink } from '../links';
 import { realArea } from '../units';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { RD_SHAPE, writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
+import { cableText, edgeRole, roleLabel } from '../cableRole';
 
 /**
  * "Save as Visio drawing": shows each page in turn and turns what is drawn into Visio shapes — devices as pictures
@@ -407,14 +408,15 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       raw.push(path.getPointAtLength(total));
       const pts = simplify(raw, 0.6).map((p) => ({ x: X(p.x), y: Y(p.y) }));
       const st = colors.cable(d);
+      const role = edgeRole(pg.nodes, { ...e, data: d }, ctx.stencilOf);
       const arrows = d.arrows ?? 'none';
       const ends = [pg.nodes.find((x) => x.id === e.source), pg.nodes.find((x) => x.id === e.target)].map((x) => (x?.type === 'device' ? x.data.name : x?.type === 'shape' ? x.data.text : ''));
       cables.push({
         kind: 'line', name: `${d.cable} ${ends.join(' – ')}`, points: pts, layers: layerIdx(d.layer), line: st.color, lineWeightPt: pt(st.width), dashed: !!st.dash,
         arrowStart: arrows === 'start' || arrows === 'both', arrowEnd: arrows === 'end' || arrows === 'both',
-        data: [['Cable', d.cable], ['From', ends[0] ?? ''], ['To', ends[1] ?? ''], ['VLAN', d.vlan ?? ''], ['Length', d.length ?? ''], ['Label', d.label ?? '']].filter(([, v]) => v !== '') as [string, string][],
+        data: [['Cable', d.cable], ['Function', roleLabel(role) ?? ''], ['From', ends[0] ?? ''], ['To', ends[1] ?? ''], ['VLAN', d.vlan ?? ''], ['Length', d.length ?? ''], ['Label', d.label ?? '']].filter(([, v]) => v !== '') as [string, string][],
       });
-      const text = [d.label, d.vlan && `VLAN ${d.vlan}`, d.showLength && d.length].filter(Boolean).join(' · ');
+      const text = cableText(d, role, d.tag ?? project.display?.cableTag ?? 'label');
       if (text) {
         const mid = path.getPointAtLength(total * (d.labelAt ?? 0.5));
         const w = Math.max(0.4, text.length * 0.055);

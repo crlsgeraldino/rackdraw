@@ -493,6 +493,10 @@ export interface CableData extends Record<string, unknown>, TextLook {
   labelAt?: number;
   /** Line weight chosen for this cable (px); missing = by cable type. */
   weight?: number;
+  /** What the cable is for (WAN uplink, uplink, access…); missing = worked out from its ends; 'none' = none. */
+  role?: import('./cableRole').CableRole | 'none';
+  /** The text this cable shows; missing = the client's setting (Design → Cable Text). */
+  tag?: import('./cableRole').CableTag;
 }
 
 export type DeviceStatus = 'active' | 'planned' | 'offline' | 'retired';
@@ -535,6 +539,8 @@ export interface DisplaySettings {
   jumpSize?: number;
   /** Corner radius of right-angle cables (px); 0 = square corners; missing = 8. */
   cableCorners?: number;
+  /** Design → Cable Text: what every cable shows (typed label, function, type, or both); missing = label only. */
+  cableTag?: import('./cableRole').CableTag;
   /** Design → Backgrounds: the drawing page's colour; missing = white. */
   pageColor?: string;
   /** Design → Borders & Titles: a frame round the page, or a title banner (page name and client). */

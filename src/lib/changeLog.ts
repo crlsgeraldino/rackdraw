@@ -38,7 +38,7 @@ const CIRCUIT_FIELDS: [string, string][] = [
 const PORT_FIELDS: [keyof PortData, string][] = [
   ['description', 'connected to'], ['ip', 'IP'], ['vlan', 'VLAN'], ['speed', 'speed'], ['poe', 'PoE'], ['status', 'status'], ['uplink', 'uplink'],
 ];
-const CABLE_FIELDS: [string, string][] = [['cable', 'type'], ['label', 'label'], ['vlan', 'VLAN'], ['length', 'length']];
+const CABLE_FIELDS: [string, string][] = [['cable', 'type'], ['role', 'function'], ['label', 'label'], ['vlan', 'VLAN'], ['length', 'length']];
 
 const show = (v: unknown) => (v === undefined || v === null || v === '' || v === false ? '—' : v === true ? 'yes' : String(v));
 const differs = (a: unknown, b: unknown) => show(a) !== show(b);
