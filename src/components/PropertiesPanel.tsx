@@ -86,7 +86,7 @@ function CircuitSection({ node }: { node: DeviceNode }) {
       <Field label="Account number" value={c.accountNumber} onChange={set('accountNumber')} mono />
       <div className="flex gap-2">
         <div className="flex-1"><Field label="Contract ends" type="date" value={c.contractEnd} onChange={set('contractEnd')} after={days !== undefined ? <span className="text-[10px]" style={{ color: LIFE_STATES.find((x) => x.value === stateOf(days))!.color }}>{whenText(days)}</span> : null} /></div>
-        <div className="flex-1"><Field label="Monthly cost" value={c.monthlyCost === undefined ? '' : String(c.monthlyCost)} onChange={set('monthlyCost')} mono /></div>
+        <div className="flex-1"><NumField label="Monthly cost" price value={c.monthlyCost} onChange={(v) => update(node.id, { circuit: { ...c, monthlyCost: v } })} /></div>
       </div>
       <Field label="Circuit notes" value={c.notes} onChange={set('notes')} area />
     </Section>
@@ -124,6 +124,36 @@ function NextFreeIp({ onPick }: { onPick: (ip: string) => void }) {
         </div>
       )}
     </span>
+  );
+}
+
+/**
+ * A number field that keeps exactly what is typed ("49.", "1,0") until it is left (or Enter), then stores the number:
+ * turning each keystroke into a number made decimals and thousands impossible to type.
+ */
+function NumField({ label, value, onChange, price }: { label: string; value?: number; onChange: (v: number | undefined) => void; price?: boolean }) {
+  const snapshot = useDiagram((s) => s.snapshot);
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const t = draft.trim();
+    const n = price ? parsePrice(t) : Number(t.replace(',', '.'));
+    onChange(t === '' || n === undefined || !Number.isFinite(n) || n < 0 ? undefined : n);
+    setDraft(null);
+  };
+  return (
+    <label className="mb-2 block">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">{label}</span>
+      <input
+        className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-sm outline-none focus:border-blue-500"
+        inputMode="decimal"
+        value={draft ?? (value === undefined ? '' : String(value))}
+        onFocus={snapshot}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setDraft(null); }}
+      />
+    </label>
   );
 }
 
@@ -256,13 +286,13 @@ function DeviceProps({ node }: { node: DeviceNode }) {
       <MoreLinks nodeId={node.id} links={d.moreLinks} />
       <div className="flex gap-2">
         <Field label="Asset tag" value={d.assetTag} onChange={set('assetTag')} />
-        <Field label="Power (W)" value={d.powerW === undefined ? '' : String(d.powerW)} onChange={(v) => update(node.id, { powerW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
-        <Field label="Weight (lb)" value={d.weightLb === undefined ? '' : String(d.weightLb)} onChange={(v) => update(node.id, { weightLb: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) })} mono />
+        <NumField label="Power (W)" value={d.powerW} onChange={(v) => update(node.id, { powerW: v })} />
+        <NumField label="Weight (lb)" value={d.weightLb} onChange={(v) => update(node.id, { weightLb: v })} />
       </div>
       {d.stencilId === 'ups' && (
         <div className="flex gap-2">
-          <Field label="UPS output (W)" value={d.ups?.capacityW === undefined ? '' : String(d.ups.capacityW)} onChange={(v) => update(node.id, { ups: { ...d.ups, capacityW: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) } })} mono />
-          <Field label="Runtime ½ load (min)" value={d.ups?.runtimeHalfMin === undefined ? '' : String(d.ups.runtimeHalfMin)} onChange={(v) => update(node.id, { ups: { ...d.ups, runtimeHalfMin: v === '' || Number.isNaN(Number(v)) ? undefined : Number(v) } })} mono />
+          <NumField label="UPS output (W)" value={d.ups?.capacityW} onChange={(v) => update(node.id, { ups: { ...d.ups, capacityW: v } })} />
+          <NumField label="Runtime ½ load (min)" value={d.ups?.runtimeHalfMin} onChange={(v) => update(node.id, { ups: { ...d.ups, runtimeHalfMin: v } })} />
         </div>
       )}
       {mount ? (
@@ -1133,8 +1163,12 @@ function MultiDeviceData({ nodes }: { nodes: DeviceNode[] }) {
     return { extraFields: next.length ? next : undefined };
   });
   const statuses = nodes.map((n) => n.data.status ?? 'active');
-  const field = (label: string, k: 'model' | 'location' | 'assetTag' | 'notes') => (
-    <MultiField label={label} values={nodes.map((n) => (n.data[k] as string | undefined) ?? '')} onSet={(v) => s.updateDevicesData(ids, { [k]: v || undefined })} />
+  const field = (label: string, k: 'model' | 'location' | 'assetTag' | 'notes' | 'purchaseDate' | 'warrantyEnd' | 'endOfLife', type?: string) => (
+    <MultiField label={label} type={type} values={nodes.map((n) => (n.data[k] as string | undefined) ?? '')} onSet={(v) => s.updateDevicesData(ids, { [k]: v || undefined })} />
+  );
+  const num = (label: string, k: 'powerW' | 'weightLb') => (
+    <MultiField label={label} values={nodes.map((n) => (n.data[k] === undefined ? '' : String(n.data[k])))} mono
+      onSet={(v) => { const n = Number(v.replace(',', '.')); s.updateDevicesData(ids, { [k]: v.trim() === '' || !Number.isFinite(n) ? undefined : n }); }} />
   );
   return (
     <div className="mb-4 rounded border border-gray-200 p-2">
@@ -1150,6 +1184,11 @@ function MultiDeviceData({ nodes }: { nodes: DeviceNode[] }) {
       {field('Model', 'model')}
       {field('Location', 'location')}
       {field('Asset tag', 'assetTag')}
+      {field('Purchased', 'purchaseDate', 'date')}
+      {field('Warranty ends', 'warrantyEnd', 'date')}
+      {field('End of life', 'endOfLife', 'date')}
+      {num('Power (W)', 'powerW')}
+      {num('Weight (lb)', 'weightLb')}
       {defs.map((d) => (
         d.type === 'list' || d.type === 'yesno' ? (
           <label key={d.id} className="mb-1.5 flex items-center gap-1">

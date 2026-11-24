@@ -71,7 +71,13 @@ const FIELD_ALIASES: [keyof DeviceData, RegExp][] = [
   ['assetTag', /^(asset ?tag|asset ?number|asset)$/i],
   ['location', /^(location|building|room)$/i],
   ['notes', /^(notes?|description|comments?)$/i],
+  ['purchaseDate', /^(purchased|purchase ?date)$/i],
+  ['warrantyEnd', /^(warranty ?(ends|end|expiry|expiration)?)$/i],
+  ['endOfLife', /^(end ?of ?life|eol)$/i],
 ];
+/** Number fields and circuit details written by RackDraw's own Visio export. */
+const NUMBER_FIELDS: [keyof DeviceData, RegExp][] = [['powerW', /^power ?\(w\)$|^power$/i], ['weightLb', /^weight ?\(lb\)$|^weight$/i]];
+const CIRCUIT_FIELDS: [string, RegExp][] = [['carrier', /^carrier$/i], ['circuitId', /^circuit ?id$/i], ['bandwidth', /^bandwidth$/i], ['contractEnd', /^contract ?ends?$/i]];
 const IGNORED = /^(type|status)$/i;
 
 const isEquipment = (it: PageItem) => looksLikeEquipment(it.data, it.fields ?? [], it.masterName);
@@ -224,7 +230,12 @@ export async function importVsdx(file: File): Promise<VsdxImport> {
         const extra: { label: string; value: string }[] = [];
         for (const [label, value] of Object.entries(it.data)) {
           const field = FIELD_ALIASES.find(([, re]) => re.test(label.trim()))?.[0];
-          if (field) (data as Record<string, unknown>)[field] = value;
+          const numField = NUMBER_FIELDS.find(([, re]) => re.test(label.trim()))?.[0];
+          const cField = CIRCUIT_FIELDS.find(([, re]) => re.test(label.trim()))?.[0];
+          if (numField && Number.isFinite(Number(value))) (data as Record<string, unknown>)[numField] = Number(value);
+          else if (cField) data.circuit = { ...data.circuit, [cField]: value };
+          else if (/^monthly ?cost$/i.test(label.trim()) && value.trim() && Number.isFinite(Number(value))) data.circuit = { ...data.circuit, monthlyCost: Number(value) };
+          else if (field) (data as Record<string, unknown>)[field] = value;
           else if (/^status$/i.test(label) && DEVICE_STATUSES.some((s) => s.value === value)) data.status = value as DeviceData['status'];
           else if (!IGNORED.test(label)) extra.push({ label, value });
         }

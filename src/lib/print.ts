@@ -1,4 +1,4 @@
-import { cablePathRows, connectionRows, deviceRows, patchingRows, portRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
+import { bomTableRows, cablePathRows, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, portRows, rackPowerRows, rackRows, renderRack, titleBlockCells, type PageRenderer } from './export';
 import { FRAME_COLOR, type Project } from './types';
 import { hasHeaderFooter, hfCss } from './headerFooter';
 
@@ -86,10 +86,21 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
         deviceRows(p).map((d) => [d.page, d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location])),
       tableHtml(p, 'Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'],
         rackRows(p).map((r) => [r.rack, r.position, r.depth, r.item, r.model, r.serial, r.assetTag, r.powerW === '' ? '' : `${r.powerW} W`])),
+      tableHtml(p, 'Rack power', ['Rack', 'Power', 'Heat', 'Weight', 'Circuit load', 'UPS load and runtime'],
+        rackPowerRows(p).map((r) => [r.rack, r.power, r.heat, r.weight, r.circuit, r.ups])),
       tableHtml(p, 'Patching', ['Rack', 'Position', 'Device', 'Port', 'To device', 'Port', 'Where', 'Cable', 'VLAN'],
         patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan])),
       tableHtml(p, 'Cable paths', ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'],
         cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables])),
+      tableHtml(p, 'Bill of materials', ['Section', 'Qty', 'Unit', 'Item', 'Detail'], bomTableRows(p).bom),
+      tableHtml(p, 'Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], bomTableRows(p).capacity),
+      p.vlans?.length ? tableHtml(p, 'IP plan', ['VLAN', 'Name', 'Subnet', 'Gateway', 'DHCP range', 'Use', 'Next free', 'Notes'],
+        ipPlanRows(p).plan.map((r) => [r.vlan, r.name, r.subnet, r.gateway, r.dhcp, r.use, r.next, r.notes])) : '',
+      p.vlans?.length ? tableHtml(p, 'IP addresses', ['IP', 'Device', 'VLAN', 'Check'], ipPlanRows(p).ips.map((r) => [r.ip, r.device, r.vlan, r.check])) : '',
+      tableHtml(p, 'Lifecycle', ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'End of life', 'State'],
+        lifecycleTableRows(p).devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state])),
+      tableHtml(p, 'Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends'],
+        lifecycleTableRows(p).circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd])),
       tableHtml(p, 'Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
         connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label])),
       tableHtml(p, 'Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'],

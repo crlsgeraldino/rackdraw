@@ -105,10 +105,13 @@ export function nextFreeIp(v: VlanDef, taken: Set<number>): string | undefined {
   const s = parseCidr(v.subnet);
   if (!s) return undefined;
   const gw = ipToInt(v.gateway);
+  const a = ipToInt(v.dhcpStart), b = ipToInt(v.dhcpEnd);
+  const lo = a !== undefined && b !== undefined ? Math.min(a, b) : undefined, hi = a !== undefined && b !== undefined ? Math.max(a, b) : undefined;
   const first = s.prefix >= 31 ? s.network : s.network + 1;
   const last = s.prefix >= 31 ? s.broadcast : s.broadcast - 1;
   for (let n = first; n <= last; n++) {
-    if (n === gw || taken.has(n) || inDhcp(n, v)) continue;
+    if (lo !== undefined && hi !== undefined && n >= lo && n <= hi) { n = hi; continue; } // skip the whole pool
+    if (n === gw || taken.has(n)) continue;
     return intToIp(n);
   }
   return undefined;
@@ -124,8 +127,14 @@ export function subnetUsage(p: Project): SubnetUsage[] {
     const gw = ipToInt(v.gateway);
     const inside = new Set(ips.filter((x) => inSubnet(x.n, s) && vlanOfIp(x.ip, vlans) === v).map((x) => x.n));
     if (gw !== undefined && inSubnet(gw, s)) inside.add(gw);
+    // The pool's usable addresses, less any static address already counted inside it.
     const a = ipToInt(v.dhcpStart), b = ipToInt(v.dhcpEnd);
-    const dhcp = a !== undefined && b !== undefined ? Math.max(0, Math.min(Math.max(a, b), s.broadcast) - Math.max(Math.min(a, b), s.network) + 1) : 0;
+    let dhcp = 0;
+    if (a !== undefined && b !== undefined) {
+      const lo = Math.max(Math.min(a, b), s.prefix >= 31 ? s.network : s.network + 1);
+      const hi = Math.min(Math.max(a, b), s.prefix >= 31 ? s.broadcast : s.broadcast - 1);
+      if (hi >= lo) dhcp = hi - lo + 1 - [...inside].filter((n) => n >= lo && n <= hi).length;
+    }
     return { vlan: v, subnet: s, used: inside.size, dhcp, free: Math.max(0, s.hosts - inside.size - dhcp), next: nextFreeIp(v, taken) };
   });
 }

@@ -2,7 +2,7 @@
  * Visio's Report wizard: pick which devices (page, layer, a condition on a field), which fields become columns, and
  * how to sort; the same definition gives the preview table, Excel, Word and CSV. Definitions are saved with the client.
  */
-import { DEVICE_STATUSES, type DeviceNode, type Project } from './types';
+import { DEVICE_STATUSES, isDocumented, type DeviceNode, type Project } from './types';
 
 export type ReportOp = 'exists' | 'missing' | 'equals' | 'contains';
 
@@ -42,8 +42,17 @@ const BUILT_IN: (ReportField & { get: (r: Row, p: Project, stencilName: (id: str
   { key: 'layer', label: 'Layer', get: (r, p) => p.layers?.find((l) => l.id === r.n.data.layer)?.name ?? '' },
   { key: 'page', label: 'Page', get: (r) => r.page },
   { key: 'powerW', label: 'Power (W)', get: (r) => r.n.data.powerW ?? '' },
+  { key: 'weightLb', label: 'Weight (lb)', get: (r) => r.n.data.weightLb ?? '' },
+  { key: 'purchaseDate', label: 'Purchased', get: (r) => r.n.data.purchaseDate ?? '' },
+  { key: 'warrantyEnd', label: 'Warranty ends', get: (r) => r.n.data.warrantyEnd ?? '' },
+  { key: 'endOfLife', label: 'End of life', get: (r) => r.n.data.endOfLife ?? '' },
+  { key: 'circuit.carrier', label: 'Carrier', get: (r) => r.n.data.circuit?.carrier ?? '' },
+  { key: 'circuit.circuitId', label: 'Circuit ID', get: (r) => r.n.data.circuit?.circuitId ?? '' },
+  { key: 'circuit.bandwidth', label: 'Bandwidth', get: (r) => r.n.data.circuit?.bandwidth ?? '' },
+  { key: 'circuit.contractEnd', label: 'Contract ends', get: (r) => r.n.data.circuit?.contractEnd ?? '' },
+  { key: 'circuit.monthlyCost', label: 'Monthly cost', get: (r) => r.n.data.circuit?.monthlyCost ?? '' },
   { key: 'connections', label: 'Connections', get: (r) => r.connections },
-  { key: 'documentedPorts', label: 'Documented ports', get: (r) => Object.values(r.n.data.ports ?? {}).filter((pd) => pd && (pd.description || pd.ip || pd.vlan || pd.notes || pd.uplink)).length },
+  { key: 'documentedPorts', label: 'Documented ports', get: (r) => Object.values(r.n.data.ports ?? {}).filter((pd) => pd && isDocumented(pd)).length },
   { key: 'link', label: 'Link', get: (r) => r.n.data.link ?? '' },
   { key: 'notes', label: 'Notes', get: (r) => r.n.data.notes ?? '' },
 ];
@@ -62,8 +71,9 @@ export function deviceFieldValue(d: import('./types').DeviceData, key: string): 
     return d.extraFields?.find((f) => f.label.trim().toLowerCase() === label)?.value ?? '';
   }
   if (key === 'status') return DEVICE_STATUSES.find((s) => s.value === (d.status ?? 'active'))?.label ?? '';
-  const v = (d as Record<string, unknown>)[key];
-  return v === undefined || v === null ? '' : String(v);
+  // "circuit.carrier"…: a detail inside a group of fields.
+  const v = key.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), d);
+  return v === undefined || v === null || typeof v === 'object' ? '' : String(v);
 }
 
 export const DEFAULT_REPORT: Omit<ReportDef, 'id'> = {

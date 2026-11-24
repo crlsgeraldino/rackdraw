@@ -343,6 +343,12 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const data: [string, string][] = [
             ['Name', d.name], ['Model', d.model ?? ''], ['IP', d.ip ?? ''], ['MAC', d.mac ?? ''], ['Serial', d.serial ?? ''],
             ['Asset tag', d.assetTag ?? ''], ['Location', d.location ?? ''], ['Status', d.status ?? 'active'], ['Type', s.name],
+            ...([
+              ['Purchased', d.purchaseDate], ['Warranty ends', d.warrantyEnd], ['End of life', d.endOfLife],
+              ['Power (W)', d.powerW === undefined ? undefined : String(d.powerW)], ['Weight (lb)', d.weightLb === undefined ? undefined : String(d.weightLb)],
+              ['Carrier', d.circuit?.carrier], ['Circuit ID', d.circuit?.circuitId], ['Bandwidth', d.circuit?.bandwidth], ['Contract ends', d.circuit?.contractEnd],
+              ['Monthly cost', d.circuit?.monthlyCost === undefined ? undefined : String(d.circuit.monthlyCost)],
+            ] as [string, string | undefined][]).filter((x): x is [string, string] => !!x[1]),
             ...(d.extraFields ?? []).filter((f) => f.value).map((f) => [f.label || 'Field', f.value] as [string, string]),
             ...(d.notes ? [['Notes', d.notes] as [string, string]] : []),
           ];

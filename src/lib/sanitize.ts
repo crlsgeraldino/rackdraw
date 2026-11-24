@@ -17,6 +17,15 @@ export interface SanitizeReport {
   droppedEdges: number;
 }
 
+/** A device's number fields must be numbers (a hand-edited file may say "heavy"). */
+function cleanDevice(d: Record<string, unknown>) {
+  const out = { ...d };
+  for (const k of ['powerW', 'weightLb']) if (out[k] !== undefined && !finite(out[k])) delete out[k];
+  if (isObj(out.ups)) { const u = { ...out.ups }; for (const k of ['capacityW', 'runtimeHalfMin']) if (u[k] !== undefined && !finite(u[k])) delete u[k]; out.ups = u; }
+  if (isObj(out.circuit) && out.circuit.monthlyCost !== undefined && !finite(out.circuit.monthlyCost)) out.circuit = { ...out.circuit, monthlyCost: undefined };
+  return out;
+}
+
 /** Returns a safe copy of `raw` as a Project, or throws with a readable reason. */
 export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'): { project: Project; report: SanitizeReport } {
   if (!isObj(raw)) throw new Error('Not a RackDraw diagram file.');
@@ -44,7 +53,7 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
       ...(pg as unknown as Page),
       id: typeof pg.id === 'string' && pg.id ? pg.id : `p-${uid()}`,
       name: typeof pg.name === 'string' ? pg.name : 'Page',
-      nodes: unique.map((n) => ({ ...n, selected: false })),
+      nodes: unique.map((n) => ({ ...n, selected: false, ...(n.type === 'device' ? { data: cleanDevice(n.data as unknown as Record<string, unknown>) } : {}) }) as AppNode),
       edges: edges.map((e) => ({ ...e, data: isObj(e.data) ? e.data : { cable: 'Cat6' }, selected: false })) as CableEdge[],
     };
   });
@@ -53,6 +62,8 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
   const ids = new Set(pages.flatMap((pg) => pg.nodes.map((n) => n.id)));
   const racks = (Array.isArray(p.racks) ? p.racks : []).filter(isObj).map((r) => ({
     ...r,
+    feedVolts: finite(r.feedVolts) ? r.feedVolts : undefined,
+    feedAmps: finite(r.feedAmps) ? r.feedAmps : undefined,
     units: finite(r.units) && r.units > 0 ? Math.min(60, Math.round(r.units)) : 42,
     items: (Array.isArray(r.items) ? r.items : []).filter((it) => isObj(it) && finite(it.u) && finite(it.height) && (!it.nodeId || ids.has(it.nodeId))),
   }));

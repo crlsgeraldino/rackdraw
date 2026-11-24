@@ -1,7 +1,7 @@
 'use client';
 
 import { writeDocx, type DocBlock } from './docx';
-import { connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, portRows, rackRows, renderRack, type PageRenderer } from './export';
+import { bomTableRows, cablePathRows, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, portRows, rackPowerRows, rackRows, renderRack, type PageRenderer } from './export';
 import { pageAlt, rackAlt } from './altText';
 import type { Project } from './types';
 
@@ -76,6 +76,12 @@ export async function exportWordReport(p: Project, renderPage: PageRenderer): Pr
     table('Lifecycle', ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'End of life', 'State'], lc.devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state]), [0.17, 0.17, 0.12, 0.1, 0.16, 0.16, 0.12]);
     table('Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends'], lc.circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd]), [0.16, 0.16, 0.14, 0.16, 0.1, 0.14, 0.14]);
   }
+  table('Rack power', ['Rack', 'Power', 'Heat', 'Weight', 'Circuit load', 'UPS load and runtime'], rackPowerRows(p).map((r) => [r.rack, r.power, r.heat, r.weight, r.circuit, r.ups]), [0.16, 0.1, 0.12, 0.1, 0.2, 0.32]);
+  table('Patching', ['Rack', 'Position', 'Device', 'Port', 'To device', 'Port', 'Where', 'Cable', 'VLAN'],
+    patchingRows(p).map((r) => [r.rack, r.fromPosition, r.fromDevice, r.fromPort, r.toDevice, r.toPort, r.toWhere, r.cable, r.vlan]), [0.11, 0.08, 0.17, 0.07, 0.17, 0.07, 0.13, 0.1, 0.1]);
+  table('Cable paths', ['From', 'Via (patch panels)', 'To', 'Jack / notes', 'Cables'], cablePathRows(p).map((r) => [r.from, r.via, r.to, r.notes, r.cables]), [0.2, 0.3, 0.2, 0.15, 0.15]);
+  table('Bill of materials', ['Section', 'Qty', 'Unit', 'Item', 'Detail'], bomTableRows(p).bom, [0.15, 0.07, 0.06, 0.35, 0.37]);
+  table('Port capacity', ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE W / budget', 'Check'], bomTableRows(p).capacity, [0.18, 0.24, 0.07, 0.07, 0.07, 0.12, 0.25]);
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'],
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]), [0.09, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.16]);
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'],

@@ -586,7 +586,7 @@ export function RackView() {
   // Delete removes the selected rack item (not the device itself).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea, select')) return;
+      if (e.target instanceof Element && e.target.closest('input, textarea, select')) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && rack && item) removeRackItem(rack.id, item.id);
     };
     window.addEventListener('keydown', onKey);

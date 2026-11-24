@@ -145,6 +145,15 @@ export function portRows(p: Project) {
   });
 }
 
+/** Bill of materials and port capacity as table rows (shared by the PDF, print and Word report). */
+export function bomTableRows(p: Project) {
+  const { sections, capacity } = billOfMaterials(p, getStencil);
+  return {
+    bom: bomRows(sections).map((r) => [String(r[0]), String(r[3]), String(r[4]), String(r[1]), String(r[2])]),
+    capacity: capacity.map((c) => [c.device, c.model, String(c.ports), String(c.used), String(c.free), c.poeBudgetW ? `${c.poeW} / ${c.poeBudgetW}` : '', c.warning]),
+  };
+}
+
 /** Each rack's power, heat, weight, circuit load and UPS runtime. */
 export function rackPowerRows(p: Project) {
   return (p.racks ?? []).map((r) => {
@@ -494,8 +503,8 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     const lc = lifecycleTableRows(p);
     table('Lifecycle', ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'End of life', 'State'], [0.17, 0.17, 0.12, 0.1, 0.16, 0.16, 0.12].map((f) => f * avail),
       lc.devices.map((r) => [r.device, r.model, r.serial, r.purchase, r.warranty, r.eol, r.state]));
-    table('Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends'], [0.16, 0.16, 0.14, 0.16, 0.1, 0.14, 0.14].map((f) => f * avail),
-      lc.circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd]));
+    table('Circuits', ['On', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Support phone', 'Contract ends', 'Monthly'], [0.15, 0.15, 0.13, 0.15, 0.1, 0.12, 0.12, 0.08].map((f) => f * avail),
+      lc.circuits.map((r) => [r.device, r.carrier, r.circuitId, r.kind, r.bandwidth, r.support, r.contractEnd, r.monthly === '' ? '' : String(r.monthly)]));
   }
   table('Connections', ['Page', 'From', 'Port', 'To', 'Port', 'Cable', 'VLAN', 'Length', 'Label'], [0.1, 0.17, 0.08, 0.17, 0.08, 0.08, 0.08, 0.09, 0.15].map((f) => f * avail),
     connectionRows(p).map((c) => [c.page, c.fromDevice, c.fromPort, c.toDevice, c.toPort, c.cable, c.vlan, c.length, c.label]));

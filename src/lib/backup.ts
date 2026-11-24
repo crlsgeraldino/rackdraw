@@ -57,7 +57,10 @@ export async function readBackup(file: File): Promise<BackupFile> {
 export async function restoreBackup(b: BackupFile) {
   await useDiagram.getState().loadVersions();
   const result = useDiagram.getState().restoreBackup(b);
-  if (b.prefs?.priceBook) setPref('priceBook', { ...b.prefs.priceBook, ...getPref('priceBook') });
-  if (b.prefs?.favorites) setPref('favorites', [...new Set([...getPref('favorites'), ...b.prefs.favorites])]);
+  if (b.prefs?.priceBook && typeof b.prefs.priceBook === 'object') {
+    const prices = Object.fromEntries(Object.entries(b.prefs.priceBook).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v >= 0));
+    setPref('priceBook', { ...prices, ...getPref('priceBook') });
+  }
+  if (Array.isArray(b.prefs?.favorites)) setPref('favorites', [...new Set([...getPref('favorites'), ...b.prefs.favorites.filter((x): x is string => typeof x === 'string')])]);
   return result;
 }

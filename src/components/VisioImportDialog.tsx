@@ -137,7 +137,7 @@ export function VisioImportDialog({ file, onClose }: { file: File; onClose: () =
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onMouseDown={() => !progress && onClose()}>
-      <div className="flex h-[640px] max-h-full w-[980px] max-w-full flex-col rounded-lg bg-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="flex h-[640px] max-h-full w-[980px] max-w-full flex-col rounded-lg bg-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Import Visio stencil" onMouseDown={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-2.5">
           <div>
             <h2 className="font-semibold text-gray-900">Import Visio stencil</h2>
