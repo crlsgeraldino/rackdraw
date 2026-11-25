@@ -54,7 +54,7 @@ import { Ribbon } from './ribbon/Ribbon';
 import { StatusBar } from './StatusBar';
 import { useDisplay } from './useDisplay';
 import { Legend } from './ViewMenu';
-import { ErrorBoundary, RecoveryScreen, SaveBanner } from './SafetyNet';
+import { ErrorBoundary, OtherTabScreen, RecoveryScreen, SaveBanner } from './SafetyNet';
 import { useSaveStatus } from '@/lib/persistence';
 import { safeFitView } from '@/lib/fit';
 
@@ -517,6 +517,7 @@ export default function Editor() {
   }, [hydrated]);
   const view = useDiagram((s) => s.view);
   const loadError = useSaveStatus((s) => s.loadError);
+  const otherTab = useSaveStatus((s) => s.otherTab);
   // Version History: keep a start-of-day copy of the client that opens.
   useEffect(() => {
     if (!hydrated) return;
@@ -565,6 +566,7 @@ export default function Editor() {
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('fullscreenchange', onFs); };
   }, []);
 
+  if (otherTab) return <OtherTabScreen kind={otherTab} />;
   if (loadError) return <RecoveryScreen error={loadError} />;
   if (!hydrated) return <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading your diagrams…</div>;
 

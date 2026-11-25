@@ -12,6 +12,18 @@ contextBridge.exposeInMainWorld('rackdrawDesktop', {
     ipcRenderer.on('rd:open-file', handler);
     return () => ipcRenderer.removeListener('rd:open-file', handler);
   },
+  /** How each download ended ('completed', 'cancelled', 'interrupted'): the Save dialog can be cancelled. */
+  onDownloadDone: (cb) => {
+    const handler = (_e, r) => cb(r);
+    ipcRenderer.on('rd:download-done', handler);
+    return () => ipcRenderer.removeListener('rd:download-done', handler);
+  },
+  /** A file that was asked to open but couldn't be read (too large, locked, offline). */
+  onOpenFailed: (cb) => {
+    const handler = (_e, r) => cb(r);
+    ipcRenderer.on('rd:open-failed', handler);
+    return () => ipcRenderer.removeListener('rd:open-failed', handler);
+  },
   /** The page is ready for opened files. */
   ready: () => ipcRenderer.send('rd:ready'),
   /** Opens a client file from the Recent list (false if it is gone). */

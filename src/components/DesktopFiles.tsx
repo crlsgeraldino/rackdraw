@@ -17,8 +17,9 @@ export function DesktopFiles() {
         alert(`"${f.name}" could not be opened.\n\n${(e as Error).message}`);
       }
     });
+    const offFailed = d.onOpenFailed?.((r) => alert(`"${r.name}" could not be opened: ${r.reason}.`));
     d.ready();
-    return off;
+    return () => { off(); offFailed?.(); };
   }, []);
   return null;
 }

@@ -15,7 +15,7 @@ import { getPref, setPref, usePref } from './prefs';
 import { checksum, packProtected, protectionOf, RACKDRAW_EXT, RACKDRAW_MIME, unprotect } from './rackdrawFile';
 import { deriveSecret, makeCheck, passwordMatches, WrongPasswordError, type PasswordCheck, type Secret } from './fileCrypto';
 import { downloadBlob } from './export';
-import { askPassword } from '@/components/PasswordHost';
+import { askPassword, PASSWORD_ALT } from '@/components/PasswordHost';
 import type { Project } from './types';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { showToast } from '@/components/Toast';
@@ -24,6 +24,8 @@ export interface DesktopBridge {
   save(bytes: Uint8Array, suggestedName: string, path: string | undefined, saveAs: boolean): Promise<{ path: string; name: string } | null>;
   onOpenFile(cb: (f: { path: string; name: string; bytes: Uint8Array }) => void): () => void;
   ready(): void;
+  onOpenFailed?(cb: (r: { name: string; reason: string }) => void): () => void;
+  onDownloadDone?(cb: (r: { state: string }) => void): () => void;
   openPath(path: string): Promise<boolean>;
   showInFolder(path: string): Promise<boolean>;
   pathOf(file: File): string;
@@ -56,22 +58,46 @@ export function linkFile(projectId: string, path: string, name: string, sig?: st
  */
 const protection = new Map<string, { secret?: Secret; check: PasswordCheck }>();
 
+/** Remembers (or forgets) on this computer that a client's file is protected, with or without a linked file. */
+function rememberProtection(projectId: string, check: PasswordCheck | undefined) {
+  const all = { ...getPref('protectedClients') };
+  if (check) all[projectId] = check;
+  else delete all[projectId];
+  setPref('protectedClients', all);
+}
+
 /** Whether the client's file is password-protected (in this session or as remembered). */
 export function isProtected(projectId: string) {
-  return protection.has(projectId) || !!fileOf(projectId)?.protected;
+  return protection.has(projectId) || !!fileOf(projectId)?.protected || !!getPref('protectedClients')[projectId];
 }
+
+/** Message after a wrong password: after a few tries, the file may be damaged rather than the password wrong. */
+export const wrongPassword = (tries: number) => (tries >= 3 ? 'Wrong password. Try again — or the file may be damaged (a damaged file looks the same as a wrong password).' : 'Wrong password. Try again.');
 
 /** The key to protect the client's file with; asks for the password after a restart. null = cancelled. */
 async function secretFor(projectId: string, fileName: string): Promise<Secret | null | undefined> {
   const mem = protection.get(projectId);
   if (mem?.secret) return mem.secret;
   const link = fileOf(projectId);
-  const check = mem?.check ?? (link?.protected ? link.check : undefined);
+  const check = mem?.check ?? (link?.protected ? link.check : undefined) ?? getPref('protectedClients')[projectId];
   if (!check) return undefined; // not protected
   let error: string | undefined;
   for (;;) {
-    const pw = await askPassword({ title: 'Password needed', message: `"${fileName}" is password-protected. Enter its password to save it (it stays protected).`, error, okLabel: 'Save' });
+    const pw = await askPassword({ title: 'Password needed', message: `"${fileName}" is password-protected. Enter its password to save it (it stays protected).`, error, okLabel: 'Save', altLabel: 'Forgot it?' });
     if (pw === null) return null;
+    if (pw === PASSWORD_ALT) {
+      // The client on this computer is not encrypted: it can always be saved as a new file with a new password.
+      if (!confirm(`Save this client as a NEW file with a new password instead?\n\n"${fileName}" is not changed (it keeps its old password). Nothing on this computer is lost.`)) continue;
+      const npw = await askPassword({ title: 'Password for the new file', message: 'Choose a password for the new file. Save then asks where to put it.', confirm: true, okLabel: 'Choose where to save' });
+      if (npw === null) return null;
+      const [secret, fresh] = await Promise.all([deriveSecret(npw), makeCheck(npw)]);
+      protection.set(projectId, { secret, check: fresh });
+      rememberProtection(projectId, fresh);
+      const links = { ...getPref('fileLinks') };
+      delete links[projectId];
+      setPref('fileLinks', links);
+      return secret;
+    }
     if (await passwordMatches(pw, check)) {
       const secret = await deriveSecret(pw);
       protection.set(projectId, { secret, check });
@@ -115,14 +141,37 @@ export async function setClientPassword(): Promise<void> {
   if (pw === '') {
     if (!confirm(`Remove the password from "${name}"? The file will open without a password.`)) return;
     protection.delete(p.id);
+    rememberProtection(p.id, undefined);
     const link = fileOf(p.id);
     if (link) setPref('fileLinks', { ...getPref('fileLinks'), [p.id]: { path: link.path, name: link.name, ...(link.sig ? { sig: link.sig } : {}) } });
   } else {
     const [secret, check] = await Promise.all([deriveSecret(pw), makeCheck(pw)]);
     protection.set(p.id, { secret, check });
+    rememberProtection(p.id, check);
   }
   const r = await saveClient();
   if (r) showToast(pw === '' ? `Password removed: ${r.name}` : `Protected: ${r.name}`);
+}
+
+/**
+ * A copy of the client as a file, e.g. before it is deleted (password-protected when its file is). 'saved' (desktop:
+ * written where the user chose), 'started' (browser download), or null when no copy was made.
+ */
+export async function saveClientCopy(p: Project): Promise<'saved' | 'started' | null> {
+  const name = `${safeName(p.name)}${RACKDRAW_EXT}`;
+  const bytes = await fileBytes(p.id, fileOf(p.id)?.name ?? name);
+  if (!bytes) return null;
+  const d = desktop();
+  if (!d) {
+    downloadBlob(name, new Blob([bytes as BlobPart], { type: RACKDRAW_MIME }));
+    return 'started';
+  }
+  try {
+    return (await d.save(bytes, name, undefined, true)) ? 'saved' : null;
+  } catch (e) {
+    alert(`The copy could not be saved: ${(e as Error).message}`);
+    return null;
+  }
 }
 
 /** Puts a file at the top of File → Recent (ten kept). */
@@ -195,7 +244,7 @@ export async function openClientFile(file: File, path: string): Promise<void> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (protectionOf(bytes)) {
     let error: string | undefined;
-    for (;;) {
+    for (let tries = 1; ; tries++) {
       const pw = await askPassword({ title: 'Password needed', message: `"${file.name}" is password-protected.`, error, okLabel: 'Open' });
       if (pw === null) return;
       try {
@@ -205,14 +254,23 @@ export async function openClientFile(file: File, path: string): Promise<void> {
         break;
       } catch (e) {
         if (!(e instanceof WrongPasswordError)) throw e;
-        error = 'Wrong password. Try again.';
+        error = wrongPassword(tries);
       }
     }
   }
-  const { project, stencils } = await readProjectFile(toRead);
+  const { project, stencils, dropped } = await readProjectFile(toRead);
   s.importProject(project, stencils);
-  if (opened) protection.set(useDiagram.getState().currentId, opened);
+  const newId = useDiagram.getState().currentId;
+  if (opened) {
+    protection.set(newId, opened);
+    rememberProtection(newId, opened.check);
+  }
   if (path) addRecent(path, file.name);
+  if (dropped) {
+    // Not linked: Save must not write the file back without the items that couldn't be read.
+    alert(`${dropped} damaged item${dropped === 1 ? '' : 's'} in "${file.name}" could not be opened and ${dropped === 1 ? 'was' : 'were'} left out.\n\nThe file itself is not changed: Save asks for a new name, so the original stays as it is.`);
+    return;
+  }
   // Linked only to .rackdraw files: an older .json file is saved as a new .rackdraw file (Save asks where).
   if (path && /\.rackdraw$/i.test(path)) {
     const opened = useDiagram.getState().projects[useDiagram.getState().currentId];
@@ -250,5 +308,5 @@ export function useFileStatus(): { name: string; path: string; dirty: boolean; l
     const t = setTimeout(() => setDirty(!!link.sig && contentSignature(project) !== link.sig), 700);
     return () => clearTimeout(t);
   }, [project, link]);
-  return link ? { name: link.name, path: link.path, dirty: !!link.sig && dirty, locked: !!link.protected || protection.has(project.id) } : null;
+  return link ? { name: link.name, path: link.path, dirty: !!link.sig && dirty, locked: isProtected(project.id) } : null;
 }

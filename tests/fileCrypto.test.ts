@@ -91,6 +91,12 @@ describe('protected backups through File → Restore', () => {
     const left = ['backup-pass'];
     assert.equal(await unlockJson({ ...file, data: file.data.slice(0, -8) + 'AAAAAAA=' }, async (e) => { tries.push(e); return left.shift() ?? null; }), null);
     assert.deepEqual(tries, [undefined, 'Wrong password. Try again.']);
+    // After a few tries, a damaged file is mentioned (it looks the same as a wrong password).
+    const errors: (string | undefined)[] = [];
+    const answers3 = ['a', 'b', 'c'];
+    await unlockJson(file, async (e) => { errors.push(e); return answers3.shift() ?? null; });
+    assert.match(errors[3] ?? '', /damaged/);
+    assert.doesNotMatch(errors[2] ?? '', /damaged/);
     // An unprotected backup still opens without asking.
     assert.deepEqual(await unlockJson(plain, async () => { throw new Error('asked'); }), plain);
   });

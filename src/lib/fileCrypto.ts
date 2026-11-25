@@ -114,14 +114,14 @@ export async function unlockJson(j: unknown, ask?: (error?: string) => Promise<s
   if ((j as ProtectedJson | null)?.format !== 'rackdraw-backup-protected') return j;
   if (!ask) throw new Error('This backup is password-protected.');
   let error: string | undefined;
-  for (;;) {
+  for (let tries = 1; ; tries++) {
     const pw = await ask(error);
     if (pw === null) return null;
     try {
       return JSON.parse(await unprotectText(j as ProtectedJson, pw));
     } catch (e) {
       if (!(e instanceof WrongPasswordError)) throw new Error('This backup is damaged and can\'t be opened.');
-      error = 'Wrong password. Try again.';
+      error = tries >= 3 ? 'Wrong password. Try again — or the file may be damaged (a damaged file looks the same as a wrong password).' : 'Wrong password. Try again.';
     }
   }
 }

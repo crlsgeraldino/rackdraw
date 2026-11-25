@@ -119,28 +119,42 @@ const mayTouch = (p) => typeof p === 'string' && (approved.has(key(p)) || (!isUn
 let mainWindow = null;
 let pageReady = false;
 const pendingFiles = [];
+const pendingFailures = [];
 
+/** Tells the page a file couldn't be opened (instead of doing nothing). */
+function openFailed(p, reason) {
+  const r = { name: path.basename(p), reason };
+  if (pageReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rd:open-failed', r);
+  else pendingFailures.push(r);
+}
+
+/** Opens the files in the page; true when all of them could be read. */
 async function openFiles(paths) {
+  let all = true;
   for (const p of paths) {
     try {
-      if ((await fsp.stat(p)).size > MAX_FILE) continue;
+      if ((await fsp.stat(p)).size > MAX_FILE) { openFailed(p, 'it is larger than 512 MB'); all = false; continue; }
       const bytes = new Uint8Array(await fsp.readFile(p));
       if (/\.rackdraw$/i.test(p)) approved.add(p);
       app.addRecentDocument(p); // the taskbar icon's list (Windows jump list)
       const file = { path: p, name: path.basename(p), bytes };
       if (pageReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rd:open-file', file);
       else pendingFiles.push(file);
-    } catch {
-      // unreadable file: skip it
+    } catch (e) {
+      // Locked, offline (a cloud placeholder), gone or no permission.
+      openFailed(p, e && e.code === 'ENOENT' ? 'it isn\'t there any more' : e && (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') ? 'it is in use or not allowed to be read' : 'it could not be read');
+      all = false;
     }
   }
+  return all;
 }
 
 ipcMain.handle('rd:save', async (e, args) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (!win || !isOwn(e.senderFrame?.url ?? '')) throw new Error('Not allowed');
   const { bytes, suggestedName, path: given, saveAs } = args ?? {};
-  if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > MAX_FILE) throw new Error('Nothing to save');
+  if (!(bytes instanceof Uint8Array) || !bytes.length) throw new Error('Nothing to save');
+  if (bytes.length > MAX_FILE) throw new Error('This client is larger than 512 MB, too large for one file (remove some large pictures or PDF pages).');
   let target = !saveAs && mayWrite(given, approved) ? given : null;
   if (!target) {
     const r = await dialog.showSaveDialog(win, {
@@ -176,6 +190,7 @@ ipcMain.on('rd:ready', (e) => {
   if (!isOwn(e.senderFrame?.url ?? '')) return;
   pageReady = true;
   for (const f of pendingFiles.splice(0)) e.sender.send('rd:open-file', f);
+  for (const r of pendingFailures.splice(0)) e.sender.send('rd:open-failed', r);
 });
 
 // macOS: files opened from Finder arrive as an event rather than on the command line.
@@ -220,10 +235,22 @@ function createWindow() {
       if (!win.isDestroyed()) win.close();
       if (quitting) app.quit();
     };
-    const timeout = new Promise((r) => setTimeout(() => r('timeout'), 4000));
-    Promise.race([win.webContents.executeJavaScript('window.__rackdrawFlush ? window.__rackdrawFlush() : true', true), timeout])
-      .catch(() => true)
+    const flush = win.webContents.executeJavaScript('window.__rackdrawFlush ? window.__rackdrawFlush() : true', true).catch(() => true);
+    const timeout = new Promise((r) => setTimeout(() => r('timeout'), 15000));
+    Promise.race([flush, timeout])
       .then(async (saved) => {
+        // A very large workspace still saving: ask rather than cut the save off.
+        if (saved === 'timeout' && !win.isDestroyed()) {
+          const r = await dialog.showMessageBox(win, {
+            type: 'warning',
+            buttons: ['Wait for it', 'Close anyway'],
+            defaultId: 0,
+            cancelId: 0,
+            message: 'RackDraw is still saving your latest changes.',
+            detail: 'Closing now may lose them.',
+          });
+          if (r.response !== 1) saved = await flush;
+        }
         // The last save failed (disk full…): say so instead of quietly losing the changes.
         if (saved === false && !win.isDestroyed()) {
           const r = await dialog.showMessageBox(win, {
@@ -304,9 +331,11 @@ if (!app.requestSingleInstanceLock()) {
     ses.setPermissionRequestHandler((wc, permission, callback, details) => callback(ALLOWED_PERMISSIONS.has(permission) && isOwn(details?.requestingUrl || wc?.getURL() || '')));
     ses.setPermissionCheckHandler((wc, permission, origin) => ALLOWED_PERMISSIONS.has(permission) && isOwn(origin || wc?.getURL() || ''));
     // No downloads of anything the app didn't make itself (its own exports are blob: / data: URLs).
-    ses.on('will-download', (e, item) => {
+    ses.on('will-download', (e, item, wc) => {
       const u = item.getURL();
-      if (!u.startsWith('blob:') && !u.startsWith('data:')) e.preventDefault();
+      if (!u.startsWith('blob:') && !u.startsWith('data:')) { e.preventDefault(); return; }
+      // The page learns whether the file was really saved (backups, copies before deleting a client).
+      item.once('done', (_ev, state) => { if (wc && !wc.isDestroyed()) wc.send('rd:download-done', { state }); });
     });
 
     Menu.setApplicationMenu(

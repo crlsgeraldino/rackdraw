@@ -11,6 +11,18 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.4.1',
+    title: 'Your data, safer',
+    items: [
+      'Delete client saves the copy first and deletes only once it is saved: cancelling the copy keeps the client. A protected client\'s copy stays protected.',
+      'Back up everything says whether the backup was really saved, and warns before putting password-protected clients into a backup without a password.',
+      'In a browser, RackDraw open in a second tab no longer overwrites the first one\'s clients: "Use RackDraw here" moves it over safely.',
+      'If your saved diagrams can\'t be read, starting empty never deletes them; diagrams saved by a newer RackDraw are left as they are.',
+      'Version History problems are shown instead of silently losing versions. Password protection is remembered in a browser too, and "Forgot it?" saves a new copy with a new password.',
+      'Files that can\'t be opened (too large, in use, offline) now say so, and a file with damaged items is opened without overwriting it on Save.',
+    ],
+  },
+  {
     version: '1.4.0',
     title: 'Safer with files from anywhere',
     items: [

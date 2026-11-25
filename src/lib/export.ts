@@ -42,6 +42,28 @@ function download(name: string, href: string) {
   a.click();
 }
 
+export type DownloadResult = 'saved' | 'cancelled' | 'failed' | 'started';
+
+/**
+ * Runs `start` (which downloads one file) and tells how it ended. The desktop app reports whether the file was really
+ * saved (its Save dialog can be cancelled, the disk can be full); a browser only says the download started.
+ */
+export async function withDownloadResult<T>(start: () => T | Promise<T>): Promise<{ value: T; result: DownloadResult }> {
+  const d = typeof window === 'undefined' ? undefined
+    : (window as unknown as { rackdrawDesktop?: { onDownloadDone?: (cb: (r: { state: string }) => void) => () => void } }).rackdrawDesktop;
+  if (!d?.onDownloadDone) return { value: await start(), result: 'started' };
+  let off = () => {};
+  const done = new Promise<DownloadResult>((resolve) => {
+    off = d.onDownloadDone!((r) => resolve(r.state === 'completed' ? 'saved' : r.state === 'cancelled' ? 'cancelled' : 'failed'));
+  });
+  try {
+    const value = await start();
+    return { value, result: await done };
+  } finally {
+    off();
+  }
+}
+
 export function downloadBlob(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   download(name, url);
@@ -683,7 +705,7 @@ export function saveProjectFile(p: Project) {
   downloadBlob(`${safeName(p.name)}${RACKDRAW_EXT}`, new Blob([projectFileBytes(p) as BlobPart], { type: RACKDRAW_MIME }));
 }
 
-export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[] }> {
+export async function readProjectFile(file: File): Promise<{ project: Project; stencils: StencilDef[]; dropped: number }> {
   let json: { format?: string; version?: number; project?: unknown; stencils?: unknown };
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (isRackdrawPackage(bytes)) {
@@ -705,10 +727,12 @@ export async function readProjectFile(file: File): Promise<{ project: Project; s
   if (json?.format === 'rackdraw-backup') throw new Error('This is a full backup. Use File → Restore from backup.');
   if (typeof json?.version === 'number' && json.version > PROJECT_FILE_VERSION) throw new Error('This diagram was saved by a newer version of RackDraw. Update RackDraw to open it.');
   // Checked and repaired here (files saved by v0.2 and earlier have one diagram, which becomes a page).
-  const { project } = sanitizeProject(json?.project ?? json, file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$|\.rackdraw$/i, ''));
+  const { project, report } = sanitizeProject(json?.project ?? json, file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$|\.rackdraw$/i, ''));
   return {
     project,
     stencils: sanitizeStencils(json.stencils),
+    /** Damaged items left out (the file itself is not changed). */
+    dropped: report.droppedNodes + report.droppedEdges,
   };
 }
 
