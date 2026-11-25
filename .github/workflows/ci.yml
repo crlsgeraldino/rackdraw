@@ -32,6 +32,10 @@ jobs:
         run: npx eslint src tests e2e
       - name: Unit tests
         run: npm test
+      - name: Third-party notices are up to date
+        run: |
+          npm run notices
+          git diff --exit-code -- THIRD-PARTY-NOTICES.md
       - name: Build
         run: npm run build
       - name: End-to-end tests (desktop app)

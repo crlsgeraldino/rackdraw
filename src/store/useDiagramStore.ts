@@ -1768,14 +1768,28 @@ export const useDiagram = create<DiagramState>()(
                 const look = text ? lookPatch(text, n.data.fontSize ?? TEXT_DEFAULT_SIZE[n.type]) : {};
                 n = { ...n, data: { ...n.data, ...look, ...(textColor !== undefined ? { textColor: textColor ?? undefined } : {}) } } as AppNode;
               }
-              if (n.type === 'zone' && line) return { ...n, data: { ...n.data, color: line } };
+              if (n.type === 'device' && (line !== undefined || weight !== undefined || format?.linePattern)) {
+                // Devices: Line adds (or recolours) an outline, Weight and Dashes change it; Automatic / No line removes it.
+                const cur = n.data.border;
+                let border: DeviceData['border'];
+                if (line === null || line === 'transparent') border = undefined;
+                else {
+                  border = { ...(cur ?? { color: '#334155' }), ...(line ? { color: line } : {}), ...(format?.linePattern ? { pattern: format.linePattern } : {}) };
+                  if (weight !== undefined) border.width = weight ?? undefined;
+                  if (!cur && !line && weight === null) border = undefined;
+                }
+                n = { ...n, data: { ...n.data, border } } as AppNode;
+              }
+              if (n.type === 'zone' && (line || weight !== undefined)) {
+                return { ...n, data: { ...n.data, ...(line && line !== 'transparent' ? { color: line } : {}), ...(weight !== undefined ? { lineWidth: weight ?? undefined } : {}) } };
+              }
               if (n.type === 'measure' && n.data.variant === 'line' && (weight !== undefined || line || format?.linePattern)) return { ...n, data: { ...n.data, ...(weight ? { thickness: weight } : {}), ...(line ? { color: line } : {}), ...(format?.linePattern ? { linePattern: format.linePattern, dashed: format.linePattern !== 'solid' || undefined } : {}) } };
               return n;
             }),
             edges: line === undefined && weight === undefined && !text && textColor === undefined ? pg.edges : pg.edges.map((e) => (e.selected ? {
               ...e,
               data: {
-                ...(e.data as CableData), ...(line !== undefined ? { color: line ?? undefined } : {}), ...(weight !== undefined ? { weight: weight ?? undefined } : {}),
+                ...(e.data as CableData), ...(line !== undefined && line !== 'transparent' ? { color: line ?? undefined } : {}), ...(weight !== undefined ? { weight: weight ?? undefined } : {}),
                 ...(text ? lookPatch(text, (e.data as CableData | undefined)?.fontSize ?? TEXT_DEFAULT_SIZE.cable) : {}),
                 ...(textColor !== undefined ? { textColor: textColor ?? undefined } : {}),
               },

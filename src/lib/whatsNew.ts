@@ -11,6 +11,32 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.5.1',
+    title: 'Up-to-date desktop engine',
+    items: [
+      'The desktop app runs on Electron 45.5 (the latest Chromium security fixes).',
+      'On a small screen, ribbon menus that are taller than the window (like Borders & Titles) scroll instead of running off the bottom.',
+      'RackDraw\'s home on GitHub is now github.com/crlsgeraldino/rackdraw (the old address still works).',
+    ],
+  },
+  {
+    version: '1.5.0',
+    title: 'Borders, titles and outlines',
+    items: [
+      'Design → Borders & Titles has 12 designs (classic, title strip, corners, side band, footer band, tab, rounded, modern and more) with the page name, client, date and "Page n of m".',
+      'The borders show on the page, in print and in the PDF report, where the page numbers count the report\'s pages. Switch the date or page number off in the same menu.',
+      'Home → Line, Weight and the dash patterns now put an outline round devices; "No line" removes it. Zones take a line weight too.',
+    ],
+  },
+  {
+    version: '1.4.4',
+    title: 'Ready to share',
+    items: [
+      'RackDraw is free and open source: Help → About lists the open-source libraries it uses, and their licences are installed next to RackDraw.exe (THIRD-PARTY-NOTICES.md).',
+      'Shapes window: the library export button names the right file type (.rackdraw-stencils.json).',
+    ],
+  },
+  {
     version: '1.4.3',
     title: 'Fewer surprises when editing',
     items: [

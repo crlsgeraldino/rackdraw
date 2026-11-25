@@ -177,7 +177,8 @@ const SECTIONS: { id: HelpSection; label: string; body: () => ReactNode }[] = [
     id: 'about', label: 'About', body: () => (
       <>
         <P><K>RackDraw</K> {APP_VERSION && <>version {APP_VERSION}</>}</P>
-        <P>Network, rack and floor-plan documentation for MSPs. MIT License.</P>
+        <P>Network, rack and floor-plan documentation for MSPs.</P>
+        <P>Free and open source (MIT License). RackDraw uses open-source libraries such as React, React Flow, pdf.js and jsPDF: their licences are in <code>THIRD-PARTY-NOTICES.md</code>, installed next to RackDraw.exe (and published with the web version).</P>
         <P>Your clients are kept on this computer (in the app&apos;s data folder; the desktop app can use another folder through the <code>RACKDRAW_DATA_DIR</code> setting). Nothing is sent anywhere: RackDraw works without the internet.</P>
       </>
     ),

@@ -337,7 +337,7 @@ export function Palette() {
                     </button>
                     <div className="hidden shrink-0 gap-0.5 pr-1 group-focus-within:flex group-hover:flex">
                       <button className="rounded bg-white px-1 text-[11px] text-gray-600 shadow hover:text-blue-600" onClick={() => rename(l)} title="Rename library">✎</button>
-                      <button className="rounded bg-white px-1 text-[11px] text-gray-600 shadow hover:text-blue-600" onClick={() => saveStencilLibrary(l.stencils, l.name, l.name)} title="Export this library to a .netcraft-stencils.json file">⤓</button>
+                      <button className="rounded bg-white px-1 text-[11px] text-gray-600 shadow hover:text-blue-600" onClick={() => saveStencilLibrary(l.stencils, l.name, l.name)} title="Export this library to a .rackdraw-stencils.json file (to share it or move it to another computer)">⤓</button>
                       <button className="rounded bg-white px-1 text-[11px] text-gray-600 shadow hover:text-red-600" onClick={() => removeLibrary(l)} title="Delete library">✕</button>
                     </div>
                   </div>

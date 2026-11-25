@@ -7,6 +7,7 @@ import { pxPerUnit, useUnits } from '@/lib/measure';
 import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { usePref } from '@/lib/prefs';
 import { FRAME_COLOR, type DeviceData } from '@/lib/types';
+import { borderLayout, pageBorderText, type BorderPart } from '@/lib/borders';
 import { useCurrentPage, useCurrentProject } from '@/store/useDiagramStore';
 
 export const RULER = 18;
@@ -69,14 +70,8 @@ export function PageSheet() {
           backgroundPosition: `${-mod(b.x)}px ${-mod(b.y)}px`,
         }}
       >
-        {/* Borders & Titles: drawn on the page itself, under the diagram. */}
-        {frame === 'simple' && <div className="absolute" style={{ inset: 10, border: `2px solid ${fc}`, outline: `1px solid ${fc}`, outlineOffset: 3 }} />}
-        {frame === 'banner' && (
-          <div className="absolute inset-x-0 top-0 flex items-end justify-between px-5 pb-2 text-white" style={{ height: 52, background: fc }}>
-            <span className="text-[20px] font-semibold leading-none">{page.name}</span>
-            <span className="text-right text-[12px] leading-tight opacity-90">{project.name}{project.site ? <><br />{project.site}</> : null}</span>
-          </div>
-        )}
+        {/* Borders & Titles: drawn on the page itself, under the diagram, sized to one printed sheet. */}
+        {frame !== 'none' && <BorderArt parts={borderLayout(frame, b.w, b.h, fc, pageBorderText(project, page.id), Math.min(sheet.w, sheet.h)).parts} w={b.w} h={b.h} />}
         {breaks && (
           <svg className="absolute inset-0 overflow-visible" width={b.w} height={b.h} aria-hidden>
             {Array.from({ length: b.cols - 1 }, (_, i) => <line key={`c${i}`} x1={(i + 1) * sheet.w} y1={0} x2={(i + 1) * sheet.w} y2={b.h} stroke="#9ca3af" strokeDasharray="6 4" />)}
@@ -85,6 +80,21 @@ export function PageSheet() {
         )}
       </div>
     </ViewportPortal>
+  );
+}
+
+/** A border design drawn as SVG (the same shapes the print and PDF use). */
+export function BorderArt({ parts, w, h }: { parts: BorderPart[]; w: number; h: number }) {
+  return (
+    <svg className="absolute inset-0" width={w} height={h} aria-hidden style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      {parts.map((p, i) => {
+        if (p.t === 'rect') return <rect key={i} x={p.x} y={p.y} width={Math.max(0, p.w)} height={Math.max(0, p.h)} rx={p.r} fill={p.fill ?? 'none'} stroke={p.stroke} strokeWidth={p.stroke ? p.width ?? 1 : undefined} />;
+        if (p.t === 'line') return <line key={i} x1={p.x1} y1={p.y1} x2={p.x2} y2={p.y2} stroke={p.stroke} strokeWidth={p.width} strokeLinecap="square" />;
+        return (
+          <text key={i} x={p.x} y={p.y} fontSize={p.size} fill={p.color} fontWeight={p.bold ? 600 : undefined} textAnchor={p.anchor ?? 'start'} transform={p.up ? `rotate(-90 ${p.x} ${p.y})` : undefined}>{p.text}</text>
+        );
+      })}
+    </svg>
   );
 }
 

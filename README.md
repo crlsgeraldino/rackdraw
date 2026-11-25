@@ -1,11 +1,14 @@
 # RackDraw
 
-Free, browser-based network diagrams for documenting client sites — a lightweight Visio alternative for MSPs.
-Everything runs in your browser: diagrams are stored locally and never uploaded.
+Free, open-source network, rack and floor-plan documentation for client sites: a Visio alternative for IT providers
+(MSPs). A Windows desktop app and a web version; everything stays on your computer and nothing is ever uploaded.
+
+**Download:** the latest `RackDraw-Setup-x.y.z.exe` on the Releases page. **Contribute:** see
+[CONTRIBUTING.md](CONTRIBUTING.md). **Security problems:** see [SECURITY.md](SECURITY.md).
 
 > **Formerly NetCraft.** Installing RackDraw over NetCraft keeps every client: the app still keeps its data in
 > `%APPDATA%\NetCraft` (under its old internal `app://netcraft` address), and old `.netcraft.json` diagram files and
-> `.netcraft-stencils.json` libraries open as before. New saves use `.rackdraw.json`.
+> `.netcraft-stencils.json` libraries open as before. New saves use `.rackdraw` files.
 
 Built the same way as [PDFCraft](https://github.com/PDFCraftTool/pdfcraft): Next.js (App Router) + TypeScript +
 Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React Flow](https://reactflow.dev) (MIT).
@@ -208,7 +211,13 @@ the clipboard (Copy buttons), persistent storage and full screen. The installed 
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). RackDraw bundles open-source libraries under their own licences: see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) (regenerate it with `npm run notices`).
+
+## Contributing
+
+Bug reports, Visio files that don't import well, ideas and pull requests are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately ([SECURITY.md](SECURITY.md)).
 
 ## Several links per item, grid spacing
 
@@ -220,9 +229,18 @@ the clipboard (Copy buttons), persistent storage and full screen. The installed 
 ## Page color, borders and titles (Design → Backgrounds)
 
 - **Page Color**: a soft background for the drawing page (white, greys, ivory, light blue, green, pink, lilac).
-- **Borders & Titles** (like Visio's): a **simple frame** round the page, or a **title banner** across the top with the
-  page name and the client / site, in a colour you pick.
-- Both are set per client and show on the canvas, in prints, PDFs (page fill, frame, banner header) and pictures.
+- **Borders & Titles** (like Visio's): a gallery of 12 border designs (simple frame, title banner, classic double
+  rule, title strip, corners, side band, underlined, footer band, header & footer, tab, rounded, modern). Most write
+  the **page name, the client and site, the date and "Page n of m"** (the date and page number can be switched off;
+  the date is the title block's when set), in a colour you pick.
+- Both are set per client and show on the canvas, in prints and in the PDF report, where the designs' bands are kept
+  clear of the drawing and the page numbers count the report's sheets.
+
+## Outlines (Home → Shape Style)
+
+- **Line** puts an outline round the selected devices (and colours shapes, zones and cables as before); **Weight**
+  and the dash patterns under Line change it; **No line** or **Automatic** removes it. Zones take a weight too.
+- Device outlines are kept in Visio exports (the picture shape's line).
 
 ## Connector look (Design → Connectors)
 

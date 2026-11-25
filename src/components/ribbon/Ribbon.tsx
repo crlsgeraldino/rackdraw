@@ -48,7 +48,9 @@ import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
 import { SCALE_PRESETS, SET_SCALE_EVENT } from '@/lib/units';
 import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
-import { allLinks, dashFor } from '@/lib/types';
+import { allLinks, dashFor, FRAME_COLOR } from '@/lib/types';
+import { BORDER_DESIGNS, borderLayout } from '@/lib/borders';
+import { BorderArt } from '@/components/CanvasPage';
 import { CABLE_TAGS, type CableTag } from '@/lib/cableRole';
 import { getStencil, TEXT_DEFAULT_SIZE, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { ALIGN, AlignIcon, useAutoArrange, useSelectionState } from '../ArrangeMenu';
@@ -865,8 +867,8 @@ function HomeTab() {
           <Drop trigger={(open) => <Small icon="fill" label="Fill ▾" onClick={open} disabled={!st.count} title="Fill colour of the selected shapes" />}>
             {(close) => <><Swatches none onPick={(c) => { s.styleSelection({ fill: c ?? 'transparent' }); close(); }} /><FillOptions close={close} /></>}
           </Drop>
-          <Drop trigger={(open) => <Small icon="line" label="Line ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line colour of the selected cables, shapes and zones" />}>
-            {(close) => <><Swatches auto="Automatic" onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} /><LineOptions close={close} /></>}
+          <Drop trigger={(open) => <Small icon="line" label="Line ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line colour of the selected cables, shapes and zones, or an outline round the selected devices" />}>
+            {(close) => <><Swatches auto="Automatic" noLine onPick={(c) => { s.styleSelection({ line: c ?? null }); close(); }} /><LineOptions close={close} /></>}
           </Drop>
           <Drop width={170} trigger={(open) => <Small icon="weight" label="Weight ▾" onClick={open} disabled={!st.count && !anyEdge} title="Line weight of the selected cables, shapes and lines" />}>
             {(close) => (
@@ -1565,6 +1567,7 @@ function PainterButton({ disabled }: { disabled: boolean }) {
 
 const PAGE_COLORS = ['#ffffff', '#f8fafc', '#f1f5f9', '#fefce8', '#fdf6e3', '#eff6ff', '#ecfdf5', '#fdf2f8', '#f5f3ff', '#e5e7eb'];
 const FRAME_COLORS = ['#1e3a8a', '#0f766e', '#334155', '#7c2d12', '#6d28d9', '#b91c1c', '#000000'];
+const SAMPLE_BORDER_TEXT = { title: 'Network', client: 'Client · Site', date: '1/5/2027', page: 'Page 1 of 2' };
 
 /** Design → Backgrounds (page colour) and Borders & Titles (frame / title banner), for the whole client. */
 function PageLookMenus() {
@@ -1587,24 +1590,31 @@ function PageLookMenus() {
         </Drop>
       </div>
       <div className="flex items-start pt-1">
-        <Drop width={236} trigger={(open, isOpen) => <Big icon="titleBlock" label="Borders & Titles" onClick={open} active={isOpen || frame !== 'none'} title="A frame round the page, or a title banner with the page name and client (like Visio's Borders & Titles)" />}>
+        <Drop width={420} trigger={(open, isOpen) => <Big icon="titleBlock" label="Borders & Titles" onClick={open} active={isOpen || frame !== 'none'} title="A border round every page, with the page name, client, date and page number (like Visio's Borders & Titles)" />}>
           {(close) => (
             <div className="p-2 text-xs">
-              {([['none', 'None'], ['simple', 'Simple frame'], ['banner', 'Title banner']] as const).map(([v, label]) => (
-                <button key={v} className={`mb-1 flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-blue-50 ${frame === v ? 'bg-blue-50' : ''}`} onClick={() => { set({ frame: v === 'none' ? undefined : v }); close(); }}>
-                  <span className="relative h-7 w-10 shrink-0 rounded-sm border border-gray-300 bg-white">
-                    {v === 'simple' && <span className="absolute inset-[3px] border" style={{ borderColor: d?.frameColor ?? '#1e3a8a' }} />}
-                    {v === 'banner' && <span className="absolute inset-x-0 top-0 h-2" style={{ background: d?.frameColor ?? '#1e3a8a' }} />}
-                  </span>
-                  {label}
-                </button>
-              ))}
-              <div className="mt-1 border-t border-gray-100 pt-1.5 text-[10px] uppercase tracking-wide text-gray-400">Colour</div>
-              <div className="mt-1 flex gap-1">
+              <div className="grid grid-cols-3 gap-1.5">
+                {BORDER_DESIGNS.map((b) => (
+                  <button key={b.id} className={`rounded border p-1 text-left hover:border-blue-400 hover:bg-blue-50 ${frame === b.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-400' : 'border-gray-200'}`}
+                    onClick={() => { set({ frame: b.id === 'none' ? undefined : b.id }); close(); }} title={b.name} aria-label={`Border: ${b.name}`} aria-pressed={frame === b.id}>
+                    <span className="relative block h-[66px] w-full overflow-hidden rounded-sm border border-gray-200 bg-white">
+                      {b.id !== 'none' && <BorderArt parts={borderLayout(b.id, 120, 66, d?.frameColor ?? FRAME_COLOR, SAMPLE_BORDER_TEXT).parts} w={120} h={66} />}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] text-gray-700">{b.name}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 flex items-center gap-1 border-t border-gray-100 pt-2">
+                <span className="mr-1 text-[10px] uppercase tracking-wide text-gray-400">Colour</span>
                 {FRAME_COLORS.map((c) => (
                   <button key={c} className={`h-5 w-5 rounded-sm border ${(d?.frameColor ?? '#1e3a8a') === c ? 'ring-2 ring-blue-400' : 'border-gray-300'}`} style={{ background: c }} aria-label={c} onClick={() => set({ frameColor: c === '#1e3a8a' ? undefined : c })} />
                 ))}
               </div>
+              <div className="mt-2 flex gap-4">
+                <label className="flex items-center gap-1.5"><input type="checkbox" checked={d?.frameDate !== false} onChange={(e) => set({ frameDate: e.target.checked ? undefined : false })} /> Date</label>
+                <label className="flex items-center gap-1.5"><input type="checkbox" checked={d?.framePage !== false} onChange={(e) => set({ framePage: e.target.checked ? undefined : false })} /> Page number</label>
+              </div>
+              <p className="mt-1.5 text-[11px] leading-snug text-gray-500">Shows on every page, in print and in the PDF report. The title is the page name; the date is the title block&apos;s date when set.</p>
             </div>
           )}
         </Drop>
