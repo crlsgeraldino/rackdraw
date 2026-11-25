@@ -10,6 +10,7 @@ import { unzipLimited, VISIO_PART_LIMITS } from '../zipSafe';
 import type { PortDef } from '../types';
 import { bmpToRgba, emfToSvg, type DibEncoder } from './emf';
 import { parseTheme, themedColor, type ThemeKind, type VisioTheme } from './theme';
+import { guessPortKinds, portLabel } from './portKinds';
 
 const NS = 'http://schemas.microsoft.com/office/visio/2012/main';
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -220,6 +221,7 @@ export class VisioPackage {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const body: string[] = [];
     const conns: [number, number][] = [];
+    const connNames: (string | undefined)[] = [];
     // Measure what is actually drawn: some vendors make the group a 1-D "line" (0.001" tall) with
     // its children hanging off it, so the group's own Width/Height can't be trusted.
     const grow = (s: Element, parent: M) => {
@@ -241,7 +243,12 @@ export class VisioPackage {
       grow(s, [1, 0, 0, 1, 0, 0]);
       body.push(this.shape(s, ctx));
       const sec = section(s, 'Connection');
-      if (sec) for (const row of children(sec, 'Row')) conns.push(apply(t.m, num(cell(row, 'X')), num(cell(row, 'Y'))));
+      if (sec) {
+        for (const row of children(sec, 'Row')) {
+          conns.push(apply(t.m, num(cell(row, 'X')), num(cell(row, 'Y'))));
+          connNames.push(row.getAttribute('N') ?? undefined);
+        }
+      }
     }
     if (!Number.isFinite(minX) || maxX - minX <= 0 || maxY - minY <= 0) throw new Error(`Master "${master.name}" has nothing to draw.`);
 
@@ -254,11 +261,11 @@ export class VisioPackage {
     let spacing = Math.min(W, H) * 0.3;
     for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) spacing = Math.min(spacing, Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]) || spacing);
     const size = Math.max(6, Math.min(0.3 * PX, spacing * 0.8));
-    const ports: PortDef[] = pts.map(([x, y], i) => ({
-      id: `C${i + 1}`, label: `${i + 1}`, kind: 'rj45',
+    const ports = guessPortKinds(pts.map(([x, y], i): PortDef => ({
+      id: `C${i + 1}`, label: portLabel(connNames[i], i), kind: 'rj45',
       x: Math.max(0, Math.min(W - size, x - size / 2)), y: Math.max(0, Math.min(H - size, y - size / 2)), w: size, h: size,
       side: y < H / 2 ? 'top' : 'bottom',
-    }));
+    })), master.name, connNames);
     return { svg, widthIn: wIn, heightIn: hIn, ports, warnings };
   }
 
@@ -535,13 +542,15 @@ export class VisioPackage {
         const sec = section(s, 'Connection');
         if (sec) {
           const size = Math.max(6, Math.min(16, Math.min(W, Hh) * 0.15));
-          ports = children(sec, 'Row').map((row, i) => {
+          const rows = children(sec, 'Row');
+          ports = rows.map((row, i) => {
             const [px, py] = toPx(apply(t.m, num(cell(row, 'X')), num(cell(row, 'Y'))));
             const lx = px - bbox.x, ly = py - bbox.y;
             // Named connection points (RackDraw writes the port's name) keep their name.
             const label = row.getAttribute('N')?.replace(/^_(?=\d)/, '').replace(/_/g, ' ') || `${i + 1}`;
             return { id: `C${i + 1}`, label, kind: 'rj45', x: Math.max(0, Math.min(W - size, lx - size / 2)), y: Math.max(0, Math.min(Hh - size, ly - size / 2)), w: size, h: size, side: ly < Hh / 2 ? 'top' : 'bottom' } as PortDef;
           });
+          ports = guessPortKinds(ports, masterName ?? name ?? '', rows.map((r) => r.getAttribute('N') ?? undefined));
         }
       }
       items.push({ ...base, kind: 'picture', svg, ports, masterId: masterId ?? undefined });

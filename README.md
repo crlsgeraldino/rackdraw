@@ -1107,7 +1107,10 @@ preview, and imports the ones you tick into a library named after the file (e.g.
   styles, simple text, and embedded **PNG/JPG/GIF/BMP** pictures.
 - Converts embedded **EMF** pictures (the format most vendor stencils use) with a built-in EMF→SVG converter:
   paths, polygons, Béziers, pens, brushes, world transforms, clipping, text and bitmaps.
-- Visio **connection points become cable ports** automatically; rename them later with ✎.
+- Visio **connection points become cable ports** automatically; rename them later with ✎. Their type is worked out
+  where the stencil allows: points named for what they are (SFP, console, USB, power) keep that type and name, and a
+  switch named for its port count ("USW-Pro-24-PoE") with a few more points standing apart at one end of the faceplate
+  gets those as SFP. Anything unclear stays RJ45; change it in Edit shape & ports.
 - 19" gear (16.5–19.5" wide) gets a **rack height** from its height (1U = 1.75").
 - Old binary `.vss`/`.vsd` files aren't supported: open them in Visio and save as `.vssx`. EMF+-only pictures and
   WMF pictures are skipped with a note.

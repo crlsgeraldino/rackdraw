@@ -11,6 +11,14 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.6.1',
+    title: 'Visio stencils know their SFP ports',
+    items: [
+      'Importing a vendor switch stencil (e.g. USW-Pro-24-PoE) now finds its SFP uplink ports, so the bill of materials counts transceivers for them.',
+      'Connection points named in the stencil keep their name and type: power inlets, console and USB ports are no longer RJ45 ports.',
+    ],
+  },
+  {
     version: '1.6.0',
     title: 'Quote only what the job supplies',
     items: [
