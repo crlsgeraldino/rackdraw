@@ -1,7 +1,7 @@
 {
   "name": "netcraft",
   "productName": "RackDraw",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "RackDraw: free network, rack and floor-plan diagrams for client documentation",
   "author": "crlsgeraldino",
   "license": "MIT",
@@ -56,8 +56,14 @@
       "package.json"
     ],
     "extraFiles": [
-      { "from": "THIRD-PARTY-NOTICES.md", "to": "THIRD-PARTY-NOTICES.md" },
-      { "from": "LICENSE", "to": "LICENSE.RackDraw.txt" }
+      {
+        "from": "THIRD-PARTY-NOTICES.md",
+        "to": "THIRD-PARTY-NOTICES.md"
+      },
+      {
+        "from": "LICENSE",
+        "to": "LICENSE.RackDraw.txt"
+      }
     ],
     "win": {
       "target": [
@@ -89,7 +95,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@xyflow/react": "^13.0.2",
-    "electron": "^45.4.1",
+    "electron": "45.5.0",
     "electron-builder": "^26.18.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
