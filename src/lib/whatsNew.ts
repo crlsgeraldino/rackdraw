@@ -15,7 +15,7 @@ export const RELEASES: ReleaseNotes[] = [
     title: 'Up-to-date desktop engine',
     items: [
       'The desktop app runs on Electron 45.5 (the latest Chromium security fixes).',
-      'RackDraw's home on GitHub is now github.com/crlsgeraldino/rackdraw (the old address still works).',
+      'RackDraw\'s home on GitHub is now github.com/crlsgeraldino/rackdraw (the old address still works).',
     ],
   },
   {
