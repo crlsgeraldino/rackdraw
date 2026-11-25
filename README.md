@@ -534,8 +534,10 @@ Bug reports, Visio files that don't import well, ideas and pull requests are wel
   one `rackdraw-backup-<date>.json`. **File → Restore from backup…** adds it back without replacing anything: a
   client that is already here comes back as a copy named "(restored)".
   The backup can be protected with a password too (same encryption); Restore asks for it.
-- **Deleting a client** saves a copy of it first (`.rackdraw`, password-protected if its file is), so it can be opened
-  again; in the desktop app the client is deleted only once the copy is saved (cancelling the Save dialog keeps it).
+- **Closing or deleting a client** (File → Close / Delete this client) asks how: a client saved in its own `.rackdraw`
+  file just closes (the file stays; open it again from Recent); one with unsaved changes can be saved and closed, or
+  closed without saving; one with no file can be deleted with a copy saved first (password-protected if its file is,
+  and deleted only once the copy is saved) or without a copy.
 - **One tab at a time** (browser): RackDraw open in a second tab shows "already open in another tab" instead of the two
   tabs overwriting each other's clients; "Use RackDraw here" makes the first tab save and step aside.
 - **Recovery screen**: if the saved diagrams can't be read, nothing is deleted. "Start with an empty workspace" keeps the

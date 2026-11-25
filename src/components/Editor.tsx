@@ -15,6 +15,7 @@ import { FIND_EVENT } from '@/lib/events';
 import { usePref } from '@/lib/prefs';
 import type { AppNode, CableEdge, ShapeKind } from '@/lib/types';
 import { askText, PromptHost } from './PromptHost';
+import { ChoiceHost } from './ChoiceHost';
 import { HelpHost, WhatsNewHost } from './HelpDialog';
 import { WifiOverlay } from './WifiPlan';
 import { SwitchConfigHost } from './SwitchConfigDialog';
@@ -591,6 +592,7 @@ export default function Editor() {
         )}
         {!presenting && <StatusBar />}
         <PromptHost />
+        <ChoiceHost />
         <HelpHost />
         <SwitchConfigHost />
         <WhatsNewHost />
