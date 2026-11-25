@@ -11,6 +11,13 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.5.2',
+    title: 'Racks: no more duplicate devices',
+    items: [
+      'Dragging a shape into a rack now mounts the device of that kind that is already on the diagram, instead of adding a second one. Drag it in again to add another.',
+    ],
+  },
+  {
     version: '1.5.1',
     title: 'Up-to-date desktop engine',
     items: [
