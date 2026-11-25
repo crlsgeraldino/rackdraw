@@ -2,7 +2,7 @@
 
 import { fmtRuntime, rackPower, upsRating } from '@/lib/rackPower';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { allDevices } from '@/lib/project';
+import { activePage, allDevices } from '@/lib/project';
 import { openPortMap } from '@/lib/events';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
@@ -124,7 +124,7 @@ function SideList({ rack }: { rack: Rack | undefined }) {
             ))}
           </div>
 
-          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">New device</h3>
+          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">New device <span className="font-normal normal-case tracking-normal text-gray-400">(also added to the diagram)</span></h3>
           <input className={`${inputCls} mb-1 text-xs`} placeholder="Search devices…" value={q} onChange={(e) => setQ(e.target.value)} />
           {stencilGroups.map((g) => (
             <div key={g.name} className="mb-2">
@@ -190,6 +190,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
   const [preview, setPreview] = useState<{ face: 'front' | 'rear'; p: RackPreview } | null>(null);
   const [dragging, setDragging] = useState<RackItem | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [portHover, setPortHover] = useState<{ nodeId: string; port: string; x: number; y: number } | null>(null);
   const refs = { front: useRef<SVGSVGElement>(null), rear: useRef<SVGSVGElement>(null) };
   const stencil = (id: string) => findStencil(id, custom);
@@ -214,7 +215,22 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
     else if (p.type === 'accessory') {
       const a = ACCESSORIES[p.index];
       ok = placeRackItem(rack.id, { kind: a.kind, label: a.label.replace(/ \dU$/, ''), u, height: a.height, depth: depthFor(face, p) });
-    } else ok = addDeviceToRack(rack.id, p.stencilId, u);
+    } else {
+      // A device of this kind already on the diagram and not in any rack is the one meant: mount it rather than
+      // adding a second one to the diagram. Dragging the shape in again (none left unracked) adds a new one.
+      const racked = new Set((project.racks ?? []).flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
+      const onPage = new Set(activePage(project).nodes.map((n) => n.id));
+      const same = [...devices.values()].filter((n) => n.data.stencilId === p.stencilId && !racked.has(n.id));
+      const existing = same.find((n) => onPage.has(n.id)) ?? same[0];
+      if (existing) {
+        ok = placeRackItem(rack.id, { kind: 'device', nodeId: existing.id, u, height: p.height, depth: 'full' });
+        if (ok) setNotice(`Mounted "${existing.data.name}", the one already on the diagram. To add another, drag the shape in again.`);
+      } else {
+        ok = addDeviceToRack(rack.id, p.stencilId, u);
+        if (ok) setNotice('');
+      }
+    }
+    if (p.type !== 'stencil') setNotice('');
     setError(ok ? '' : `It doesn't fit at U${u}: that space is taken or outside the rack.`);
   };
 
@@ -264,6 +280,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
         </div>
       </div>
       {error && <div className="border-b border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700">{error}</div>}
+      {notice && !error && <div className="flex items-center border-b border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-800" role="status">{notice}<button type="button" className="ml-auto px-1 text-blue-700 hover:text-blue-900" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
       {portHover && <PortCard hover={portHover} />}
       <div ref={area} className="flex flex-1 flex-wrap content-start gap-6 overflow-auto p-4" onPointerDown={(e) => { if (e.target === e.currentTarget) selectRackItem(null); }}>
         {(['front', 'rear'] as const).map((face) => (
