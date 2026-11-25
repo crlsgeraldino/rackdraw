@@ -4,7 +4,7 @@
  * same sheet can be re-applied ("Refresh") after it is edited.
  */
 import { DEVICE_STATUSES } from './types';
-import { unzipSync } from 'fflate';
+import { unzipLimited, XLSX_LIMITS } from './zipSafe';
 import type { DeviceData, DeviceNode, Project } from './types';
 import { allDevices } from './project';
 
@@ -45,7 +45,7 @@ export function parseCsv(text: string): string[][] {
 
 /** Reads the first worksheet of an .xlsx file into rows of text. */
 export function readXlsx(bytes: Uint8Array): string[][] {
-  const files = unzipSync(bytes, { filter: (f) => f.name === 'xl/workbook.xml' || f.name === 'xl/_rels/workbook.xml.rels' || f.name === 'xl/sharedStrings.xml' || f.name.startsWith('xl/worksheets/sheet') });
+  const files = unzipLimited(bytes, XLSX_LIMITS, (n) => n === 'xl/workbook.xml' || n === 'xl/_rels/workbook.xml.rels' || n === 'xl/sharedStrings.xml' || n.startsWith('xl/worksheets/sheet'));
   const dec = (n: string) => (files[n] ? new TextDecoder().decode(files[n]) : '');
   const xml = (s: string) => new DOMParser().parseFromString(s, 'application/xml');
 

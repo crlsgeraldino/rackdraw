@@ -1,5 +1,6 @@
 import { bomTableRows, cablePathRows, CHANGE_TABLE, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, PORT_MAP_TABLE, portMapTableRows, portRows, rackPowerRows, rackRows, recentChangeRows, renderRack, siteRowsForReport, titleBlockCells, type PageRenderer } from './export';
 import { FRAME_COLOR, type Project } from './types';
+import { safeColor } from './safe';
 import { hasHeaderFooter, hfCss } from './headerFooter';
 
 import { PAPER, type PaperSize } from './pageSetup';
@@ -34,7 +35,7 @@ function headerHtml(p: Project, title: string) {
   // Borders & Titles → banner: the sheet title big on a coloured band, the client under it.
   if (p.display?.frame === 'banner') {
     const sub = [p.name, p.site, p.address, new Date().toLocaleDateString()].filter(Boolean).map(esc).join(' &nbsp;·&nbsp; ');
-    return `<header class="banner" style="background:${p.display.frameColor ?? FRAME_COLOR}"><h1>${esc(title)}</h1><div class="sub">${sub}</div></header>`;
+    return `<header class="banner" style="background:${safeColor(p.display.frameColor, FRAME_COLOR)}"><h1>${esc(title)}</h1><div class="sub">${sub}</div></header>`;
   }
   const sub = [p.site, p.address, title, new Date().toLocaleDateString()].filter(Boolean).map(esc).join(' &nbsp;·&nbsp; ');
   return `<header><h1>${esc(p.name)}</h1><div class="sub">${sub}</div></header>`;
@@ -43,7 +44,8 @@ function headerHtml(p: Project, title: string) {
 /** Page colour and simple frame of a printed sheet (Design → Backgrounds / Borders & Titles). */
 function sheetStyle(p: Project) {
   const d = p.display;
-  return [d?.pageColor ? `background:${d.pageColor}` : '', d?.frame === 'simple' ? `border:2px solid ${d.frameColor ?? FRAME_COLOR};outline:1px solid ${d.frameColor ?? FRAME_COLOR};outline-offset:3px;padding:6pt` : ''].filter(Boolean).join(';');
+  const frame = safeColor(d?.frameColor, FRAME_COLOR);
+  return [d?.pageColor ? `background:${safeColor(d.pageColor, '#ffffff')}` : '', d?.frame === 'simple' ? `border:2px solid ${frame};outline:1px solid ${frame};outline-offset:3px;padding:6pt` : ''].filter(Boolean).join(';');
 }
 
 function tableHtml(p: Project, title: string, cols: string[], rows: (string | number)[][]) {

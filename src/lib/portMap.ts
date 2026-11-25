@@ -1,5 +1,6 @@
 import { allDevices } from './project';
 import { rackLabel } from './rack';
+import { num, safeColor } from './safe';
 import { pathLength, tracePath, type TraceHop } from './trace';
 import type { DeviceNode, PortDef, PortStatus, Project, StencilDef } from './types';
 
@@ -131,7 +132,7 @@ export const documentedPort = (r: PortMapRow) => r.cabled || !!r.note || !!r.sta
 export function portFill(r: PortMapRow): { fill: string; stroke: string; text: string } {
   if (r.status === 'disabled') return { fill: '#d1d5db', stroke: '#6b7280', text: '#374151' };
   if (r.status === 'down') return { fill: '#fee2e2', stroke: '#dc2626', text: '#991b1b' };
-  if (r.cabled || r.note || r.status === 'up') return { fill: r.vlanColor ?? '#bbf7d0', stroke: r.uplink ? '#1d4ed8' : '#15803d', text: '#111827' };
+  if (r.cabled || r.note || r.status === 'up') return { fill: safeColor(r.vlanColor, '#bbf7d0'), stroke: r.uplink ? '#1d4ed8' : '#15803d', text: '#111827' };
   return { fill: '#ffffff', stroke: '#9ca3af', text: '#6b7280' };
 }
 
@@ -140,7 +141,9 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 /** The device's face as SVG: its ports where they really are, coloured by state, numbered. */
 export function portFaceSvg(m: PortMap, widthPx = 720): string {
   const st = m.stencil;
-  const ports = st?.ports.filter((q) => m.rows.some((r) => r.id === q.id)) ?? [];
+  // Numbers only: the geometry goes into SVG markup.
+  const ports = (st?.ports.filter((q) => m.rows.some((r) => r.id === q.id)) ?? [])
+    .map((q) => ({ ...q, x: num(q.x), y: num(q.y), w: Math.max(0.1, num(q.w, 10)), h: Math.max(0.1, num(q.h, 10)) }));
   if (!st || !ports.length) return '';
   const pad = 4;
   const minX = Math.min(...ports.map((q) => q.x)) - pad;

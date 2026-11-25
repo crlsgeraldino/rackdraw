@@ -11,7 +11,7 @@ import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { rackdrawStorage, reportLoadError } from '@/lib/persistence';
-import { sanitizeProject } from '@/lib/sanitize';
+import { sanitizeProject, sanitizeStencil, sanitizeStencils } from '@/lib/sanitize';
 import type { BackupFile } from '@/lib/backup';
 import type { ImportPlan } from '@/lib/dataImport';
 import { pack, unpack, usedPool } from '@/lib/blobPool';
@@ -2280,8 +2280,8 @@ export const useDiagram = create<DiagramState>()(
           const next = { ...get().customStencils };
           const names = new Set(Object.values(next).map(libraryOf));
           let added = 0;
-          for (const s of list) {
-            if (!s?.id || STENCIL_MAP[s.id] || s.style !== 'image' || !s.image) continue;
+          for (const s of sanitizeStencils(list)) {
+            if (STENCIL_MAP[s.id]) continue;
             if (!next[s.id]) added++;
             const lib = resolveLibrary(s.library?.trim() || library || DEFAULT_LIBRARY, names);
             names.add(lib);
@@ -2311,6 +2311,14 @@ export const useDiagram = create<DiagramState>()(
       // Coalesced, error-reporting saves (lib/persistence.ts); same stored format as before.
       storage: rackdrawStorage as never,
       onRehydrateStorage: () => (_state, error) => { if (error) reportLoadError(error); },
+      // Stored stencils are checked on every start: one broken stencil must not show the error screen forever.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<DiagramState>;
+        const custom = p.customStencils && typeof p.customStencils === 'object'
+          ? Object.fromEntries(Object.values(p.customStencils).map(sanitizeStencil).filter((s): s is StencilDef => !!s).map((s) => [s.id, s]))
+          : current.customStencils;
+        return { ...current, ...p, customStencils: custom };
+      },
       partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, templates: s.templates, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
         const state = persisted as Partial<DiagramState>;

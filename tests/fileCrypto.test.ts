@@ -6,7 +6,7 @@ import { deriveSecret, makeCheck, unlockJson, passwordMatches, protectText, seal
 import { isRackdrawPackage, packProtected, packRackdraw, protectionOf, RACKDRAW_MIME, RackdrawFileError, unpackRackdraw, unprotect } from '../src/lib/rackdrawFile';
 
 // Fewer rounds keep the tests quick; the app uses 600,000.
-const FAST = 1000;
+const FAST = 100_000;
 
 describe('password protection', () => {
   it('seals and unseals; a wrong password or a changed byte is refused', async () => {

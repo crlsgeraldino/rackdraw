@@ -97,7 +97,11 @@ export async function protectText(text: string, password: string): Promise<Prote
   return { format: 'rackdraw-backup-protected', version: 1, kdf: 'PBKDF2-SHA256', iterations: secret.iterations, salt: toB64(secret.salt), iv: toB64(s.iv), data: toB64(s.data) };
 }
 
+/** Iteration counts RackDraw accepts from a file: never weak, never so many that opening it hangs. */
+export const validIterations = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 100_000 && n <= 5_000_000;
+
 export async function unprotectText(p: ProtectedJson, password: string): Promise<string> {
+  if (!validIterations(p.iterations) || typeof p.salt !== 'string' || typeof p.iv !== 'string' || typeof p.data !== 'string') throw new Error('This backup is damaged and can\'t be opened.');
   const secret = await deriveSecret(password, fromB64(p.salt), p.iterations);
   return new TextDecoder().decode(await unseal(secret, { iv: fromB64(p.iv), data: fromB64(p.data) }));
 }

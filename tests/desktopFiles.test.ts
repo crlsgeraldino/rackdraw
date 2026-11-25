@@ -10,7 +10,9 @@ import { packRackdraw } from '../src/lib/rackdrawFile';
 const files = createRequire(import.meta.url)('../electron/files.cjs') as {
   key: (p: string) => string;
   isRackdrawOnDisk: (p: string) => boolean;
-  mayWrite: (p: unknown, approved: Set<string>) => boolean;
+  mayWrite: (p: unknown, approved: { has: (k: string) => boolean }) => boolean;
+  isUnc: (p: unknown) => boolean;
+  approvedStore: (file: string) => { has: (k: string) => boolean; add: (p: string) => void; flush: () => void };
   writeAtomic: (p: string, b: Uint8Array) => Promise<void>;
   filesIn: (argv: string[]) => string[];
   suggestedPath: (given: unknown, name: string, docs: string) => string;
@@ -32,9 +34,9 @@ describe('desktop file rules', () => {
     assert.equal(files.isRackdrawOnDisk(join(dir, 'missing.rackdraw')), false);
   });
 
-  it('writes without asking only to a picked / opened .rackdraw file or an existing drawing', () => {
+  it('writes without asking only to a .rackdraw file the user picked or opened', () => {
     const approved = new Set<string>();
-    assert.equal(files.mayWrite(drawing, approved), true, 'an existing RackDraw drawing');
+    assert.equal(files.mayWrite(drawing, approved), false, 'an existing drawing the user never opened: the Save dialog asks');
     assert.equal(files.mayWrite(fake, approved), false, 'a file only named .rackdraw');
     assert.equal(files.mayWrite(doc, approved), false);
     assert.equal(files.mayWrite(join(dir, 'New.rackdraw'), approved), false, 'a new file: the Save dialog asks');
@@ -44,6 +46,20 @@ describe('desktop file rules', () => {
     assert.equal(files.mayWrite(doc, approved), false, 'never anything but .rackdraw');
     assert.equal(files.mayWrite('relative.rackdraw', approved), false);
     assert.equal(files.mayWrite(undefined, approved), false);
+  });
+
+  it('remembers approved files between runs, and never network paths it was not given', () => {
+    const store = join(dir, 'approved.json');
+    const a = files.approvedStore(store);
+    a.add(drawing);
+    a.flush();
+    const b = files.approvedStore(store);
+    assert.equal(files.mayWrite(drawing, b), true, 'after a restart');
+    assert.equal(files.mayWrite(join(dir, 'Other.rackdraw'), b), false);
+    assert.equal(files.isUnc('\\\\server\\share\\x.rackdraw'), true);
+    assert.equal(files.isUnc('//server/share/x.rackdraw'), true);
+    assert.equal(files.isUnc(drawing), false);
+    assert.equal(files.suggestedPath('\\\\server\\share\\x.rackdraw', 'Acme', 'C:\\Docs'), join('C:\\Docs', 'Acme.rackdraw'), 'a network path is not suggested');
   });
 
   it('saves by replacing the file in one step, leaving no temporary file', async () => {

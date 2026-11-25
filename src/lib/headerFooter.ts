@@ -38,7 +38,8 @@ export function expandFields(text: string, p: Project, pageId: string) {
  * known there, so it is left out.
  */
 export function hfCss(text: string, p: Project) {
-  const q = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  // A CSS string inside a <style> element: "<" is escaped too, so the text can never close the element.
+  const q = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/</g, '\\3c ').replace(/[\r\n\f]/g, ' ')}"`;
   const fixed = expandHF(text.replace(/&\[Page\]/gi, '\u0001').replace(/&\[Pages\]/gi, '\u0002'), p, { page: 0, pages: 0, sheet: '' });
   return fixed.split(/(\u0001|\u0002)/).filter((x) => x !== '').map((x) => (x === '\u0001' ? 'counter(page)' : x === '\u0002' ? 'counter(pages)' : q(x))).join(' ') || '""';
 }

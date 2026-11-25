@@ -2,6 +2,7 @@
 // A custom scheme (rather than file://) keeps absolute asset paths working and gives the app a
 // stable origin, so diagrams saved in localStorage persist between launches.
 const { app, BrowserWindow, Menu, dialog, ipcMain, net, protocol, session, shell } = require('electron');
+const crypto = require('node:crypto');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -17,12 +18,13 @@ app.setPath('userData', process.env.RACKDRAW_DATA_DIR ? path.resolve(process.env
 /*
  * What the app's pages may load: only the app itself (plus data: / blob: pictures, and the PDF reader's worker).
  * Nothing from the internet — so text from an imported file can never send the diagrams anywhere or pull code in.
- * Next.js puts its start-up data in inline scripts, hence 'unsafe-inline' for scripts; WebAssembly is for the PDF
- * reader's image decoders.
+ * Scripts: the app's own files, plus exactly the inline start-up scripts Next.js wrote into each page (allowed by
+ * their hashes, see cspFor) — no other inline script or event handler can run, even if a file managed to put markup
+ * into the page. WebAssembly is for the PDF reader's image decoders.
  */
-const CSP = [
+const csp = (scriptHashes) => [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  `script-src 'self' 'wasm-unsafe-eval'${scriptHashes.map((h) => ` '${h}'`).join('')}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
@@ -35,6 +37,21 @@ const CSP = [
   "frame-src 'none'",
   "frame-ancestors 'none'",
 ].join('; ');
+const CSP = csp([]);
+
+/** The policy for one of the app's HTML pages: its own inline scripts by hash (pages never change while running). */
+const pageCsp = new Map();
+function cspFor(file, html) {
+  if (!pageCsp.has(file)) {
+    const hashes = new Set();
+    for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+      if (/\bsrc\s*=/i.test(m[1]) || !m[2]) continue;
+      hashes.add(`sha256-${crypto.createHash('sha256').update(m[2], 'utf8').digest('base64')}`);
+    }
+    pageCsp.set(file, csp([...hashes]));
+  }
+  return pageCsp.get(file);
+}
 
 /**
  * Browser permissions the app's own pages get: the clipboard (Copy buttons — Electron reports navigator.clipboard
@@ -90,9 +107,14 @@ function openOutside(url) {
 
 /* ---------- .rackdraw files: Save / Save As, and files opened from Explorer ---------- */
 
-const { MAX_FILE, key, mayWrite, writeAtomic, filesIn, suggestedPath, isClientFile } = require('./files.cjs');
-/** Files the user picked in a Save dialog or opened this session: Save may write back to them without asking. */
-const approved = new Set();
+const { MAX_FILE, key, isUnc, mayWrite, approvedStore, writeAtomic, filesIn, suggestedPath, isClientFile } = require('./files.cjs');
+/**
+ * Files the user picked in a Save dialog or opened (double-click, File → Open, command line): Save may write back to
+ * them without asking. Kept here in the desktop app, remembered between runs; the page can't add to it.
+ */
+let approved = null;
+/** A client file the page may open / show: one the user approved before, or a local (not network) client file. */
+const mayTouch = (p) => typeof p === 'string' && (approved.has(key(p)) || (!isUnc(p) && isClientFile(p)));
 
 let mainWindow = null;
 let pageReady = false;
@@ -103,7 +125,7 @@ async function openFiles(paths) {
     try {
       if ((await fsp.stat(p)).size > MAX_FILE) continue;
       const bytes = new Uint8Array(await fsp.readFile(p));
-      if (/\.rackdraw$/i.test(p)) approved.add(key(p));
+      if (/\.rackdraw$/i.test(p)) approved.add(p);
       app.addRecentDocument(p); // the taskbar icon's list (Windows jump list)
       const file = { path: p, name: path.basename(p), bytes };
       if (pageReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rd:open-file', file);
@@ -123,7 +145,7 @@ ipcMain.handle('rd:save', async (e, args) => {
   if (!target) {
     const r = await dialog.showSaveDialog(win, {
       title: 'Save client',
-      defaultPath: suggestedPath(given, suggestedName, app.getPath('documents')),
+      defaultPath: suggestedPath(mayTouch(given) ? given : undefined, suggestedName, app.getPath('documents')),
       filters: [{ name: 'RackDraw drawing', extensions: ['rackdraw'] }],
       properties: ['showOverwriteConfirmation'],
     });
@@ -131,21 +153,21 @@ ipcMain.handle('rd:save', async (e, args) => {
     target = /\.rackdraw$/i.test(r.filePath) ? r.filePath : `${r.filePath}.rackdraw`;
   }
   await writeAtomic(target, Buffer.from(bytes));
-  approved.add(key(target));
+  approved.add(target);
   app.addRecentDocument(target);
   return { path: target, name: path.basename(target) };
 });
 
 // File → Recent: open a client file again (only client files: .rackdraw, .rackdraw.json, .netcraft.json).
 ipcMain.handle('rd:open-path', async (e, p) => {
-  if (!isOwn(e.senderFrame?.url ?? '') || !isClientFile(p)) return false;
+  if (!isOwn(e.senderFrame?.url ?? '') || !mayTouch(p)) return false;
   await openFiles([p]);
   return true;
 });
 
 // Open file location: Explorer with the client's file selected.
 ipcMain.handle('rd:show-in-folder', (e, p) => {
-  if (!isOwn(e.senderFrame?.url ?? '') || !isClientFile(p)) return false;
+  if (!isOwn(e.senderFrame?.url ?? '') || !mayTouch(p)) return false;
   shell.showItemInFolder(p);
   return true;
 });
@@ -177,11 +199,9 @@ function createWindow() {
     if (!isOwn(url)) openOutside(url);
     return { action: 'deny' };
   });
+  // The window itself never leaves the app (links open through window.open above, from a click).
   const keepInside = (e, url) => {
-    if (!isOwn(url)) {
-      e.preventDefault();
-      openOutside(url);
-    }
+    if (!isOwn(url)) e.preventDefault();
   };
   win.webContents.on('will-navigate', keepInside);
   win.webContents.on('will-redirect', keepInside);
@@ -249,6 +269,7 @@ function createWindow() {
 // running with no windows otherwise).
 let quitting = false;
 app.on('before-quit', () => { quitting = true; });
+app.on('will-quit', () => approved?.flush());
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -264,13 +285,19 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    approved = approvedStore(path.join(app.getPath('userData'), 'approved-files.json'));
+    // Every response carries the policy (pages, scripts, the PDF reader's worker, pictures).
     protocol.handle('app', async (req) => {
       const file = resolveFile(new URL(req.url).pathname);
       const res = await net.fetch(pathToFileURL(file).toString());
-      if (!/\.html?$/i.test(file)) return res;
       const headers = new Headers(res.headers);
-      headers.set('Content-Security-Policy', CSP);
       headers.set('X-Content-Type-Options', 'nosniff');
+      if (/\.html?$/i.test(file)) {
+        const html = await res.text();
+        headers.set('Content-Security-Policy', cspFor(file, html));
+        return new Response(html, { status: res.status, statusText: res.statusText, headers });
+      }
+      headers.set('Content-Security-Policy', CSP);
       return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
     });
     const ses = session.defaultSession;
