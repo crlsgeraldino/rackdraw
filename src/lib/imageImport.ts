@@ -3,6 +3,44 @@
 const MAX_SIDE = 2000;
 const MAX_BYTES = 1.5 * 1024 * 1024;
 
+/** Pictures with more pixels than this are refused before decoding (a small file can claim a gigantic picture). */
+const MAX_PIXELS = 100_000_000;
+
+/**
+ * Width and height from a PNG, JPEG, GIF, WebP or BMP header, without decoding the picture; null when unknown.
+ */
+export function imageDims(b: Uint8Array): { width: number; height: number } | null {
+  const u16be = (i: number) => (b[i] << 8) | b[i + 1];
+  const u32be = (i: number) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+  const u16le = (i: number) => b[i] | (b[i + 1] << 8);
+  const ascii = (i: number, n: number) => String.fromCharCode(...b.subarray(i, i + n));
+  if (b.length >= 24 && b[0] === 0x89 && ascii(1, 3) === 'PNG') return { width: u32be(16), height: u32be(20) };
+  if (b.length >= 10 && ascii(0, 3) === 'GIF') return { width: u16le(6), height: u16le(8) };
+  if (b.length >= 26 && ascii(0, 2) === 'BM') {
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    return { width: Math.abs(v.getInt32(18, true)), height: Math.abs(v.getInt32(22, true)) };
+  }
+  if (b.length >= 30 && ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') {
+    const kind = ascii(12, 4);
+    if (kind === 'VP8X') return { width: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), height: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) };
+    if (kind === 'VP8L') { const n = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24); return { width: 1 + (n & 0x3fff), height: 1 + ((n >> 14) & 0x3fff) }; }
+    if (kind === 'VP8 ') return { width: u16le(26) & 0x3fff, height: u16le(28) & 0x3fff };
+    return null;
+  }
+  if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8) {
+    // JPEG: walk the segments to the frame header (SOF0…SOF15, not DHT/JPG/DAC).
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) { i++; continue; }
+      const m = b[i + 1];
+      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7) || m === 0xff) { i += m === 0xff ? 1 : 2; continue; }
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { width: u16be(i + 7), height: u16be(i + 5) };
+      i += 2 + u16be(i + 2);
+    }
+  }
+  return null;
+}
+
 export interface LoadedImage {
   dataUrl: string;
   width: number;
@@ -53,6 +91,10 @@ export async function loadImageFile(file: File): Promise<LoadedImage> {
   }
 
   if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(file.type)) throw new Error('Use an SVG, PNG, JPG or WebP image.');
+  const dims = imageDims(new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer()));
+  if (dims && dims.width * dims.height > MAX_PIXELS) {
+    throw new Error(`This picture is ${dims.width} × ${dims.height} pixels, too large to import. Make it smaller (under 10,000 × 10,000) and try again.`);
+  }
   const original = await readAs(file, 'dataURL');
   const img = await loadImage(original);
   const big = Math.max(img.naturalWidth, img.naturalHeight);

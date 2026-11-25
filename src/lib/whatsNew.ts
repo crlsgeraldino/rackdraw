@@ -11,6 +11,16 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.4.2',
+    title: 'Opens more files, never freezes on bad ones',
+    items: [
+      'Insert → CAD Drawing reads large floor plans (hundreds of thousands of lines) that used to fail, and a damaged DXF shows a message instead of freezing RackDraw.',
+      'Link Data and Network Scan import read big sheets and scans quickly; a damaged Excel or nmap file no longer freezes the app.',
+      'Visio stencils with damaged pictures inside, and pictures or PDFs with impossible sizes, are refused with a clear message instead of using up memory.',
+      'A client file with damaged fields opens and works in Check Diagram, the IP plan, the bill of materials, port maps and labels.',
+    ],
+  },
+  {
     version: '1.4.1',
     title: 'Your data, safer',
     items: [

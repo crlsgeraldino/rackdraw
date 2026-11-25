@@ -37,11 +37,28 @@ export function normMac(v?: string) {
 /** MAC written the usual way: "AA:BB:CC:DD:EE:FF". */
 const showMac = (hex: string) => hex.toUpperCase().match(/../g)!.join(':');
 
+/**
+ * The contents of each <tag …>…</tag> block, found with indexOf (a lazy regex rescans the rest of the text from every
+ * unclosed tag, which freezes on a damaged file). [attributes, body] per block.
+ */
+function blocks(text: string, tag: string): [string, string][] {
+  const out: [string, string][] = [];
+  const open = new RegExp(`<${tag}\\b([^>]*)>`, 'g');
+  const close = `</${tag}>`;
+  for (let m = open.exec(text); m; m = open.exec(text)) {
+    const start = m.index + m[0].length;
+    const end = text.indexOf(close, start);
+    if (end < 0) break; // no more closed blocks
+    out.push([m[1], text.slice(start, end)]);
+    open.lastIndex = end + close.length;
+  }
+  return out;
+}
+
 function parseNmap(xml: string): ScanParse {
   const hosts: ScanHost[] = [];
   let skipped = 0;
-  for (const m of xml.matchAll(/<host\b[^>]*>([\s\S]*?)<\/host>/g)) {
-    const body = m[1];
+  for (const [, body] of blocks(xml, 'host')) {
     const state = /<status\b[^>]*>/.exec(body)?.[0];
     if (state && attr(state, 'state') !== 'up') { skipped++; continue; }
     let ip: string | undefined, mac: string | undefined, vendor: string | undefined;
@@ -53,9 +70,9 @@ function parseNmap(xml: string): ScanParse {
     if (!ip) { skipped++; continue; }
     const hn = /<hostname\b[^>]*>/.exec(body)?.[0];
     const ports: number[] = [];
-    for (const p of body.matchAll(/<port\b([^>]*)>([\s\S]*?)<\/port>/g)) {
-      const st = /<state\b[^>]*>/.exec(p[2])?.[0];
-      if (st && attr(st, 'state') === 'open') ports.push(Number(attr(p[1], 'portid')));
+    for (const [attrs, inner] of blocks(body, 'port')) {
+      const st = /<state\b[^>]*>/.exec(inner)?.[0];
+      if (st && attr(st, 'state') === 'open') ports.push(Number(attr(attrs, 'portid')));
     }
     const os = /<osmatch\b[^>]*>/.exec(body)?.[0];
     hosts.push({

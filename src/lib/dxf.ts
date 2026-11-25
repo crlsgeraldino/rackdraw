@@ -56,13 +56,25 @@ function entities(ps: Pair[]): Pair[][] {
   return out;
 }
 
-const num = (e: Pair[], code: number, def = 0) => { const p = e.find((x) => x[0] === code); return p ? parseFloat(p[1]) || 0 : def; };
+const num = (e: Pair[], code: number, def = 0) => { const p = e.find((x) => x[0] === code); const v = p ? parseFloat(p[1]) : def; return Number.isFinite(v) ? v : 0; };
+
+/** A damaged or enormous drawing stops with a clear message instead of freezing the app. */
+const MAX_ENTITIES = 1_000_000;
+const MAX_POINTS = 3_000_000;
+const TOO_BIG = 'This drawing is too large or too complex to insert (over a million items, or blocks nested many times). Save a simpler version from your CAD program (only the floor plan layers).';
+
+/** The sweep from a0 to a1 counter-clockwise, in (0, 2π]: never loops, whatever the file says. */
+function sweep(a0: number, a1: number) {
+  const full = Math.PI * 2;
+  if (!Number.isFinite(a0) || !Number.isFinite(a1)) return full;
+  const s = (a1 - a0) % full;
+  return s > 0 ? s : s + full;
+}
 const str = (e: Pair[], code: number) => e.find((x) => x[0] === code)?.[1] ?? '';
 
 /** Points along an arc (angles in radians, counter-clockwise from a0 to a1). */
 function arcPts(c: Pt, r: number, a0: number, a1: number): Pt[] {
-  let span = a1 - a0;
-  while (span <= 0) span += Math.PI * 2;
+  const span = sweep(a0, a1);
   const n = Math.max(4, Math.ceil(span / (Math.PI / 18)));
   return Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (span * i) / n; return { x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) }; });
 }
@@ -153,6 +165,12 @@ export function parseDxf(text: string): DxfResult {
 
   const geo: Geo = { lines: [], texts: [] };
   let count = 0;
+  let points = 0;
+  const addLine = (l: Pt[]) => {
+    points += l.length;
+    if (points > MAX_POINTS) throw new Error(TOO_BIG);
+    geo.lines.push(l);
+  };
   const walk = (ents: Pair[][], xf: Xf[], depth: number) => {
     const tp = (p: Pt) => xf.reduceRight((q, x) => apply(x, q), p);
     const scaleOf = () => xf.reduce((k, x) => k * Math.sqrt(Math.abs(x.sx * x.sy)), 1);
@@ -160,26 +178,26 @@ export function parseDxf(text: string): DxfResult {
     for (let k = 0; k < ents.length; k++) {
       const e = ents[k];
       const type = e[0][1];
-      count++;
-      if (type === 'LINE') geo.lines.push([tp({ x: num(e, 10), y: num(e, 20) }), tp({ x: num(e, 11), y: num(e, 21) })]);
+      if (++count > MAX_ENTITIES) throw new Error(TOO_BIG);
+      if (type === 'LINE') addLine([tp({ x: num(e, 10), y: num(e, 20) }), tp({ x: num(e, 11), y: num(e, 21) })]);
       else if (type === 'LWPOLYLINE') {
         const { pts, bulge } = lwVertices(e);
-        geo.lines.push(withBulges(pts, bulge, (num(e, 70) & 1) === 1).map(tp));
+        addLine(withBulges(pts, bulge, (num(e, 70) & 1) === 1).map(tp));
       } else if (type === 'POLYLINE') {
         // Old-style polyline: VERTEX entities follow until SEQEND.
         const pts: Pt[] = [], bulge: number[] = [];
         while (ents[k + 1] && ents[k + 1][0][1] === 'VERTEX') { k++; pts.push({ x: num(ents[k], 10), y: num(ents[k], 20) }); bulge.push(num(ents[k], 42)); }
         if (ents[k + 1]?.[0][1] === 'SEQEND') k++;
-        geo.lines.push(withBulges(pts, bulge, (num(e, 70) & 1) === 1).map(tp));
-      } else if (type === 'CIRCLE') geo.lines.push(arcPts({ x: num(e, 10), y: num(e, 20) }, num(e, 40), 0, Math.PI * 2).map(tp));
-      else if (type === 'ARC') geo.lines.push(arcPts({ x: num(e, 10), y: num(e, 20) }, num(e, 40), (num(e, 50) * Math.PI) / 180, (num(e, 51) * Math.PI) / 180).map(tp));
+        addLine(withBulges(pts, bulge, (num(e, 70) & 1) === 1).map(tp));
+      } else if (type === 'CIRCLE') addLine(arcPts({ x: num(e, 10), y: num(e, 20) }, num(e, 40), 0, Math.PI * 2).map(tp));
+      else if (type === 'ARC') addLine(arcPts({ x: num(e, 10), y: num(e, 20) }, num(e, 40), (num(e, 50) * Math.PI) / 180, (num(e, 51) * Math.PI) / 180).map(tp));
       else if (type === 'ELLIPSE') {
         const c = { x: num(e, 10), y: num(e, 20) }, mx = num(e, 11), my = num(e, 21), ratio = num(e, 40, 1);
         const a0 = num(e, 41, 0), a1 = num(e, 42, Math.PI * 2);
         const rot = Math.atan2(my, mx), ra = Math.hypot(mx, my), rb = ra * ratio;
-        let span = a1 - a0; while (span <= 0) span += Math.PI * 2;
+        const span = sweep(a0, a1);
         const n = Math.max(8, Math.ceil(span / (Math.PI / 18)));
-        geo.lines.push(Array.from({ length: n + 1 }, (_, i) => {
+        addLine(Array.from({ length: n + 1 }, (_, i) => {
           const t = a0 + (span * i) / n, x = ra * Math.cos(t), y = rb * Math.sin(t);
           return tp({ x: c.x + x * Math.cos(rot) - y * Math.sin(rot), y: c.y + x * Math.sin(rot) + y * Math.cos(rot) });
         }));
@@ -187,12 +205,13 @@ export function parseDxf(text: string): DxfResult {
         // Through its fit points when it has them, else its control points: close enough for a background.
         const fit = e.filter((p) => p[0] === 11).length;
         const xs = e.filter((p) => p[0] === (fit ? 11 : 10)).map((p) => parseFloat(p[1])), ys = e.filter((p) => p[0] === (fit ? 21 : 20)).map((p) => parseFloat(p[1]));
-        geo.lines.push(xs.map((x, i) => tp({ x, y: ys[i] ?? 0 })));
+        addLine(xs.map((x, i) => tp({ x, y: ys[i] ?? 0 })));
       } else if (type === 'TEXT' || type === 'MTEXT') {
         const raw = type === 'MTEXT' ? e.filter((p) => p[0] === 3).map((p) => p[1]).join('') + str(e, 1) : str(e, 1);
         const t = cleanText(raw);
         if (!t) continue;
         const angle = type === 'MTEXT' && e.some((p) => p[0] === 11) ? Math.atan2(num(e, 21), num(e, 11)) : (num(e, 50) * Math.PI) / 180;
+        if (++points > MAX_POINTS) throw new Error(TOO_BIG);
         geo.texts.push({ at: tp({ x: num(e, 10), y: num(e, 20) }), h: num(e, 40, 2.5) * scaleOf(), rot: angle + rotOf(), text: t });
       } else if (type === 'INSERT' && depth < 5) {
         const b = blocks.get(str(e, 2));
@@ -204,10 +223,15 @@ export function parseDxf(text: string): DxfResult {
   walk(entities(sections.get('ENTITIES')!), [], 0);
 
   // Bounds, then the picture: long side 1600px, y flipped (DXF y goes up).
-  const all = [...geo.lines.flat(), ...geo.texts.map((t) => t.at)].filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-  if (!all.length) throw new Error('No drawing found in this DXF (only lines, polylines, arcs, circles, text and blocks are read).');
-  const x0 = Math.min(...all.map((p) => p.x)), x1 = Math.max(...all.map((p) => p.x));
-  const y0 = Math.min(...all.map((p) => p.y)), y1 = Math.max(...all.map((p) => p.y));
+  // Points that aren't numbers (a damaged file) are left out; bounds with a loop (a spread overflows on big drawings).
+  const ok = (p: Pt) => Number.isFinite(p.x) && Number.isFinite(p.y);
+  geo.lines = geo.lines.map((l) => l.filter(ok));
+  geo.texts = geo.texts.filter((t) => ok(t.at) && Number.isFinite(t.h) && Number.isFinite(t.rot));
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  const grow = (p: Pt) => { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; };
+  for (const l of geo.lines) for (const p of l) grow(p);
+  for (const t of geo.texts) grow(t.at);
+  if (x0 === Infinity) throw new Error('No drawing found in this DXF (only lines, polylines, arcs, circles, text and blocks are read).');
   const w = Math.max(1e-9, x1 - x0), h = Math.max(1e-9, y1 - y0);
   const k = 1600 / Math.max(w, h);
   const pad = 8;

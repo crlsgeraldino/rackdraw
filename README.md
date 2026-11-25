@@ -352,6 +352,8 @@ the clipboard (Copy buttons), persistent storage and full screen. The installed 
   lines, walls and cable lengths measure in real feet or metres straight away. Otherwise use Design → Set Scale on a
   known length.
 - **.dwg** isn't read directly: save it as DXF from AutoCAD, or with the free DWG TrueView / ODA File Converter.
+- Drawings up to about a million items (3 million points) are read; bigger or endlessly nested ones are refused with
+  a message. Save just the floor-plan layers from your CAD program in that case.
 
 ## Stacking order and protection (Home → Arrange)
 

@@ -85,7 +85,7 @@ export function bmpToRgba(bytes: Uint8Array): { w: number; h: number; rgba: Uint
 }
 
 /** Decodes an uncompressed DIB to RGBA (top-down). Returns null for formats we don't handle (JPEG/PNG/RLE in DIB). */
-function decodeDib(v: DataView, offBmi: number, offBits: number): { w: number; h: number; rgba: Uint8ClampedArray } | null {
+function decodeDib(v: DataView, offBmi: number, offBits: number, end = v.byteLength): { w: number; h: number; rgba: Uint8ClampedArray } | null {
   const hdr = v.getUint32(offBmi, true);
   const w = v.getInt32(offBmi + 4, true);
   const hRaw = v.getInt32(offBmi + 8, true);
@@ -102,6 +102,8 @@ function decodeDib(v: DataView, offBmi: number, offBits: number): { w: number; h
   const palette: [number, number, number][] = [];
   for (let i = 0; i < (bpp <= 8 ? used : 0); i++) palette.push([v.getUint8(palOff + i * 4 + 2), v.getUint8(palOff + i * 4 + 1), v.getUint8(palOff + i * 4)]);
   const stride = Math.ceil((w * bpp) / 32) * 4;
+  // The pixels must be in the file (or the record): a bitmap can't claim more data than there is.
+  if (offBits < 0 || offBits + stride * h > end) return null;
   const rgba = new Uint8ClampedArray(w * h * 4);
   let anyAlpha = false;
   for (let y = 0; y < h; y++) {
@@ -152,6 +154,9 @@ export function emfToSvg(buf: ArrayBuffer | Uint8Array, encodeDib?: DibEncoder):
   const defs: string[] = [];
   let clipSeq = 0;
   let drawn = 0;
+  // Bitmap pixels decoded so far: a small file must not make the app decode gigabytes.
+  let pixels = 0;
+  const MAX_PIXELS = 32e6;
 
   // Logical → device.
   const scaleXY = () => {
@@ -208,10 +213,17 @@ export function emfToSvg(buf: ArrayBuffer | Uint8Array, encodeDib?: DibEncoder):
 
   const drawBitmap = (rec: number, dx: number, dy: number, dw: number, dh: number, offBmi: number, cbBmi: number, offBits: number, sx: number, sy: number, sw: number, sh: number) => {
     if (!encodeDib || !cbBmi) return;
-    const dib = decodeDib(v, rec + offBmi, rec + offBits);
+    // The bitmap's header and pixels must lie inside this record.
+    const size = v.getUint32(rec + 4, true);
+    if (cbBmi < 40 || offBmi + cbBmi > size || offBits >= size) return;
+    const bw = Math.abs(v.getInt32(rec + offBmi + 4, true)), bh = Math.abs(v.getInt32(rec + offBmi + 8, true));
+    if (pixels + bw * bh > MAX_PIXELS) return;
+    pixels += bw * bh;
+    const dib = decodeDib(v, rec + offBmi, rec + offBits, rec + size);
     if (!dib) return;
     let { w, h, rgba } = dib;
-    // Crop to the source rectangle when only part of the bitmap is used.
+    // Crop to the source rectangle when only part of the bitmap is used (never larger than the bitmap).
+    sx = Math.max(0, Math.min(sx, w - 1)); sy = Math.max(0, Math.min(sy, h - 1));
     if (sw > 0 && sh > 0 && (sx || sy || sw !== w || sh !== h)) {
       const cw = Math.min(sw, w - sx), ch = Math.min(sh, h - sy);
       if (cw <= 0 || ch <= 0) return;

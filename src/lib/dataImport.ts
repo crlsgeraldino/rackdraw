@@ -17,6 +17,10 @@ export interface Table {
 /*  Reading files                                                      */
 /* ------------------------------------------------------------------ */
 
+/** Excel's own limits: anything bigger is damaged (and would freeze the app). */
+const MAX_COLS = 16_384;
+const MAX_ROWS = 1_048_576;
+
 /** RFC 4180-style CSV parser; detects comma, semicolon or tab delimiters. */
 export function parseCsv(text: string): string[][] {
   text = text.replace(/^﻿/, '');
@@ -65,19 +69,29 @@ export function readXlsx(bytes: Uint8Array): string[][] {
   const sheet = dec(sheetPath);
   if (!sheet) throw new Error('The workbook has no readable worksheet.');
 
+  /** Column index of a cell reference ("C7" → 2); -1 when it isn't one Excel could have written (A … XFD). */
   const col = (ref: string) => {
+    const m = /^([A-Z]{1,3})\d*$/.exec(ref.toUpperCase());
+    if (!m) return -1;
     let n = 0;
-    for (const c of ref.replace(/\d+$/, '')) n = n * 26 + (c.charCodeAt(0) - 64);
-    return n - 1;
+    for (const c of m[1]) n = n * 26 + (c.charCodeAt(0) - 64);
+    return n - 1 < MAX_COLS ? n - 1 : -1;
   };
   const out: string[][] = [];
   for (const r of Array.from(xml(sheet).getElementsByTagName('row'))) {
+    if (out.length >= MAX_ROWS) throw new Error('The sheet has more rows than Excel allows; it may be damaged.');
     const cells: string[] = [];
+    let next = 0;
     for (const c of Array.from(r.getElementsByTagName('c'))) {
       const t = c.getAttribute('t');
       const v = c.getElementsByTagName('v')[0]?.textContent ?? '';
       const val = t === 's' ? shared[Number(v)] ?? '' : t === 'inlineStr' ? c.getElementsByTagName('t')[0]?.textContent ?? '' : t === 'b' ? (v === '1' ? 'TRUE' : 'FALSE') : v;
-      cells[col(c.getAttribute('r') ?? 'A')] = val;
+      // A cell without a reference is the one after the previous cell.
+      const ref = c.getAttribute('r');
+      const i = ref ? col(ref) : next;
+      if (i < 0 || i >= MAX_COLS) continue;
+      cells[i] = val;
+      next = i + 1;
     }
     out.push(Array.from(cells, (x) => x ?? ''));
   }
@@ -91,7 +105,9 @@ export async function readTable(file: File): Promise<Table> {
   else rows = parseCsv(await file.text());
   rows = rows.map((r) => r.map((c) => String(c ?? '').trim())).filter((r) => r.some(Boolean));
   if (rows.length < 2) throw new Error('The sheet needs a header row and at least one data row.');
-  const width = Math.max(...rows.map((r) => r.length));
+  let width = 0;
+  for (const r of rows) if (r.length > width) width = r.length;
+  if (width > MAX_COLS) throw new Error(`The sheet has more than ${MAX_COLS} columns; it may be damaged.`);
   const pad = (r: string[]) => Array.from({ length: width }, (_, i) => r[i] ?? '');
   return { headers: pad(rows[0]).map((h, i) => h || `Column ${i + 1}`), rows: rows.slice(1).map(pad) };
 }
