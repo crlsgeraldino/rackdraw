@@ -3,7 +3,7 @@
  * work the diagram shows (cable drops, fiber runs, rack equipment, endpoints, racks, patch cords), markup and tax on
  * materials, and circuits / services as monthly recurring charges.
  */
-import type { BomSection, WorkCounts } from './bom';
+import { scopeBom, type BomRow, type BomSection, type OnSite, type WorkCounts } from './bom';
 
 export type LaborTask = 'copperRuns' | 'fiberRuns' | 'rackDevices' | 'endpoints' | 'racks' | 'cords';
 
@@ -24,6 +24,8 @@ export interface QuoteSettings {
   notes?: string;
   /** The prices this client's quote used (so the file / backup quotes the same on another computer). */
   prices?: Record<string, number>;
+  /** What the client already has (not quoted): replacing only some of the equipment, reusing their rack, … */
+  onSite?: OnSite;
 }
 
 export const LABOR_TASKS: { key: LaborTask; label: string; unit: string; hours: number }[] = [
@@ -35,7 +37,7 @@ export const LABOR_TASKS: { key: LaborTask; label: string; unit: string; hours: 
   { key: 'cords', label: 'Patch and label cords', unit: 'cord', hours: 0.1 },
 ];
 
-export const QUOTE_DEFAULTS: Required<Omit<QuoteSettings, 'hours' | 'notes' | 'prices'>> = { currency: 'USD', markupPct: 20, taxPct: 0, laborRate: 95, validDays: 30 };
+export const QUOTE_DEFAULTS: Required<Omit<QuoteSettings, 'hours' | 'notes' | 'prices' | 'onSite'>> = { currency: 'USD', markupPct: 20, taxPct: 0, laborRate: 95, validDays: 30 };
 
 export interface QuoteLine {
   section: string;
@@ -51,6 +53,10 @@ export interface QuoteLine {
 
 export interface Quote {
   lines: QuoteLine[];
+  /** What the client already has: listed on the quote, not priced. Detail starts with the section. */
+  onSite: BomRow[];
+  /** The work the labor estimate counts (only what is supplied). */
+  work: WorkCounts;
   labor: { key: LaborTask; label: string; qty: number; unit: string; hoursEach: number; hours: number; amount: number }[];
   materials: number;
   markup: number;
@@ -63,8 +69,9 @@ export interface Quote {
 }
 
 /** Bulk cable is priced per foot; everything else per unit. */
-export function priceQuote(sections: BomSection[], work: WorkCounts, prices: Record<string, number>, s: QuoteSettings = {}): Quote {
+export function priceQuote(all: BomSection[], allWork: WorkCounts, prices: Record<string, number>, s: QuoteSettings = {}): Quote {
   const set = { ...QUOTE_DEFAULTS, ...s };
+  const { sections, onSite, work } = scopeBom(all, allWork, s.onSite);
   const lines: QuoteLine[] = sections.flatMap((sec) =>
     sec.rows.map((r) => {
       const price = r.price ?? prices[r.key];
@@ -83,7 +90,7 @@ export function priceQuote(sections: BomSection[], work: WorkCounts, prices: Rec
   const laborHours = labor.reduce((t, l) => t + l.hours, 0);
   const labor$ = laborHours * set.laborRate;
   return {
-    lines, labor, materials, markup, tax, laborHours, labor$,
+    lines, onSite, work, labor, materials, markup, tax, laborHours, labor$,
     oneTime: materials + markup + tax + labor$,
     monthly: lines.filter((l) => l.monthly).reduce((t, l) => t + l.amount, 0),
     unpriced: lines.filter((l) => l.price === undefined).length,
@@ -127,6 +134,7 @@ export function quoteRows(q: Quote, s: QuoteSettings = {}): (string | number)[][
   const r2 = (n: number) => Math.round(n * 100) / 100;
   return [
     ...q.lines.map((l) => [l.section, l.qty, l.unit, l.item, l.detail, l.price ?? '', l.price !== undefined ? r2(l.amount) : '', l.monthly ? 'monthly' : '']),
+    ...q.onSite.map((r) => ['Already on site', r.qty, r.unit, r.item, r.detail, '', '', 'not quoted']),
     ...q.labor.map((l) => ['Labor', l.hours, 'h', l.label, `${l.qty} ${l.unit}${l.qty === 1 ? '' : 's'} × ${l.hoursEach} h`, set.laborRate, r2(l.amount), '']),
     [],
     ['', '', '', 'Materials', '', '', r2(q.materials), ''],

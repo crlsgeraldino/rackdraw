@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.6.0',
+    title: 'Quote only what the job supplies',
+    items: [
+      'Bill of Materials: mark each line New or Client has it (or how many the client has). Only new items are priced, and labor counts only them.',
+      'Replacing a few things? Click Client has everything, then mark the switch, the firewall or the patch cords New. A new installation is Everything is new.',
+      'The Word quote, Excel, CSV and the reports list what is already on site separately, not priced.',
+    ],
+  },
+  {
     version: '1.5.3',
     title: 'Close a client your way',
     items: [
