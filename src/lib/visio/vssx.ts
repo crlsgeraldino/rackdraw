@@ -5,7 +5,8 @@
  *
  * Visio coordinates are inches with y pointing up; everything is drawn in that space and flipped once at the end.
  */
-import { unzipSync, type Unzipped } from 'fflate';
+import { type Unzipped } from 'fflate';
+import { unzipLimited, VISIO_PART_LIMITS } from '../zipSafe';
 import type { PortDef } from '../types';
 import { bmpToRgba, emfToSvg, type DibEncoder } from './emf';
 import { parseTheme, themedColor, type ThemeKind, type VisioTheme } from './theme';
@@ -182,7 +183,7 @@ export class VisioPackage {
   /** Decompresses just the files asked for; big stencils are mostly pictures we may never need. */
   private bytes(path: string): Uint8Array | undefined {
     if (!this.cache.has(path)) {
-      const files: Unzipped = unzipSync(this.data, { filter: (f) => f.name === path });
+      const files: Unzipped = unzipLimited(this.data, VISIO_PART_LIMITS, (n) => n === path);
       if (files[path]) this.cache.set(path, files[path]);
     }
     return this.cache.get(path);

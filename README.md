@@ -181,6 +181,13 @@ separate test copy, or a second set of clients.
 
 **Security.** The app's pages may load nothing from the internet (a content-security policy allows only the app
 itself and `data:` / `blob:` pictures), so text from an imported file can't send diagrams anywhere or pull code in.
+Scripts are allowed only from the app's own files and, for the start-up scripts Next.js writes into each page, by
+their exact hash: no other inline script or event handler can run, even if a file managed to put markup into the page.
+Values from opened files are checked before use (colours must be plain colours, numbers must be numbers, stencils are
+repaired or refused, nesting is limited), and everything printed or drawn as markup is escaped. ZIP-based files
+(`.rackdraw`, `.xlsx`, Visio) are refused when they would unpack to more than RackDraw can hold. Save writes without
+asking only to files you picked or opened (remembered by the desktop app itself, not the page), and network (`\\server`)
+paths are never touched unless you chose them.
 Links open in the default browser and only for `http`, `https` and `mailto`. The only browser permissions granted are
 the clipboard (Copy buttons), persistent storage and full screen. The installed exe can't be run as Node.js, ignores
 `NODE_OPTIONS` and Node inspect switches, and only loads its own integrity-checked `app.asar` (Electron fuses).

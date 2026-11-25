@@ -11,6 +11,16 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.4.0',
+    title: 'Safer with files from anywhere',
+    items: [
+      'Files from other people are checked before they are used: colours, numbers, stencils and very large or deeply nested files can no longer break RackDraw or run anything inside it.',
+      'The desktop app only runs its own code: nothing in an opened file can start a script, even in printouts and port maps.',
+      'Save writes without asking only to files you opened or saved yourself. After this update the first Save of an older file may show the Save dialog once.',
+      'Password-protected files with unusual protection settings are refused or re-saved with RackDraw\'s own.',
+    ],
+  },
+  {
     version: '1.3.0',
     title: 'Password-protected files',
     items: [

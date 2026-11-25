@@ -4,7 +4,8 @@
  */
 import { cleanChangeLog } from './changeLog';
 import { migrateProject } from './project';
-import type { AppNode, CableEdge, Page, Project } from './types';
+import { cleanDeep, num } from './safe';
+import type { AppNode, CableEdge, Page, Project, StencilDef } from './types';
 
 /** Newest project file version this build understands. */
 export const PROJECT_FILE_VERSION = 3;
@@ -33,7 +34,8 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
   const hasPages = Array.isArray(raw.pages);
   if (!hasPages && !(Array.isArray(raw.nodes) && Array.isArray(raw.edges))) throw new Error('Not a RackDraw diagram file.');
   const report: SanitizeReport = { droppedNodes: 0, droppedEdges: 0 };
-  const p = migrateProject({ name: fallbackName, createdAt: Date.now(), ...(raw as object) } as Project);
+  // Style values that could break out of markup, and absurdly deep nesting, are removed first.
+  const p = migrateProject({ name: fallbackName, createdAt: Date.now(), ...(cleanDeep(raw) as object) } as Project);
 
   const pages: Page[] = (p.pages as unknown[]).filter(isObj).map((pg) => {
     const nodes = (Array.isArray(pg.nodes) ? pg.nodes : []).filter((n: unknown): n is AppNode => {
@@ -80,4 +82,41 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
     updatedAt: finite(p.updatedAt) ? p.updatedAt : Date.now(),
   };
   return { project, report };
+}
+
+const STENCIL_CATEGORIES = new Set(['Firewalls', 'Switching', 'Wireless', 'Servers', 'Endpoints', 'WAN', 'Layout', 'Custom', 'Personal', 'Carrier', 'Cabling', 'Infrastructure', 'Security']);
+
+/**
+ * A custom (imported) stencil checked before it is kept: the palette draws every stored stencil on every start, so a
+ * broken one from a file must be repaired or refused here, never stored. null = not usable.
+ */
+export function sanitizeStencil(raw: unknown): StencilDef | null {
+  const s = cleanDeep(raw);
+  if (!isObj(s) || typeof s.id !== 'string' || !s.id || s.id.length > 200) return null;
+  if (typeof s.image !== 'string' || !/^data:image\//i.test(s.image)) return null;
+  const size = (v: unknown, d: number) => { const n = num(v, d); return n > 0 && n < 100_000 ? n : d; };
+  const ports = (Array.isArray(s.ports) ? s.ports : []).filter(isObj).filter((q) => typeof q.id === 'string').map((q) => ({
+    ...q,
+    label: typeof q.label === 'string' ? q.label : String(q.id),
+    x: num(q.x), y: num(q.y), w: size(q.w, 10), h: size(q.h, 10),
+  }));
+  return {
+    ...(s as unknown as StencilDef),
+    name: typeof s.name === 'string' && s.name.trim() ? s.name.slice(0, 300) : 'Imported shape',
+    category: (typeof s.category === 'string' && STENCIL_CATEGORIES.has(s.category) ? s.category : 'Custom') as StencilDef['category'],
+    width: size(s.width, 100),
+    height: size(s.height, 100),
+    scale: size(s.scale, 1),
+    ports: ports as unknown as StencilDef['ports'],
+    style: 'image',
+    library: typeof s.library === 'string' ? s.library.slice(0, 200) : undefined,
+    rackUnits: s.rackUnits === undefined ? undefined : Math.max(1, Math.min(60, Math.round(num(s.rackUnits, 1)))),
+    defaults: isObj(s.defaults) ? (cleanDevice(s.defaults) as StencilDef['defaults']) : undefined,
+    custom: true,
+  };
+}
+
+/** The usable stencils of a list (from a library file, a client file or stored data); broken ones are left out. */
+export function sanitizeStencils(list: unknown): StencilDef[] {
+  return (Array.isArray(list) ? list : []).map(sanitizeStencil).filter((x): x is StencilDef => !!x);
 }

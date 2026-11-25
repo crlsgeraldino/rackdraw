@@ -1,5 +1,6 @@
-import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
-import { deriveSecret, fromB64, seal, toB64, unseal, type Secret } from './fileCrypto';
+import { strFromU8, strToU8, zipSync, type Zippable } from 'fflate';
+import { deriveSecret, fromB64, KDF_ITERATIONS, seal, toB64, unseal, validIterations, type Secret } from './fileCrypto';
+import { RACKDRAW_LIMITS, unzipLimited, ZipTooLargeError } from './zipSafe';
 
 /*
  * The .rackdraw file: a ZIP package, like Office and Visio files.
@@ -125,8 +126,9 @@ export function packRackdraw(payload: unknown, meta: { name: string; app?: strin
 export function unpackRackdraw(bytes: Uint8Array): { payload: unknown; manifest: RackdrawManifest } {
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(bytes);
-  } catch {
+    files = unzipLimited(bytes, RACKDRAW_LIMITS);
+  } catch (e) {
+    if (e instanceof ZipTooLargeError) throw new RackdrawFileError(e.message);
     throw new RackdrawFileError('This file is damaged and can\'t be opened (it may not have been copied completely).');
   }
   if (!files.mimetype || strFromU8(files.mimetype).trim() !== RACKDRAW_MIME) throw new RackdrawFileError('This is not a RackDraw drawing.');
@@ -188,7 +190,7 @@ export interface Protection { kdf: 'PBKDF2-SHA256'; cipher: 'AES-256-GCM'; itera
 export function protectionOf(bytes: Uint8Array): Protection | null {
   if (!isRackdrawPackage(bytes)) return null;
   try {
-    const files = unzipSync(bytes, { filter: (f) => f.name === 'manifest.json' });
+    const files = unzipLimited(bytes, { maxTotal: 1024 * 1024 }, (n) => n === 'manifest.json');
     const m = JSON.parse(strFromU8(files['manifest.json'])) as { protected?: Protection };
     return m?.protected && typeof m.protected.salt === 'string' ? m.protected : null;
   } catch {
@@ -215,12 +217,15 @@ export async function unprotect(bytes: Uint8Array, password: string): Promise<{ 
   if (!p) throw new RackdrawFileError('This file is not password-protected.');
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(bytes);
-  } catch {
+    files = unzipLimited(bytes, RACKDRAW_LIMITS, (n) => n === 'payload.bin');
+  } catch (e) {
+    if (e instanceof ZipTooLargeError) throw new RackdrawFileError(e.message);
     throw new RackdrawFileError('This file is damaged and can\'t be opened (it may not have been copied completely).');
   }
+  if (!validIterations(p.iterations)) throw new RackdrawFileError('This file is damaged and can\'t be opened (its protection settings are not valid).');
   if (!files['payload.bin']) throw new RackdrawFileError('This file is damaged and can\'t be opened (the drawing is missing).');
   const secret = await deriveSecret(password, fromB64(p.salt), p.iterations);
   const inner = await unseal(secret, { iv: fromB64(p.iv), data: files['payload.bin'] });
-  return { inner, secret };
+  // Saved again with RackDraw's own settings (a new salt at full strength), whatever the file came with.
+  return { inner, secret: p.iterations === KDF_ITERATIONS ? secret : await deriveSecret(password) };
 }

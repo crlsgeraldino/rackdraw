@@ -16,7 +16,7 @@ import { libraryNameFromFile } from './libraries';
 import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
 import { allDevices } from './project';
-import { PROJECT_FILE_VERSION, sanitizeProject } from './sanitize';
+import { PROJECT_FILE_VERSION, sanitizeProject, sanitizeStencils } from './sanitize';
 import { rackLabel } from './rack';
 import { documentedPort, portMap, portMapDevices } from './portMap';
 import { changeKindLabel, changeTime } from './changeLog';
@@ -708,7 +708,7 @@ export async function readProjectFile(file: File): Promise<{ project: Project; s
   const { project } = sanitizeProject(json?.project ?? json, file.name.replace(/\.(rackdraw|netcraft)\.json$|\.json$|\.rackdraw$/i, ''));
   return {
     project,
-    stencils: Array.isArray(json.stencils) ? json.stencils.filter((x: unknown) => !!x && typeof x === 'object' && typeof (x as StencilDef).id === 'string') : [],
+    stencils: sanitizeStencils(json.stencils),
   };
 }
 
@@ -728,7 +728,9 @@ export async function readStencilLibrary(file: File): Promise<{ stencils: Stenci
   // A project file also carries the custom stencils it uses, so accept either.
   const list = json?.stencils;
   if (!Array.isArray(list)) throw new Error('No stencils found in this file.');
-  if (json?.format !== 'netcraft-stencils') return { stencils: list };
+  const stencils = sanitizeStencils(list);
+  if (!stencils.length) throw new Error('No usable stencils found in this file.');
+  if (json?.format !== 'netcraft-stencils') return { stencils };
   const named = typeof json.name === 'string' && json.name.trim() ? json.name.trim() : undefined;
-  return { stencils: list, library: named ?? libraryNameFromFile(file.name) };
+  return { stencils, library: named ?? libraryNameFromFile(file.name) };
 }
