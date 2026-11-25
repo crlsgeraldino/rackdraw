@@ -10,6 +10,7 @@ import { LABOR_TASKS, money, parsePrice, priceQuote, QUOTE_DEFAULTS, QUOTE_HEADE
 import { writeXlsx } from '@/lib/xlsx';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { useEscape } from '@/lib/useEscape';
+import { csvOf } from '@/lib/csv';
 
 const CAP_HEADER = ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE ports', 'PoE W', 'PoE budget W', 'Check'];
 type Tab = 'bom' | 'quote' | 'capacity';
@@ -60,7 +61,7 @@ export function BomDialog({ onClose }: { onClose: () => void }) {
 
   const toExcel = () => downloadBlob(`${file}.xlsx`, new Blob([writeXlsx(tab === 'capacity' ? 'Port capacity' : 'Quote', header, rows) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const toCsv = () => {
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const csv = csvOf([header, ...rows]);
     downloadBlob(`${file}.csv`, new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
   };
   const copy = async () => {

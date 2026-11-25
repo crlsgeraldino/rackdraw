@@ -459,7 +459,7 @@ function Canvas() {
         deleteKeyCode={['Delete', 'Backspace']}
         multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={{ padding: '8%' }}
         minZoom={0.1}
         maxZoom={4}
         proOptions={{ hideAttribution: false }}

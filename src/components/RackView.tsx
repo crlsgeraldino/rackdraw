@@ -400,7 +400,7 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
           <input type="number" min={1} max={rack.units} className={inputCls} value={item.u} onChange={(e) => move({ u: Number(e.target.value) })} />
         </Field>
         <Field label="Height (U)">
-          <input type="number" min={1} max={rack.units} className={inputCls} value={item.height} onChange={(e) => move({ height: Math.max(1, Number(e.target.value)) })} />
+          <input type="number" min={1} max={rack.units} className={inputCls} value={item.height} onChange={(e) => move({ height: Math.max(1, Math.round(Number(e.target.value)) || 1) })} />
         </Field>
       </div>
       <Field label="Mounting depth">

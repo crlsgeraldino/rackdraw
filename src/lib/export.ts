@@ -24,6 +24,7 @@ import { SITE_TABLE, siteSummaries, siteTableRows } from './sites';
 import { edgeRole, roleLabel } from './cableRole';
 import { isRackdrawPackage, packRackdraw, RACKDRAW_EXT, RACKDRAW_MIME, RackdrawFileError, unpackRackdraw } from './rackdrawFile';
 import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
+import { csvOf } from './csv';
 
 /* ---------- helpers ---------- */
 
@@ -70,8 +71,9 @@ export function downloadBlob(name: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** A file name from a client or page name: letters of any language kept ("Café Río" → "Café-Río"). */
 export function safeName(s: string) {
-  return s.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'diagram';
+  return s.normalize('NFC').replace(/[^\p{L}\p{N}_\- ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 120) || 'diagram';
 }
 
 function nodeName(n: AppNode | undefined) {
@@ -624,9 +626,7 @@ function drawTitleBlock(doc: Pdf, cells: { label: string; value: string; weight:
 
 /* ---------- CSV (opens in Excel) ---------- */
 
-function csv(rows: (string | number)[][]) {
-  return rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-}
+const csv = (rows: (string | number)[][]) => csvOf(rows);
 
 export function exportCsv(p: Project) {
   const conns = connectionRows(p);

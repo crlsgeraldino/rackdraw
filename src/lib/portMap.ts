@@ -3,6 +3,7 @@ import { rackLabel } from './rack';
 import { num, safeColor } from './safe';
 import { pathLength, tracePath, type TraceHop } from './trace';
 import type { DeviceNode, PortDef, PortStatus, Project, StencilDef } from './types';
+import { csvMinimal } from './csv';
 
 /*
  * Port map: one sheet per switch, patch panel, firewall or router, the way MSPs hand them over. Every port in the
@@ -185,7 +186,7 @@ export function portMapTsv(maps: PortMap[]): string {
 
 /** CSV of every port of the given devices. */
 export function portMapCsv(maps: PortMap[]): string {
-  const q = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const q = csvMinimal;
   return [['Device', ...PORT_MAP_COLUMNS], ...maps.flatMap((m) => m.rows.map((r) => [m.name, ...portMapCells(r)]))].map((row) => row.map(q).join(',')).join('\r\n');
 }
 

@@ -91,16 +91,24 @@ export function priceQuote(sections: BomSection[], work: WorkCounts, prices: Rec
 }
 
 /**
- * A typed price: "$8,500", "1.200,50" (decimal comma), "45,5", "12.99". Text without digits, or a negative number,
- * is not a price (undefined).
+ * A typed price, in either way of writing numbers: "$8,500", "12.99", "1.200,50" and "45,5" (decimal comma),
+ * "€ 1.234" and "1.234.567" (dots between thousands). Text without digits, or a negative number, is not a price.
  */
 export function parsePrice(text: string): number | undefined {
   let t = text.trim().replace(/[^\d.,-]/g, '');
   if (!/\d/.test(t) || t.startsWith('-')) return undefined;
-  const lastComma = t.lastIndexOf(','), lastDot = t.lastIndexOf('.');
-  // The last separator is the decimal one when it is followed by 1-2 digits and it's a comma after any dot.
-  if (lastComma > lastDot && /,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
-  else t = t.replace(/,/g, '');
+  const commas = (t.match(/,/g) ?? []).length, dots = (t.match(/\./g) ?? []).length;
+  const thousands = (sep: '.' | ',') => t.split(sep).join('');
+  if (commas && dots) {
+    // Both: the last one is the decimal separator.
+    t = t.lastIndexOf(',') > t.lastIndexOf('.') ? thousands('.').replace(',', '.') : thousands(',');
+  } else if (commas) {
+    // "45,5" / "45,50" is a decimal comma; "1,234" and "1,234,567" separate thousands.
+    t = commas === 1 && /,\d{1,2}$/.test(t) ? t.replace(',', '.') : thousands(',');
+  } else if (dots > 1 || /^[1-9]\d{0,2}\.\d{3}$/.test(t)) {
+    // "1.234.567", or "1.200" (a dot then exactly three digits): thousands, as written in most of Europe.
+    t = thousands('.');
+  }
   const n = Number(t);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : undefined;
 }

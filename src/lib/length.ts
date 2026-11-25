@@ -11,6 +11,8 @@ export function parseLength(s?: string): { ft: number; metric: boolean } | undef
   if (!t) return undefined;
   // Thousands separators: "1,200 ft" (a comma followed by exactly three digits).
   t = t.replace(/(\d),(\d{3})(?!\d)/g, '$1$2');
+  // A decimal comma: "1,5 m".
+  t = t.replace(/(\d),(\d{1,2})(?!\d)/g, '$1.$2');
   // Feet and inches: 10' 6", 10 ft 6 in, 10'6"
   const fi = t.match(/^(\d+(?:\.\d+)?)\s*(?:'|ft|feet|foot)\s*(\d+(?:\.\d+)?)\s*(?:"|in|inch|inches)$/);
   if (fi) return { ft: Number(fi[1]) + Number(fi[2]) / 12, metric: false };

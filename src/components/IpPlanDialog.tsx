@@ -5,6 +5,7 @@ import { downloadBlob, safeName } from '@/lib/export';
 import { deviceIps, ipPlanProblems, subnetUsage, undefinedVlans, vlanOfIp, vlansInUse, type VlanDef } from '@/lib/ipam';
 import { writeXlsx } from '@/lib/xlsx';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { csvOf } from '@/lib/csv';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -55,7 +56,7 @@ export function IpPlanDialog({ onClose }: { onClose: () => void }) {
   const [header, rows] = tab === 'plan' ? [PLAN_HEADER, planRows] : [IP_HEADER, ipRows];
   const file = `${safeName(project.name)}-${tab === 'plan' ? 'ip-plan' : 'ip-addresses'}`;
   const toExcel = () => downloadBlob(`${file}.xlsx`, new Blob([writeXlsx(tab === 'plan' ? 'IP plan' : 'IP addresses', header, rows) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  const toCsv = () => downloadBlob(`${file}.csv`, new Blob(['﻿' + [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  const toCsv = () => downloadBlob(`${file}.csv`, new Blob(['﻿' + csvOf([header, ...rows])], { type: 'text/csv;charset=utf-8' }));
   const copy = async () => {
     try {
       await navigator.clipboard.writeText([header, ...rows].map((r) => r.map((c) => String(c).replace(/[\t\n]+/g, ' ')).join('\t')).join('\n'));

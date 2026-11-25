@@ -1,5 +1,6 @@
 import { rackLabel } from './rack';
 import type { CableEdge, DeviceNode, PortData, Project, StencilDef } from './types';
+import { csvMinimal } from './csv';
 
 /*
  * Change log: what changed in the client's network documentation, and when — devices, their details and ports,
@@ -197,7 +198,7 @@ export function changeTime(at: number) {
 
 /** CSV of the given entries, oldest first. */
 export function changeLogCsv(entries: ChangeEntry[]): string {
-  const q = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const q = csvMinimal;
   return [['When', 'Kind', 'What', 'Change'], ...[...entries].sort((x, y) => x.at - y.at).map((e) => [changeTime(e.at), changeKindLabel(e.kind), e.target, e.detail])]
     .map((r) => r.map(q).join(',')).join('\r\n');
 }

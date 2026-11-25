@@ -74,6 +74,12 @@ export function rackPower(p: Project, rack: Rack, stencil: Stencils): RackPower 
   const devices = new Map(p.pages.flatMap((pg) => pg.nodes).filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n]));
   const items: RackPowerItem[] = [];
   const upsList: DeviceNode[] = [];
+  // Ports with a cable plugged in (PoE is only drawn by something connected).
+  const cabled = new Set<string>();
+  for (const e of p.pages.flatMap((pg) => pg.edges)) {
+    if (e.sourceHandle) cabled.add(`${e.source}|${e.sourceHandle}`);
+    if (e.targetHandle) cabled.add(`${e.target}|${e.targetHandle}`);
+  }
   for (const it of rack.items) {
     const d = it.nodeId ? devices.get(it.nodeId) : undefined;
     if (!d) continue;
@@ -82,8 +88,9 @@ export function rackPower(p: Project, rack: Rack, stencil: Stencils): RackPower 
     const t = st && !st.custom ? TYPICAL[st.id] : undefined;
     const ownW = typeof d.data.powerW === 'number' ? d.data.powerW : undefined;
     const ownLb = typeof d.data.weightLb === 'number' ? d.data.weightLb : undefined;
-    // PoE the switch delivers comes out of its own supply (at ~90% efficiency).
-    const poeW = Math.round(Object.values(d.data.ports ?? {}).reduce((s, pd) => s + (pd.poe ? POE_WATTS[pd.poe] ?? 15.4 : 0), 0) / 0.9);
+    // PoE the switch delivers comes out of its own supply (at ~90% efficiency): only on cabled ports that are on.
+    const poeW = Math.round(Object.entries(d.data.ports ?? {}).reduce((s, [port, pd]) =>
+      s + (pd?.poe && pd.status !== 'disabled' && cabled.has(`${d.id}|${port}`) ? POE_WATTS[pd.poe] ?? 15.4 : 0), 0) / 0.9);
     items.push({
       name: d.data.name,
       w: (ownW ?? t?.w ?? 0) + (ownW === undefined ? poeW : 0),

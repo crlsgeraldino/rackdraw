@@ -11,6 +11,19 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.4.3',
+    title: 'Fewer surprises when editing',
+    items: [
+      'Select All, Delete, Cut and the arrow keys no longer reach items on hidden or locked layers.',
+      'Deleting a device is one Undo step (the device comes back with its cables), and deleting a layer can be undone.',
+      'Fit Page and "zoom to" from Find, Check Diagram, Comments and the Device Table leave a margin around the drawing again.',
+      'Rack power counts PoE only on ports with a cable plugged in (and switched on). Prices like "1.200" or "€ 1.234" are read as thousands.',
+      'Copied callouts point at the copied item, and a duplicated page keeps its callouts attached.',
+      'Exports: line breaks in Shape Data reach Visio, CSV cells like "-48 VDC" open as text in Excel, and file names keep accents ("Café Río").',
+      'Opening a file never replaces your own stencils; lengths like "1,5 m" and impossible dates are handled; rack items are whole units.',
+    ],
+  },
+  {
     version: '1.4.2',
     title: 'Opens more files, never freezes on bad ones',
     items: [

@@ -138,7 +138,8 @@ function management(p: Project, d: DeviceNode) {
   return { ip, vlan: v?.vlan ? Number(v.vlan) || undefined : undefined, prefix: net?.prefix, gateway: v?.gateway };
 }
 
-const maskOf = (prefix: number) => [24, 16, 8, 0].map((s) => ((0xffffffff << (32 - prefix)) >>> s) & 255).join('.');
+// A shift by 32 is a shift by 0 in JavaScript, so /0 is spelled out.
+const maskOf = (prefix: number) => (prefix <= 0 ? '0.0.0.0' : [24, 16, 8, 0].map((s) => ((0xffffffff << (32 - prefix)) >>> s) & 255).join('.'));
 
 /** The starter configuration of one switch, as text. */
 export function switchConfig(p: Project, d: DeviceNode, stencil: Stencils, o: ConfigOptions): string {
