@@ -8,6 +8,7 @@ import { money, parsePrice, QUOTE_DEFAULTS } from '@/lib/quote';
 import { writeXlsx } from '@/lib/xlsx';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { usePriceBook } from './usePriceBook';
+import { csvOf } from '@/lib/csv';
 
 const DEV_HEADER = ['Device', 'Model', 'Serial', 'Purchased', 'Warranty ends', 'Warranty', 'End of life', 'End of life in', 'State'];
 const CIR_HEADER = ['Device', 'Carrier', 'Circuit ID', 'Type', 'Bandwidth', 'Static IPs', 'Support phone', 'Account', 'Contract ends', 'Monthly cost'];
@@ -44,7 +45,7 @@ export function LifecycleDialog({ onClose }: { onClose: () => void }) {
   const [header, data] = tab === 'devices' ? [DEV_HEADER, devRows] : tab === 'circuits' ? [CIR_HEADER, cirRows] : [FORECAST_HEADER, forecastRows(forecast)];
   const file = `${safeName(project.name)}-${tab === 'devices' ? 'lifecycle' : tab === 'circuits' ? 'circuits' : 'replacement-forecast'}`;
   const toExcel = () => downloadBlob(`${file}.xlsx`, new Blob([writeXlsx(tab === 'devices' ? 'Lifecycle' : tab === 'circuits' ? 'Circuits' : 'Replacement forecast', header, data) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  const toCsv = () => downloadBlob(`${file}.csv`, new Blob(['﻿' + [header, ...data].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  const toCsv = () => downloadBlob(`${file}.csv`, new Blob(['﻿' + csvOf([header, ...data])], { type: 'text/csv;charset=utf-8' }));
   const goTo = (deviceId: string) => {
     const pg = project.pages.find((x) => x.nodes.some((n) => n.id === deviceId));
     if (!pg) return;

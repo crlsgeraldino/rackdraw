@@ -38,10 +38,18 @@ interface Snapshot {
   pages: Page[];
   racks: Rack[];
   activePageId: string;
+  /** The client's layers (deleting a layer is undone with its items' layer ids). */
+  layers?: Layer[];
 }
 
 /** What a change may touch: the active page's nodes/edges, or project-level pages/racks. */
-type Patch = Partial<{ nodes: AppNode[]; edges: CableEdge[]; racks: Rack[]; pages: Page[]; activePageId: string }>;
+/** A copied callout points at the copy of its item when that item was copied too. */
+function retarget<D>(data: D, ids: Map<string, string>): D {
+  const t = (data as { target?: unknown }).target;
+  return typeof t === 'string' && ids.has(t) ? { ...data, target: ids.get(t) } : data;
+}
+
+type Patch = Partial<{ nodes: AppNode[]; edges: CableEdge[]; racks: Rack[]; pages: Page[]; activePageId: string; layers: Layer[] }>;
 
 interface DiagramState {
   projects: Record<string, Project>;
@@ -547,13 +555,71 @@ export const useDiagram = create<DiagramState>()(
         set({
           projects: {
             ...get().projects,
-            [p.id]: { ...p, pages, racks: patch.racks ?? p.racks, activePageId: patch.activePageId ?? p.activePageId, updatedAt: Date.now() },
+            [p.id]: { ...p, pages, racks: patch.racks ?? p.racks, activePageId: patch.activePageId ?? p.activePageId, ...(patch.layers ? { layers: patch.layers } : {}), updatedAt: Date.now() },
           },
         });
       };
       const snap = (): Snapshot => {
         const p = cur();
-        return { pages: p.pages, racks: p.racks ?? [], activePageId: p.activePageId };
+        return { pages: p.pages, racks: p.racks ?? [], activePageId: p.activePageId, layers: p.layers ?? [] };
+      };
+      /**
+       * Items the user can act on: not on a hidden or locked layer. Select All, Delete, nudging and the Arrange
+       * commands must never reach equipment the user can't see or has locked.
+       */
+      const reachable = () => {
+        const blocked = new Set((cur().layers ?? []).filter((l) => !l.visible || l.locked).map((l) => l.id));
+        return (x: { data?: Record<string, unknown> }) => !(typeof x.data?.layer === 'string' && blocked.has(x.data.layer));
+      };
+      /** Selected items on layers that were just hidden or locked are deselected. */
+      const deselectBlocked = () => {
+        const ok = reachable();
+        const p = cur();
+        const pages = p.pages.map((pg) => ({
+          ...pg,
+          nodes: pg.nodes.map((n) => (n.selected && !ok(n) ? { ...n, selected: false } : n)),
+          edges: pg.edges.map((e) => (e.selected && !ok(e) ? { ...e, selected: false } : e)),
+        }));
+        set({ projects: { ...get().projects, [p.id]: { ...p, pages } } });
+      };
+      /**
+       * React Flow deletes a device as two changes (its cables, then the device): one undo step for both.
+       * A second "remove" snapshot in the same tick is skipped.
+       */
+      let removing = false;
+      const snapshotRemoveOnce = () => {
+        if (removing) return;
+        removing = true;
+        queueMicrotask(() => { removing = false; });
+        get().snapshot();
+      };
+      /**
+       * Adds stencils from a file or library. One with the id of a stencil you already have is skipped when it is the
+       * same picture and ports, and comes in under a new id when it differs (a file must never replace your own).
+       */
+      const addStencils = (list: StencilDef[], library?: string) => {
+        const next = { ...get().customStencils };
+        const names = new Set(Object.values(next).map(libraryOf));
+        const renamed = new Map<string, string>();
+        const same = (a: StencilDef, b: StencilDef) => a.image === b.image && a.name === b.name && JSON.stringify(a.ports ?? []) === JSON.stringify(b.ports ?? []);
+        let added = 0;
+        for (const raw of sanitizeStencils(list)) {
+          if (STENCIL_MAP[raw.id]) continue;
+          let s = raw;
+          const mine = next[s.id];
+          if (mine && same(mine, s)) continue;
+          if (mine) {
+            const id = `custom-${uid()}`;
+            renamed.set(s.id, id);
+            s = { ...s, id };
+          }
+          added++;
+          const lib = resolveLibrary(s.library?.trim() || library || DEFAULT_LIBRARY, names);
+          names.add(lib);
+          next[s.id] = { ...s, library: lib, custom: true };
+        }
+        set({ customStencils: next });
+        return { added, renamed };
       };
       /** Every node in the project if the active page's nodes were `nodes` (for rack pruning). */
       const allWith = (nodes: AppNode[]) => cur().pages.flatMap((pg) => (pg.id === page().id ? nodes : pg.nodes));
@@ -668,7 +734,7 @@ export const useDiagram = create<DiagramState>()(
 
         onNodesChange: (changes) => {
           let arr = changes.toArray();
-          if (arr.some((c) => c.type === 'remove')) get().snapshot();
+          if (arr.some((c) => c.type === 'remove')) snapshotRemoveOnce();
           const before = page().nodes;
           let nodes = changes.applyTo(before);
           // Dynamic grid: snap what is being dragged into line with other items, and show guides.
@@ -759,7 +825,7 @@ export const useDiagram = create<DiagramState>()(
           commit(removed ? { nodes, edges, racks: pruneRacks(cur().racks, allWith(nodes)) } : { nodes, edges });
         },
         onEdgesChange: (changes) => {
-          if (changes.toArray().some((c) => c.type === 'remove')) get().snapshot();
+          if (changes.toArray().some((c) => c.type === 'remove')) snapshotRemoveOnce();
           commit({ edges: changes.applyTo(page().edges) });
         },
         onConnect: (c) => {
@@ -1183,9 +1249,10 @@ export const useDiagram = create<DiagramState>()(
         deleteSelected: () => {
           const pg = page();
           get().snapshot();
-          const nodes = pg.nodes.filter((n) => !n.selected || isLocked(n));
+          const ok = reachable();
+          const nodes = pg.nodes.filter((n) => !n.selected || isLocked(n) || !ok(n));
           const ids = new Set(nodes.map((n) => n.id));
-          commit({ nodes, edges: pg.edges.filter((e) => !e.selected && ids.has(e.source) && ids.has(e.target)), racks: pruneRacks(cur().racks, allWith(nodes)) });
+          commit({ nodes, edges: pg.edges.filter((e) => (!e.selected || !ok(e)) && ids.has(e.source) && ids.has(e.target)), racks: pruneRacks(cur().racks, allWith(nodes)) });
         },
 
         copySelected: () => {
@@ -1224,7 +1291,7 @@ export const useDiagram = create<DiagramState>()(
             const copy = structuredClone(n);
             const g = extras(n).group;
             const data = g ? { ...copy.data, group: newGroup(g) } : copy.data;
-            return { ...copy, id: ids.get(n.id)!, position: { x: n.position.x + step, y: n.position.y + step }, selected: true, data } as AppNode;
+            return { ...copy, id: ids.get(n.id)!, position: { x: n.position.x + step, y: n.position.y + step }, selected: true, data: retarget(data, ids) } as AppNode;
           });
           const edges = clip.edges.map((e) => ({ ...structuredClone(e), id: `e-${uid()}`, source: ids.get(e.source)!, target: ids.get(e.target)!, selected: false }));
           commit({
@@ -1235,13 +1302,13 @@ export const useDiagram = create<DiagramState>()(
         },
 
         alignSelected: (mode) => {
-          const pos = alignPositions(movable(page().nodes), mode);
+          const pos = alignPositions(movable(page().nodes.filter(reachable())), mode);
           if (!pos.size) return;
           get().snapshot();
           commit({ nodes: page().nodes.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)) });
         },
         distributeSelected: (axis) => {
-          const pos = distributePositions(movable(page().nodes), axis);
+          const pos = distributePositions(movable(page().nodes.filter(reachable())), axis);
           if (!pos.size) return;
           get().snapshot();
           commit({ nodes: page().nodes.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)) });
@@ -1566,8 +1633,9 @@ export const useDiagram = create<DiagramState>()(
           const sig = (n: AppNode) => (n.type === 'device' ? `d:${n.data.stencilId}` : n.type === 'shape' ? `s:${n.data.kind}` : n.type);
           const same = new Set(sel.map(sig));
           const layerOf = (x: { data?: Record<string, unknown> }) => x.data?.layer as string | undefined;
+          const ok = reachable();
           const pickNode = (n: AppNode): boolean => {
-            if (n.type === 'backdrop' || n.hidden) return false;
+            if (n.type === 'backdrop' || n.hidden || !ok(n)) return false;
             if (what === 'devices') return n.type === 'device';
             if (what === 'shapes') return n.type === 'shape' || n.type === 'measure' || n.type === 'note';
             if (what === 'text') return (n.type === 'shape' && n.data.kind === 'text') || n.type === 'note';
@@ -1576,7 +1644,7 @@ export const useDiagram = create<DiagramState>()(
             if (what.startsWith('layer:')) return layerOf(n) === what.slice(6);
             return false;
           };
-          const pickEdge = (e: CableEdge) => what === 'cables' || (what.startsWith('layer:') && layerOf(e) === what.slice(6)) || (what === 'same' && pg.edges.some((x) => x.selected) && sel.length === 0);
+          const pickEdge = (e: CableEdge) => ok(e) && (what === 'cables' || (what.startsWith('layer:') && layerOf(e) === what.slice(6)) || (what === 'same' && pg.edges.some((x) => x.selected) && sel.length === 0));
           const nodes = pg.nodes.map((n) => ({ ...n, selected: pickNode(n) }));
           const edges = pg.edges.map((e) => ({ ...e, selected: pickEdge(e) }));
           commit({ nodes, edges });
@@ -1643,7 +1711,8 @@ export const useDiagram = create<DiagramState>()(
         },
         nudgeSelection: (dx, dy) => {
           const pg = page();
-          const moving = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && !extras(n).locked);
+          const ok = reachable();
+          const moving = pg.nodes.filter((n) => n.selected && n.type !== 'backdrop' && !extras(n).locked && ok(n));
           if (!moving.length) return;
           get().snapshot();
           const ids = new Set(moving.map((n) => n.id));
@@ -1658,11 +1727,13 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           commit({ pages });
         },
-        selectAll: () =>
+        selectAll: () => {
+          const ok = reachable();
           commit({
-            nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected || n.data.noSelect ? n : { ...n, selected: true })),
-            edges: page().edges.map((e) => (e.selected ? e : { ...e, selected: true })),
-          }),
+            nodes: page().nodes.map((n) => (n.type === 'backdrop' || n.hidden || n.selected || n.data.noSelect || !ok(n) ? n : { ...n, selected: true })),
+            edges: page().edges.map((e) => (e.selected || !ok(e) ? e : { ...e, selected: true })),
+          });
+        },
         addCallout: (position, target) => {
           get().snapshot();
           const node: AppNode = {
@@ -1801,7 +1872,7 @@ export const useDiagram = create<DiagramState>()(
             id: ids.get(n.id)!,
             position: { x: n.position.x + off.x, y: n.position.y + off.y },
             selected: true,
-            data: { ...n.data, ...regroup(extras(n).group) },
+            data: retarget({ ...n.data, ...regroup(extras(n).group) }, ids),
           })) as AppNode[];
           // Cables between duplicated items are duplicated too (Visio copies connectors glued at both ends).
           const cables = pg.edges.filter((e) => ids.has(e.source) && ids.has(e.target)).map((e) => ({
@@ -1874,17 +1945,17 @@ export const useDiagram = create<DiagramState>()(
           // Items on the deleted layer stay, with no layer.
           const strip = <T extends { data?: Record<string, unknown> }>(x: T): T => (x.data?.layer === id ? { ...x, data: { ...x.data, layer: undefined } } : x);
           const pages = cur().pages.map((pg) => ({ ...pg, nodes: pg.nodes.map((n) => strip(n) as AppNode), edges: pg.edges.map((e) => strip(e) as CableEdge) }));
-          commit({ pages });
-          const p = cur();
-          set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).filter((l) => l.id !== id) } } });
+          commit({ pages, layers: (cur().layers ?? []).filter((l) => l.id !== id) });
         },
         toggleLayer: (id) => {
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)) } } });
+          deselectBlocked();
         },
         updateLayer: (id, patch) => {
           const p = cur();
           set({ projects: { ...get().projects, [p.id]: { ...p, layers: (p.layers ?? []).map((l) => (l.id === id ? { ...l, ...patch } : l)), updatedAt: Date.now() } } });
+          deselectBlocked();
         },
         setActiveLayer: (id) => {
           const p = cur();
@@ -1984,7 +2055,7 @@ export const useDiagram = create<DiagramState>()(
           const map = new Map(src.nodes.map((n) => [n.id, reId(n.id)]));
           const pg: Page = {
             ...newPage(`${src.name} (copy)`, src.kind),
-            nodes: src.nodes.map((n) => ({ ...n, id: map.get(n.id)!, selected: false, data: { ...n.data } }) as AppNode),
+            nodes: src.nodes.map((n) => ({ ...n, id: map.get(n.id)!, selected: false, data: retarget({ ...n.data }, map) }) as AppNode),
             edges: src.edges.map((e) => ({ ...e, id: `e-${uid()}`, source: map.get(e.source) ?? e.source, target: map.get(e.target) ?? e.target, selected: false })),
           };
           const pages = [...cur().pages];
@@ -2134,8 +2205,18 @@ export const useDiagram = create<DiagramState>()(
         importProject: (p, stencils) => {
           // Checked and repaired first: a damaged file must not crash the app (and keep crashing it on every start).
           // (Before its stencils are added, so a refused file leaves nothing behind.)
-          const copy: Project = { ...sanitizeProject(p, p?.name).project, id: uid(), updatedAt: Date.now() };
-          if (stencils?.length) get().importStencils(stencils);
+          let copy: Project = { ...sanitizeProject(p, p?.name).project, id: uid(), updatedAt: Date.now() };
+          if (stencils?.length) {
+            // A file's stencil with the id of a different stencil of yours comes in as a copy: its devices use the copy.
+            const { renamed } = addStencils(stencils);
+            if (renamed.size) {
+              const pages = copy.pages.map((pg) => ({
+                ...pg,
+                nodes: pg.nodes.map((n) => (n.type === 'device' && renamed.has(n.data.stencilId) ? { ...n, data: { ...n.data, stencilId: renamed.get(n.data.stencilId)! } } : n)),
+              }));
+              copy = { ...copy, pages };
+            }
+          }
           set({ projects: { ...get().projects, [copy.id]: copy }, currentId: copy.id, past: [], future: [] });
         },
 
@@ -2283,20 +2364,7 @@ export const useDiagram = create<DiagramState>()(
           delete rest[id];
           set({ customStencils: rest });
         },
-        importStencils: (list, library) => {
-          const next = { ...get().customStencils };
-          const names = new Set(Object.values(next).map(libraryOf));
-          let added = 0;
-          for (const s of sanitizeStencils(list)) {
-            if (STENCIL_MAP[s.id]) continue;
-            if (!next[s.id]) added++;
-            const lib = resolveLibrary(s.library?.trim() || library || DEFAULT_LIBRARY, names);
-            names.add(lib);
-            next[s.id] = { ...s, library: lib, custom: true };
-          }
-          set({ customStencils: next });
-          return added;
-        },
+        importStencils: (list, library) => addStencils(list, library).added,
         renameLibrary: (from, to) => {
           const custom = get().customStencils;
           const others = Object.values(custom).map(libraryOf).filter((n) => !sameLibrary(n, from));

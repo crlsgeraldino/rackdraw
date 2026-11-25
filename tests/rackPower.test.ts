@@ -9,15 +9,20 @@ import type { DeviceNode, Project, Rack } from '../src/lib/types';
 const st = (id: string) => STENCIL_MAP[id];
 const dev = (id: string, stencilId: string, extra: Record<string, unknown> = {}): DeviceNode =>
   ({ id, type: 'device', position: { x: 0, y: 0 }, data: { stencilId, name: id, ...extra } }) as DeviceNode;
-const setup = (devices: DeviceNode[], rack: Partial<Rack> = {}) => {
+const setup = (devices: DeviceNode[], rack: Partial<Rack> = {}, cables: [string, string][] = []) => {
   const r: Rack = { id: 'r', name: 'R', units: 42, items: devices.map((d, i) => ({ id: `i${i}`, kind: 'device', nodeId: d.id, u: i + 1, height: 1, depth: 'full' })), ...rack } as Rack;
-  const p = { id: 'p', name: 'T', activePageId: 'pg', createdAt: 0, updatedAt: 0, racks: [r], pages: [{ id: 'pg', name: 'N', kind: 'network', nodes: devices, edges: [] }] } as unknown as Project;
+  // Each cable runs from a device's port to an access point outside the rack.
+  const ap = dev('ap', 'ap');
+  const edges = cables.map(([node, port], i) => ({ id: `e${i}`, source: node, sourceHandle: port, target: 'ap', targetHandle: `x${i}`, data: { cable: 'Cat6' } }));
+  const p = { id: 'p', name: 'T', activePageId: 'pg', createdAt: 0, updatedAt: 0, racks: [r], pages: [{ id: 'pg', name: 'N', kind: 'network', nodes: [...devices, ap], edges }] } as unknown as Project;
   return { p, r };
 };
 
 describe('rack power', () => {
   it('uses typical figures, the device own figures, and PoE', () => {
-    const { p, r } = setup([dev('s', 'server'), dev('n', 'nas', { powerW: 50, weightLb: 12 }), dev('sw', 'switch-24-poe', { ports: { P1: { poe: 'PoE+' }, P2: { poe: 'PoE' } } })]);
+    // P3 has PoE set but nothing plugged in, P4 is cabled but disabled: neither draws power.
+    const sw = dev('sw', 'switch-24-poe', { ports: { P1: { poe: 'PoE+' }, P2: { poe: 'PoE' }, P3: { poe: 'PoE+' }, P4: { poe: 'PoE+', status: 'disabled' } } });
+    const { p, r } = setup([dev('s', 'server'), dev('n', 'nas', { powerW: 50, weightLb: 12 }), sw], {}, [['sw', 'P1'], ['sw', 'P2'], ['sw', 'P4']]);
     const pw = rackPower(p, r, st);
     assert.equal(pw.poeW, Math.round((30 + 15.4) / 0.9));
     assert.equal(pw.totalW, 400 + 50 + 45 + pw.poeW);

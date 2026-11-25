@@ -52,6 +52,13 @@ describe('prices', () => {
     assert.equal(parsePrice('12.99'), 12.99);
     assert.equal(parsePrice('1.200,50'), 1200.5);
     assert.equal(parsePrice('45,5'), 45.5);
+    assert.equal(parsePrice('1.200'), 1200);
+    assert.equal(parsePrice('€ 1.234'), 1234);
+    assert.equal(parsePrice('1.234.567'), 1234567);
+    assert.equal(parsePrice('1,234,567.89'), 1234567.89);
+    assert.equal(parsePrice('1,234'), 1234);
+    assert.equal(parsePrice('0.125'), 0.13);
+    assert.equal(parsePrice('199.5'), 199.5);
     assert.equal(parsePrice('0'), 0);
     assert.equal(parsePrice('abc'), undefined);
     assert.equal(parsePrice('-5'), undefined);

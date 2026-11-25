@@ -113,7 +113,7 @@ const XML = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\r\n';
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     // Characters XML 1.0 can't hold.
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/[\uFFFE\uFFFF]/g, '').replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;');
 const n = (v: number) => String(Math.round(v * 1e6) / 1e6);
 const cell = (name: string, v: string | number, extra = '') => `<Cell N="${name}" V="${typeof v === 'number' ? n(v) : esc(v)}"${extra}/>`;
 const hex = (c?: string | null) => (c && /^#[0-9a-f]{6}$/i.test(c) ? c.toUpperCase() : c && /^#[0-9a-f]{3}$/i.test(c) ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`.toUpperCase() : null);
@@ -203,7 +203,8 @@ function pageXml(page: VPage): PageOut {
     let body = '';
     let foreign = '';
     if (s.kind === 'line') {
-      const xs = s.points.map((p) => p.x), ys = s.points.map((p) => p.y);
+      const pts = s.points.length ? s.points : [{ x: 0, y: 0 }];
+      const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
       const x0 = Math.min(...xs), y0 = Math.min(...ys);
       box = { x: x0, y: y0, w: Math.max(Math.max(...xs) - x0, 0.0001), h: Math.max(Math.max(...ys) - y0, 0.0001) };
       const rows = s.points.map((p, k) => `<Row T="${k ? 'LineTo' : 'MoveTo'}" IX="${k + 1}">${cell('X', p.x - box.x)}${cell('Y', box.y + box.h - p.y)}</Row>`);

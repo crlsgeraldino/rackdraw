@@ -44,6 +44,8 @@ export function daysUntil(date?: string, today = new Date()): number | undefined
   const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const at = iso ? Date.UTC(+iso[1], +iso[2] - 1, +iso[3]) : Date.parse(t);
   if (!Number.isFinite(at)) return undefined;
+  // "2026-02-30" is not a date (Date.UTC would quietly make it March 2).
+  if (iso && new Date(at).getUTCDate() !== +iso[3]) return undefined;
   const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   return Math.round((at - now) / DAY);
 }

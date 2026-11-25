@@ -63,7 +63,13 @@ export interface Forecast {
 }
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const validDate = (s?: string) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(`${s}T00:00:00`).getTime()) ? s : undefined);
+const validDate = (s?: string) => {
+  const m = s?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return undefined;
+  // The day must exist ("2026-02-30" does not).
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] ? s : undefined;
+};
 
 /** The service life assumed for a device. */
 export function lifespanOf(d: DeviceNode, st?: StencilDef) {
