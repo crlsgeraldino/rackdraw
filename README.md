@@ -939,6 +939,11 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   - **Port capacity**: every switch, firewall and patch panel with ports used / free, PoE ports and watts against the
     switch's PoE budget, flagged at 80% of ports or PoE.
   - Copy, CSV or Excel; the PDF export and the CSV export include both tables (without prices).
+  - **What the job supplies**: each line is **New** (quoted) or **Client has it** (reused, not quoted), or partly new
+    (e.g. the client has 3 of 5 cables). **Everything is new** suits a new installation; for a refresh, click **Client
+    has everything**, then mark what you are replacing or adding (the switch, the firewall, the patch cords) New.
+    Sections have **all new / client has all**. Labor counts only what is new; the quote, the reports and the exports
+    list what is already on site separately ("Already on site (not quoted)"). Kept with the client.
 - **Cost estimate and quote** (same dialog):
   - **Price book**: type a unit price next to any item (bulk cable per foot); it is remembered for every client, so
     the next quote prices itself. Items without a price are highlighted and counted. **Export prices / Import

@@ -20,6 +20,8 @@ export interface BomRow {
   detail: string;
   qty: number;
   unit: string;
+  /** The installation work the whole line stands for (labor estimate), so a line the client already has adds none. */
+  work?: Partial<WorkCounts>;
 }
 export interface BomSection {
   title: string;
@@ -105,7 +107,7 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
   const count = <K,>(m: Map<K, number>, k: K, n = 1) => m.set(k, (m.get(k) ?? 0) + n);
 
   /* Equipment, by type and model. */
-  const equip = new Map<string, { key: string; item: string; detail: string; qty: number }>();
+  const equip = new Map<string, { key: string; item: string; detail: string; qty: number; work: Partial<WorkCounts> }>();
   const work: WorkCounts = { copperRuns: 0, fiberRuns: 0, rackDevices: 0, endpoints: 0, racks: (p.racks ?? []).length, cords: 0 };
   const services = new Map<string, number>();
   // Circuits recorded on devices (Shape Data → Circuit) are listed one by one with their own monthly cost; they
@@ -126,16 +128,20 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
     const model = d.data.model?.trim() || s?.defaults?.model || '';
     const units = s?.rackUnits ? `${s.rackUnits}U` : '';
     const k = `${item}|${model}`;
-    const row = equip.get(k) ?? { key: equipmentKey(d, s)!, item, detail: [model, units].filter(Boolean).join(' · '), qty: 0 };
+    const row = equip.get(k) ?? { key: equipmentKey(d, s)!, item, detail: [model, units].filter(Boolean).join(' · '), qty: 0, work: {} };
     row.qty++;
-    if (s?.rackUnits) work.rackDevices++;
-    else if (s?.category !== 'Cabling' && !isPassThrough(d, s)) work.endpoints++;
+    const job: keyof WorkCounts | undefined = s?.rackUnits ? 'rackDevices' : s?.category !== 'Cabling' && !isPassThrough(d, s) ? 'endpoints' : undefined;
+    if (job) {
+      work[job]++;
+      row.work[job] = (row.work[job] ?? 0) + 1;
+    }
     equip.set(k, row);
   }
 
   /* Cables: permanent runs (bulk length), patch cords by length, and the rest. */
   const bulkFt = new Map<string, number>();
   const runs = new Map<string, number>();
+  const runWork = new Map<string, number>();
   const cords = new Map<string, number>();
   const unknown = new Map<string, number>();
   const air = new Map<string, number>();
@@ -174,8 +180,8 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
       const name = FIBER.has(t) ? FIBER_NAME[t] : COPPER.has(t) ? `${t} cable (bulk, plenum / riser)` : `${t} cable`;
       count(bulkFt, name, ft);
       count(runs, name);
-      if (FIBER.has(t)) work.fiberRuns++;
-      else if (COPPER.has(t)) work.copperRuns++;
+      if (FIBER.has(t)) { work.fiberRuns++; count(runWork, `fiberRuns|${name}`); }
+      else if (COPPER.has(t)) { work.copperRuns++; count(runWork, `copperRuns|${name}`); }
     } else {
       count(cords, `${cordName(t)}|${Math.round(ft * 10) / 10} ft`);
       work.cords++;
@@ -226,8 +232,9 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
           item: name,
           detail: `${runs.get(name)} run${runs.get(name) === 1 ? '' : 's'}, ${fmtFt(ft)} + 10% slack${COPPER.has(name.split(' ')[0]) ? ` ≈ ${Math.ceil((ft * 1.1) / 1000)} × 1000 ft box` : ''}`,
           qty: Math.ceil(ft * 1.1), unit: 'ft',
+          work: { copperRuns: runWork.get(`copperRuns|${name}`), fiberRuns: runWork.get(`fiberRuns|${name}`) },
         })),
-        ...[...cords].sort().map(([k, n]) => { const [item, len] = k.split('|'); return { key: `cord|${k}`, item, detail: len, qty: n, unit: 'each' }; }),
+        ...[...cords].sort().map(([k, n]) => { const [item, len] = k.split('|'); return { key: `cord|${k}`, item, detail: len, qty: n, unit: 'each', work: { cords: n } }; }),
         ...[...unknown].map(([item, n]) => ({ key: `cable|${item}`, item, detail: 'length not set on the diagram', qty: n, unit: 'each' })),
       ],
     },
@@ -239,7 +246,13 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
         ...(lcEnds ? [{ key: 'term|lc', item: 'LC duplex connector / pigtail (splice)', detail: 'each backbone fiber end on a fiber panel', qty: lcEnds, unit: 'each' }] : []),
       ],
     },
-    { title: 'Racks & accessories', rows: [...racks, ...accessories].map(([item, n]) => ({ key: `rack|${item}`, item, detail: '', qty: n, unit: 'each' })) },
+    {
+      title: 'Racks & accessories',
+      rows: [
+        ...[...racks].map(([item, n]) => ({ key: `rack|${item}`, item, detail: '', qty: n, unit: 'each', work: { racks: n } })),
+        ...[...accessories].map(([item, n]) => ({ key: `rack|${item}`, item, detail: '', qty: n, unit: 'each' })),
+      ],
+    },
     {
       title: 'Circuits & services',
       rows: [
@@ -278,6 +291,52 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
     })
     .sort((a, b) => a.device.localeCompare(b.device));
   return { sections, capacity, work };
+}
+
+/**
+ * What the client already has on site, per bill-of-materials line (by its key): how many (feet for bulk cable), or
+ * 'all' (the whole line, however many the diagram needs later). Kept with the client (Bill of Materials).
+ */
+export type OnSite = Record<string, number | 'all'>;
+
+/** The section that lists what the client already has: shown on the quote, not priced. */
+export const ON_SITE_SECTION = 'Already on site (not quoted)';
+
+/** How much of a line the client already has (0 … qty). */
+export function onSiteQty(r: BomRow, on?: OnSite): number {
+  const v = on?.[r.key];
+  if (v === 'all') return r.qty;
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(r.qty, Math.max(0, Math.round(v))) : 0;
+}
+
+/**
+ * Splits the bill into what is supplied (each line less what the client already has) and what is already on site,
+ * and takes the work of what is already on site out of the labor counts: replacing the switch and the firewall
+ * quotes those two and their mounting, not the rest of the network.
+ */
+export function scopeBom(sections: BomSection[], work: WorkCounts, on?: OnSite): { sections: BomSection[]; onSite: BomRow[]; work: WorkCounts } {
+  const left: WorkCounts = { ...work };
+  const onSite: BomRow[] = [];
+  const supplied = sections.map((s) => ({
+    title: s.title,
+    rows: s.rows.flatMap((r) => {
+      const have = onSiteQty(r, on);
+      if (!have) return [r];
+      onSite.push({ ...r, qty: have, detail: [s.title, r.detail].filter(Boolean).join(' · ') });
+      for (const [k, n] of Object.entries(r.work ?? {}) as [keyof WorkCounts, number | undefined][]) {
+        if (n) left[k] = Math.max(0, left[k] - Math.round((n * have) / r.qty));
+      }
+      return have < r.qty ? [{ ...r, qty: r.qty - have }] : [];
+    }),
+  })).filter((s) => s.rows.length);
+  return { sections: supplied, onSite, work: left };
+}
+
+/** The client's bill as it is quoted: what is supplied, then what is already on site. For reports and exports. */
+export function quotedBom(p: Project, stencil: Stencils): { sections: BomSection[]; capacity: CapacityRow[]; work: WorkCounts } {
+  const b = billOfMaterials(p, stencil);
+  const sc = scopeBom(b.sections, b.work, p.quote?.onSite);
+  return { sections: [...sc.sections, ...(sc.onSite.length ? [{ title: ON_SITE_SECTION, rows: sc.onSite }] : [])], capacity: b.capacity, work: sc.work };
 }
 
 /** The bill of materials as rows for a sheet / CSV: Section, Item, Detail, Qty, Unit. */
