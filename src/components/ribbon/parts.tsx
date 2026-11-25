@@ -127,7 +127,7 @@ export function Drop({
     <span ref={anchor} className="inline-flex">
       {trigger(() => setOpen((o) => !o), open)}
       {open && (
-        <div ref={panel} className="fixed z-[1600] rounded-lg border border-slate-200 bg-white p-2 text-sm shadow-xl ring-1 ring-black/5" style={{ left: pos.left, top: pos.top, width }}>
+        <div ref={panel} className="fixed z-[1600] rounded-lg border border-slate-200 bg-white p-2 text-sm shadow-xl ring-1 ring-black/5" style={{ left: pos.left, top: pos.top, width, maxHeight: `calc(100vh - ${pos.top + 8}px)`, overflowY: 'auto' }}>
           {children(() => setOpen(false))}
         </div>
       )}

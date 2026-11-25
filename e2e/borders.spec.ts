@@ -15,6 +15,8 @@ test('every border design draws on the page, and the PDF is made with one', asyn
   const a = await launch({ name: 'borders' });
   try {
     const { page } = a;
+    // A small laptop screen: the gallery must still reach its options (it scrolls).
+    await a.app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; w.unmaximize(); w.setSize(1100, 640); });
     await newClient(page, 'E2E Borders', 'Small network + rack (up to 25 users)');
     const pageName = (await page.locator('.react-flow__pane').count()) ? await page.getByRole('textbox', { name: /Page name/ }).inputValue().catch(() => '') : '';
     for (const name of DESIGNS) {

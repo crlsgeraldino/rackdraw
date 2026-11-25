@@ -15,6 +15,7 @@ export const RELEASES: ReleaseNotes[] = [
     title: 'Up-to-date desktop engine',
     items: [
       'The desktop app runs on Electron 45.5 (the latest Chromium security fixes).',
+      'On a small screen, ribbon menus that are taller than the window (like Borders & Titles) scroll instead of running off the bottom.',
       'RackDraw\'s home on GitHub is now github.com/crlsgeraldino/rackdraw (the old address still works).',
     ],
   },
