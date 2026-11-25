@@ -11,6 +11,14 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.5.3',
+    title: 'Close a client your way',
+    items: [
+      'File → Close this client: a client saved in its own file just closes (the file stays, open it again from Recent). Unsaved changes can be saved first or left out.',
+      'File → Delete this client: a client with no file can be deleted with a copy saved first, or without a copy.',
+    ],
+  },
+  {
     version: '1.5.2',
     title: 'Racks: no more duplicate devices',
     items: [

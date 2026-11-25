@@ -6,7 +6,7 @@ import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openChangeLog, openFind, openHelp, openPortMap, openSwitchConfig, paletteAction } from '@/lib/events';
 import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, type PageRenderer } from '@/lib/export';
-import { desktop, isProtected, openClientFile, openRecent, saveClient, saveClientCopy, setClientPassword, showFileInFolder, useFileStatus } from '@/lib/fileSave';
+import { contentSignature, desktop, fileOf, isProtected, openClientFile, openRecent, saveClient, saveClientCopy, setClientPassword, showFileInFolder, useFileStatus } from '@/lib/fileSave';
 import { askPassword } from '../PasswordHost';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
@@ -24,6 +24,7 @@ import { readBackup, restoreBackup } from '@/lib/backup';
 import { backUpEverything } from '@/lib/backupFlow';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
+import { askChoice } from '../ChoiceHost';
 import { deviceFieldValue, reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
@@ -47,7 +48,7 @@ import { setPref, usePref } from '@/lib/prefs';
 import { printProject, type PrintOptions } from '@/lib/print';
 import { activePage, allNodes } from '@/lib/project';
 import { SCALE_PRESETS, SET_SCALE_EVENT } from '@/lib/units';
-import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
+import type { AppNode, CableColorBy, CalloutStyle, DeviceColorBy, LinePattern, Page, Project, ShapeKind, ShapeNode, ZoneNode, ZoneStyle } from '@/lib/types';
 import { allLinks, dashFor, FRAME_COLOR } from '@/lib/types';
 import { BORDER_DESIGNS, borderLayout } from '@/lib/borders';
 import { BorderArt } from '@/components/CanvasPage';
@@ -586,6 +587,47 @@ function NewClientDialog({ value, onChange, onClose }: { value: string; onChange
   );
 }
 
+/**
+ * File → Close / Delete this client: removes it from this computer's list, asking how.
+ * - Saved in its own file (desktop app): just close it; the file stays where it is.
+ * - Its file has unsaved changes: save them and close, or close without saving.
+ * - No file: save a copy first, or delete it without one (gone for good).
+ */
+async function closeClient(project: Project, onClose: () => void) {
+  const link = desktop() ? fileOf(project.id) : undefined;
+  const saved = !!link?.sig && contentSignature(project) === link.sig;
+  const name = project.name;
+  const choice = link && saved
+    ? await askChoice({
+      title: `Close "${name}"?`,
+      message: `It is saved in ${link.name}, which stays where it is: open it again with File → Open or Recent.\nIts Version History on this computer is deleted.`,
+      choices: [{ label: 'Close', value: 'close', primary: true }],
+    })
+    : link
+      ? await askChoice({
+        title: `Close "${name}"?`,
+        message: `It has changes that aren't saved in ${link.name} yet.\nIts Version History on this computer is deleted.`,
+        choices: [{ label: 'Close without saving', value: 'close', danger: true }, { label: 'Save and close', value: 'save', primary: true }],
+      })
+      : await askChoice({
+        title: `Delete "${name}" from this computer?`,
+        message: `It isn't saved in a file. Save a copy (${safeName(name)}.rackdraw) to be able to open it again later; without one, it is gone for good, with its Version History.`,
+        choices: [{ label: 'Delete without a copy', value: 'close', danger: true }, { label: 'Save a copy, then delete', value: 'copy', primary: true }],
+      });
+  if (!choice) return;
+  if (choice === 'save' && !(await saveClient())) {
+    alert(`"${name}" was not saved, so it is still open.`);
+    return;
+  }
+  // Deleted only once the copy exists: cancelling the copy's Save dialog keeps the client.
+  if (choice === 'copy' && !(await saveClientCopy(project))) {
+    alert(`The copy of "${name}" was not saved, so the client was not deleted.`);
+    return;
+  }
+  useDiagram.getState().deleteProject(project.id);
+  onClose();
+}
+
 /** The File tab's full-window page (Office "backstage"). */
 /** Title bar: the client's file, with a dot while there are changes not saved to it. */
 function FileName() {
@@ -644,6 +686,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
 }) {
   const project = useCurrentProject();
   const restoreRef = useRef<HTMLInputElement>(null);
+  const file = desktop() ? fileOf(project.id) : undefined;
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', esc);
@@ -697,18 +740,7 @@ Nothing here is replaced: clients you already have stay as they are, and a clien
           }}
         />
         <div className="my-2 border-t border-white/20" />
-        {item('delete', 'Delete this client…', async () => {
-          if (!confirm(`Delete "${project.name}" from this computer?
-
-A copy is saved first (${safeName(project.name)}.rackdraw), so you can open it again with File → Open. Its Version History is deleted.`)) return;
-          // Deleted only once the copy exists: cancelling the copy's Save dialog keeps the client.
-          if (!(await saveClientCopy(project))) {
-            alert(`The copy of "${project.name}" was not saved, so the client was not deleted.`);
-            return;
-          }
-          useDiagram.getState().deleteProject(project.id);
-          onClose();
-        }, true)}
+        {item('delete', file ? 'Close this client…' : 'Delete this client…', () => void closeClient(project, onClose), true)}
       </nav>
       <section className="flex-1 overflow-y-auto p-8">
         <h1 className="mb-1 text-2xl font-light text-gray-900">{project.name}</h1>
