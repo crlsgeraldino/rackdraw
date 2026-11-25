@@ -10,7 +10,7 @@ import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { rackdrawStorage, reportLoadError } from '@/lib/persistence';
+import { describe, rackdrawStorage, reportLoadError, useSaveStatus, WORKSPACE_KEY } from '@/lib/persistence';
 import { sanitizeProject, sanitizeStencil, sanitizeStencils } from '@/lib/sanitize';
 import type { BackupFile } from '@/lib/backup';
 import type { ImportPlan } from '@/lib/dataImport';
@@ -604,7 +604,14 @@ export const useDiagram = create<DiagramState>()(
         },
         loadVersions: async () => {
           if (versionsLoaded) return;
-          const stored = await idbGet<StoredVersions | Record<string, ProjectVersion[]>>(VERSIONS_KEY).catch(() => undefined);
+          let stored: StoredVersions | Record<string, ProjectVersion[]> | undefined;
+          try {
+            stored = await idbGet<StoredVersions | Record<string, ProjectVersion[]>>(VERSIONS_KEY);
+          } catch (e) {
+            // Never treat "couldn't read" as "none": versions are not written (so nothing is overwritten) and the user is told.
+            useSaveStatus.setState({ versionsError: `Version History couldn't be read (${describe(e)}). Your clients are fine; new versions are not kept until RackDraw is restarted.` });
+            return;
+          }
           let saved: Record<string, ProjectVersion[]> | undefined;
           if (stored && (stored as StoredVersions).format === 2) {
             versionPool = { ...(stored as StoredVersions).pool, ...versionPool };
@@ -2306,7 +2313,7 @@ export const useDiagram = create<DiagramState>()(
       };
     },
     {
-      name: 'netcraft',
+      name: WORKSPACE_KEY,
       version: 4,
       // Coalesced, error-reporting saves (lib/persistence.ts); same stored format as before.
       storage: rackdrawStorage as never,
@@ -2321,6 +2328,8 @@ export const useDiagram = create<DiagramState>()(
       },
       partialize: (s) => ({ projects: s.projects, currentId: s.currentId, customStencils: s.customStencils, templates: s.templates, view: s.view, activeRackId: s.activeRackId }),
       migrate: (persisted, version) => {
+        // Saved by a newer RackDraw: refuse (the recovery screen explains) rather than write it back in an older format.
+        if (version > 4) throw new Error('Your diagrams were saved by a newer version of RackDraw. Install that version (or newer) to open them.');
         const state = persisted as Partial<DiagramState>;
         if (version < 2) state.customStencils = {};
         // v3: projects hold pages instead of a single diagram.
@@ -2363,7 +2372,9 @@ if (typeof window !== 'undefined') {
       // Only the pictures some version still uses are kept.
       versionPool = usedPool(s.versions, versionPool);
       const stored: StoredVersions = { format: 2, versions: s.versions, pool: versionPool };
-      void idbSet(VERSIONS_KEY, stored).catch(() => undefined);
+      void idbSet(VERSIONS_KEY, stored)
+        .then(() => { if (useSaveStatus.getState().versionsError?.startsWith('Version History could not be saved')) useSaveStatus.setState({ versionsError: undefined }); })
+        .catch((e) => useSaveStatus.setState({ versionsError: `Version History could not be saved (${describe(e)}). It is tried again with the next version.` }));
     }
   });
 }

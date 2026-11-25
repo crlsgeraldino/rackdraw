@@ -45,10 +45,12 @@ export interface Prefs {
   fileLinks: Record<string, { path: string; name: string; sig?: string; protected?: boolean; check?: import('./fileCrypto').PasswordCheck }>;
   /** Client files opened or saved lately (desktop app), newest first: File → Recent and the taskbar list. */
   recentFiles: { path: string; name: string; at: number }[];
+  /** Clients whose files are password-protected (a check value per client id, never the password), also in a browser. */
+  protectedClients: Record<string, import('./fileCrypto').PasswordCheck>;
   /** The RackDraw version last used on this computer (What's new shows what came after it). */
   lastSeenVersion: string;
 }
-const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {}, fileLinks: {}, recentFiles: [], lastSeenVersion: '' };
+const DEFAULTS: Prefs = { quickInfo: true, minimap: true, shapesPane: true, propsPane: true, ribbonCollapsed: false, rulers: true, grid: true, pageBreaks: true, dynamicGrid: true, snapToGrid: true, gridSize: 20, navPane: false, deviceTable: false, units: 'auto', favorites: [], author: '', priceBook: {}, fileLinks: {}, recentFiles: [], protectedClients: {}, lastSeenVersion: '' };
 
 let current: Prefs = DEFAULTS;
 let loaded = false;

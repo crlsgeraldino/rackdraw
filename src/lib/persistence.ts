@@ -18,6 +18,15 @@ import { create } from 'zustand';
 
 const SAVE_DELAY = 400;
 
+/**
+ * Where the workspace is stored: 'netcraft' (the app's original name), or a new key after "Start with an empty
+ * workspace" when the old data could not even be read — that data then stays untouched under its own key.
+ */
+const KEY_PREF = 'rackdraw.workspaceKey';
+export const WORKSPACE_KEY: string = (() => {
+  try { return (typeof window !== 'undefined' && localStorage.getItem(KEY_PREF)) || 'netcraft'; } catch { return 'netcraft'; }
+})();
+
 export type SaveState = 'saved' | 'pending' | 'saving' | 'error';
 interface Status {
   state: SaveState;
@@ -25,6 +34,10 @@ interface Status {
   lastSaved?: number;
   /** The saved workspace could not be read: the app shows the recovery screen. */
   loadError?: string;
+  /** Version History could not be read or saved (the clients themselves are fine). */
+  versionsError?: string;
+  /** Browser: RackDraw is open in another tab ('busy'), or this tab handed over to another one ('moved'). */
+  otherTab?: 'busy' | 'moved';
 }
 export const useSaveStatus = create<Status>(() => ({ state: 'saved' }));
 
@@ -34,7 +47,7 @@ let writing: Promise<void> | null = null;
 /** Set when loading failed: never write over data we couldn't read. */
 let blocked = false;
 
-function describe(e: unknown) {
+export function describe(e: unknown) {
   const err = e as { name?: string; message?: string };
   if (err?.name === 'QuotaExceededError') return 'the disk or browser storage is full';
   return err?.message || String(e);
@@ -126,24 +139,91 @@ export function reportLoadError(e: unknown) {
   useSaveStatus.setState({ loadError: describe(e) });
 }
 
-/** The raw saved workspace as text, for the recovery screen's download. */
-export async function rawSavedData(name = 'netcraft'): Promise<string | null> {
+/**
+ * The raw saved workspace as text, for the recovery screen's download; null when nothing is stored. Throws when the
+ * storage can't be read at all (then there is nothing to copy, and nothing may be deleted).
+ */
+export async function rawSavedData(name = WORKSPACE_KEY): Promise<string | null> {
+  let v: unknown;
   try {
-    const v = await idbGet<unknown>(name);
-    if (v != null) return typeof v === 'string' ? v : JSON.stringify(v);
-  } catch { /* fall through */ }
+    v = await idbGet<unknown>(name);
+  } catch (e) {
+    throw new Error(`The saved data can't be read even to make a copy (${describe(e)}).`);
+  }
+  if (v != null) return typeof v === 'string' ? v : JSON.stringify(v);
   try { return localStorage.getItem(name); } catch { return null; }
 }
 
-/** Recovery: keeps the unreadable data under another key, then starts an empty workspace. */
-export async function setAsideSavedData(name = 'netcraft') {
-  const raw = await rawSavedData(name);
-  if (raw != null) await idbSet(`${name}-unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`, raw);
-  await del(name);
-  try { localStorage.removeItem(name); } catch { /* ignore */ }
+/**
+ * Recovery: starts an empty workspace without losing the unreadable data. Data that can be read is copied aside
+ * (checked) before the original is removed; data that can't even be read is left exactly where it is, and the new
+ * workspace is stored under a new key. Throws (changing nothing) if that isn't possible.
+ */
+export async function setAsideSavedData(): Promise<'copied' | 'kept'> {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  let raw: string | null;
+  try {
+    raw = await rawSavedData();
+  } catch {
+    try { localStorage.setItem(KEY_PREF, `netcraft-${stamp}`); } catch (e) { throw new Error(`Nothing was changed: a new workspace could not be set up (${describe(e)}).`); }
+    return 'kept';
+  }
+  if (raw != null) {
+    const aside = `${WORKSPACE_KEY}-unreadable-${stamp}`;
+    await idbSet(aside, raw);
+    if ((await idbGet<string>(aside)) !== raw) throw new Error('Nothing was changed: the unreadable data could not be kept aside safely.');
+    await del(WORKSPACE_KEY);
+  }
+  try { localStorage.removeItem(WORKSPACE_KEY); } catch { /* ignore */ }
+  return 'copied';
+}
+
+/*
+ * Browser: only one tab may change the workspace (each tab writes the whole workspace, so two would overwrite each
+ * other's clients). The first tab holds a lock; another tab shows "open in another tab" and can take over: the first
+ * tab then saves, lets go and stops writing, and the new tab reloads with the fresh data. The desktop app runs a
+ * single window and needs none of this.
+ */
+const LOCK = 'rackdraw-workspace';
+let releaseHeld: (() => void) | null = null;
+let channel: BroadcastChannel | null = null;
+
+function claimWorkspace() {
+  const w = window as unknown as { rackdrawDesktop?: unknown };
+  if (w.rackdrawDesktop || !navigator.locks || typeof BroadcastChannel === 'undefined') return;
+  channel = new BroadcastChannel(LOCK);
+  channel.onmessage = async (e) => {
+    if (e.data !== 'release' || !releaseHeld) return;
+    await flushSave();
+    blocked = true;
+    useSaveStatus.setState({ otherTab: 'moved' });
+    releaseHeld();
+    releaseHeld = null;
+    channel?.postMessage('released');
+  };
+  void navigator.locks.request(LOCK, { ifAvailable: true }, (lock) => {
+    if (!lock) {
+      blocked = true;
+      useSaveStatus.setState({ otherTab: 'busy' });
+      return undefined;
+    }
+    return new Promise<void>((r) => { releaseHeld = r; });
+  }).catch(() => undefined);
+}
+
+/** "Use RackDraw here": the other tab saves and lets go, then this tab reloads with the fresh data. */
+export async function takeOverWorkspace() {
+  const ch = channel ?? new BroadcastChannel(LOCK);
+  await new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, 5000);
+    ch.addEventListener('message', (e) => { if (e.data === 'released') { clearTimeout(t); resolve(); } });
+    ch.postMessage('release');
+  });
+  location.reload();
 }
 
 if (typeof window !== 'undefined') {
+  claimWorkspace();
   // Flush when the window is hidden or closed; Electron also calls this before closing (see electron/main.cjs).
   const now = () => { void finalSave(); };
   window.addEventListener('pagehide', now);

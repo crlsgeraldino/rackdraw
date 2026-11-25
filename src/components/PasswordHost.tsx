@@ -22,7 +22,12 @@ export interface AskPassword {
   /** Shown in red (e.g. after a wrong password). */
   error?: string;
   okLabel?: string;
+  /** A second choice (e.g. "Forgot it?"): resolves with PASSWORD_ALT. */
+  altLabel?: string;
 }
+
+/** What askPassword resolves with when the `altLabel` button is chosen. */
+export const PASSWORD_ALT = 'rackdraw:alternative-choice';
 
 interface Pending extends AskPassword { resolve: (v: string | null) => void }
 const usePending = create<{ ask: Pending | null }>(() => ({ ask: null }));
@@ -82,6 +87,7 @@ export function PasswordHost() {
         )}
         <div className="mt-3 flex items-center gap-2">
           {ask.allowRemove && <button type="button" className="rounded px-2 py-1 text-sm text-red-600 hover:bg-red-50" onClick={() => done('')}>Remove password</button>}
+          {ask.altLabel && <button type="button" className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-50" onClick={() => done(PASSWORD_ALT)}>{ask.altLabel}</button>}
           <span className="flex-1" />
           <button type="button" className="rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" onClick={() => done(null)}>Cancel</button>
           <button type="submit" disabled={!canOk} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40">{ask.okLabel ?? 'OK'}</button>

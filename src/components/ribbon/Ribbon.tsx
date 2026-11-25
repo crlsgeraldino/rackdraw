@@ -5,8 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_DISPLAY } from '@/lib/display';
 import { DEFAULT_SETUP, PAPER, sheetSize, type PaperSize } from '@/lib/pageSetup';
 import { openChangeLog, openFind, openHelp, openPortMap, openSwitchConfig, paletteAction } from '@/lib/events';
-import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, saveProjectFile, type PageRenderer } from '@/lib/export';
-import { desktop, isProtected, openClientFile, openRecent, saveClient, setClientPassword, showFileInFolder, useFileStatus } from '@/lib/fileSave';
+import { downloadBlob, exportCsv, exportImage, exportPdf, renderCanvasPng, renderCanvasSvg, safeName, type PageRenderer } from '@/lib/export';
+import { desktop, isProtected, openClientFile, openRecent, saveClient, saveClientCopy, setClientPassword, showFileInFolder, useFileStatus } from '@/lib/fileSave';
 import { askPassword } from '../PasswordHost';
 import { buildWebPage, type WebHotspot, type WebPage } from '@/lib/webPage';
 import { resolveLink } from '@/lib/links';
@@ -20,7 +20,8 @@ import { ScanImportDialog } from '../ScanImportDialog';
 import { SitesDialog } from '../SitesDialog';
 import { WifiDialog } from '../WifiPlan';
 import { LabelsDialog } from '../LabelsDialog';
-import { downloadBackup, readBackup, restoreBackup } from '@/lib/backup';
+import { readBackup, restoreBackup } from '@/lib/backup';
+import { backUpEverything } from '@/lib/backupFlow';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { deviceFieldValue, reportFields } from '@/lib/report';
@@ -671,15 +672,7 @@ function FileView({ onClose, onNew, onOpen, onSave, onPrint, onExport }: {
         {item('titleBlock', 'Save as template…', () => void saveTemplate())}
         {item('print', 'Print…', onPrint)}
         <div className="my-2 border-t border-white/20" />
-        {item('save', 'Back up everything…', async () => {
-          const pw = await askPassword({
-            title: 'Back up everything', message: 'Protect the backup with a password? Leave it empty for no password.\nThe backup holds every client, your stencils, templates, Version History and price book.',
-            confirm: true, optional: true, okLabel: 'Back up',
-          });
-          if (pw === null) return;
-          const n = await downloadBackup(pw || undefined);
-          alert(`Backed up ${n} client${n === 1 ? '' : 's'}, your stencils, templates, Version History and price book to one file${pw ? ', protected with your password' : ''}. Keep it somewhere safe (another drive or the cloud).`);
-        })}
+        {item('save', 'Back up everything…', () => void backUpEverything())}
         {item('open', 'Restore from backup…', () => restoreRef.current?.click())}
         <input
           ref={restoreRef} type="file" accept=".json" className="hidden" aria-hidden
@@ -702,11 +695,15 @@ Nothing here is replaced: clients you already have stay as they are, and a clien
           }}
         />
         <div className="my-2 border-t border-white/20" />
-        {item('delete', 'Delete this client…', () => {
+        {item('delete', 'Delete this client…', async () => {
           if (!confirm(`Delete "${project.name}" from this computer?
 
-A copy is downloaded first (${safeName(project.name)}.rackdraw), so you can open it again with File → Open. Its Version History is deleted.`)) return;
-          saveProjectFile(project);
+A copy is saved first (${safeName(project.name)}.rackdraw), so you can open it again with File → Open. Its Version History is deleted.`)) return;
+          // Deleted only once the copy exists: cancelling the copy's Save dialog keeps the client.
+          if (!(await saveClientCopy(project))) {
+            alert(`The copy of "${project.name}" was not saved, so the client was not deleted.`);
+            return;
+          }
           useDiagram.getState().deleteProject(project.id);
           onClose();
         }, true)}

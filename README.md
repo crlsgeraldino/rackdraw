@@ -500,7 +500,14 @@ the clipboard (Copy buttons), persistent storage and full screen. The installed 
   one `rackdraw-backup-<date>.json`. **File → Restore from backup…** adds it back without replacing anything: a
   client that is already here comes back as a copy named "(restored)".
   The backup can be protected with a password too (same encryption); Restore asks for it.
-- **Deleting a client** downloads a copy of it first (`.rackdraw.json`), so it can be opened again.
+- **Deleting a client** saves a copy of it first (`.rackdraw`, password-protected if its file is), so it can be opened
+  again; in the desktop app the client is deleted only once the copy is saved (cancelling the Save dialog keeps it).
+- **One tab at a time** (browser): RackDraw open in a second tab shows "already open in another tab" instead of the two
+  tabs overwriting each other's clients; "Use RackDraw here" makes the first tab save and step aside.
+- **Recovery screen**: if the saved diagrams can't be read, nothing is deleted. "Start with an empty workspace" keeps the
+  old data aside (or, when it can't even be read, leaves it untouched and starts the new workspace elsewhere). Data
+  saved by a newer RackDraw is refused instead of being rewritten in an older format.
+- **Version History** that can't be read or saved is reported (amber bar) and never overwritten by an empty list.
 - **Security (desktop app)**: links in diagrams open in your browser or mail app only if they are `http`, `https` or
   `mailto`; other kinds of link (file:, smb:, ms-msdt:…) are ignored. Developer tools are off in the installed app.
 
