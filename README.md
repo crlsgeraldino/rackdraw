@@ -126,6 +126,20 @@ npm test           # unit tests: lengths, prices, auto-rack, Bill of Materials, 
 The tests use Node's built-in test runner (Node 22.6+); TypeScript is loaded through jiti, which Tailwind 4 already
 installs.
 
+### End-to-end tests (the real desktop app)
+
+```bash
+npm run build      # the tests drive the built app in out/
+npm run e2e        # Playwright: starts RackDraw (Electron) with a throwaway data folder for each test
+```
+
+They click every ribbon button (with and without a selection), save a client, restart, reopen its file, make every
+export and check each file, insert a large and a damaged CAD drawing, and import network scans. On Windows with
+Microsoft Office installed they also open the Word, PowerPoint, CSV (and, with Visio, .vsdx) exports in Office; an
+Office app that is already running is left alone and that check is skipped. Your own clients are never touched:
+each test uses its own temporary folder (`RACKDRAW_DATA_DIR`). GitHub runs all of this on every pull request
+(`.github/workflows/ci.yml`).
+
 ## Build and host
 
 ```bash

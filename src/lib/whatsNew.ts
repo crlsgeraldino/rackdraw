@@ -18,6 +18,7 @@ export const RELEASES: ReleaseNotes[] = [
       'Link Data and Network Scan import read big sheets and scans quickly; a damaged Excel or nmap file no longer freezes the app.',
       'Visio stencils with damaged pictures inside, and pictures or PDFs with impossible sizes, are refused with a clear message instead of using up memory.',
       'A client file with damaged fields opens and works in Check Diagram, the IP plan, the bill of materials, port maps and labels.',
+      'Escape now closes every dialog and panel, including Number Shapes, Define Shape Data, the Bill of Materials, Check Diagram and Comments.',
     ],
   },
   {

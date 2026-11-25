@@ -42,3 +42,7 @@ next-env.d.ts
 
 # desktop installer output
 /release
+
+# end-to-end tests
+/test-results/
+/playwright-report/

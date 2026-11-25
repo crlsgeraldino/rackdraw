@@ -6,6 +6,7 @@ import { setPref, usePref } from '@/lib/prefs';
 import type { AppNode } from '@/lib/types';
 import { useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { safeFitView } from '@/lib/fit';
+import { useEscape } from '@/lib/useEscape';
 
 /** Opens the Comments panel; `detail.add` starts a new comment on the selected item. */
 export const OPEN_COMMENTS_EVENT = 'netcraft:comments';
@@ -16,6 +17,7 @@ const itemName = (n: AppNode) =>
 
 /** Visio-style Comments pane: every comment in the client, a box to add one to the selection, resolve or delete. */
 export function CommentsPanel({ onClose, startAdding }: { onClose: () => void; startAdding: boolean }) {
+  useEscape(onClose);
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
   const page = useCurrentPage();
@@ -114,7 +116,7 @@ export function CommentsPanel({ onClose, startAdding }: { onClose: () => void; s
                         placeholder="Reply… (Ctrl+Enter)"
                         value={reply}
                         onChange={(e) => setReply(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postReply(n.id, c.id); } if (e.key === 'Escape') setReplying(null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postReply(n.id, c.id); } if (e.key === 'Escape') { e.preventDefault(); setReplying(null); } }}
                       />
                       <button className="self-end rounded bg-blue-600 px-2 py-0.5 text-[11px] text-white hover:bg-blue-700 disabled:opacity-50" disabled={!reply.trim()} onClick={() => postReply(n.id, c.id)}>Reply</button>
                     </div>

@@ -9,6 +9,7 @@ import { usePriceBook } from './usePriceBook';
 import { LABOR_TASKS, money, parsePrice, priceQuote, QUOTE_DEFAULTS, QUOTE_HEADER, quoteRows, type QuoteSettings } from '@/lib/quote';
 import { writeXlsx } from '@/lib/xlsx';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { useEscape } from '@/lib/useEscape';
 
 const CAP_HEADER = ['Device', 'Model', 'Ports', 'Used', 'Free', 'PoE ports', 'PoE W', 'PoE budget W', 'Check'];
 type Tab = 'bom' | 'quote' | 'capacity';
@@ -30,13 +31,14 @@ function PriceInput({ value, onSave, label }: { value?: number; onSave: (v?: num
       value={text ?? (value === undefined ? '' : String(value))}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setText(null); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { e.preventDefault(); setText(null); } }}
     />
   );
 }
 
 /** Data → Bill of Materials: what to order, what it costs (price book, labor, markup, tax), and port capacity. */
 export function BomDialog({ onClose }: { onClose: () => void }) {
+  useEscape(onClose);
   const project = useCurrentProject();
   const updateProject = useDiagram((s) => s.updateProject);
   const { prices, book, savePrice } = usePriceBook();

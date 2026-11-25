@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --import ./tests/register.mjs --test \"tests/*.test.ts\"",
+    "e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
     "serve": "npx --yes serve@14 out -l 3124",
     "desktop": "next build && electron .",
@@ -22,7 +23,9 @@
     "appId": "com.crlsgeraldino.netcraft",
     "productName": "RackDraw",
     "copyright": "MIT License",
-    "electronLanguages": ["en-US"],
+    "electronLanguages": [
+      "en-US"
+    ],
     "fileAssociations": [
       {
         "ext": "rackdraw",
@@ -74,6 +77,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.65.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

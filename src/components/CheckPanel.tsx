@@ -6,6 +6,7 @@ import { checkProject, type Issue, type Severity } from '@/lib/check';
 import type { AppNode } from '@/lib/types';
 import { getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { safeFitView } from '@/lib/fit';
+import { useEscape } from '@/lib/useEscape';
 
 /** Fired by the Arrange menu to open the Check diagram panel on the canvas. */
 export const OPEN_CHECK_EVENT = 'netcraft:check-diagram';
@@ -18,6 +19,7 @@ const STYLE: Record<Severity, { label: string; dot: string; text: string }> = {
 
 /** Visio-style "Check diagram": live list of problems in this client's documentation; click one to go to it. */
 export function CheckPanel({ onClose }: { onClose: () => void }) {
+  useEscape(onClose);
   const rf = useReactFlow<AppNode>();
   const project = useCurrentProject();
   const { selectItem } = useDiagram.getState();

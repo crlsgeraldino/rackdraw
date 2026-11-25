@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { numberText, orderItems, type NumberOptions, type NumberOrder, type NumberPlace } from '@/lib/numbering';
 import { useCurrentPage, useDiagram } from '@/store/useDiagramStore';
+import { useEscape } from '@/lib/useEscape';
 
 export const NUMBER_SHAPES_EVENT = 'netcraft:number-shapes';
 export const openNumberShapes = () => window.dispatchEvent(new Event(NUMBER_SHAPES_EVENT));
@@ -15,6 +16,7 @@ type Scope = 'selection' | 'devices' | 'all';
  */
 export function NumberShapesDialog() {
   const [open, setOpen] = useState(false);
+  useEscape(() => setOpen(false), open);
   const page = useCurrentPage();
   const [scope, setScope] = useState<Scope>('selection');
   const [order, setOrder] = useState<NumberOrder>('rows');
@@ -51,8 +53,7 @@ export function NumberShapesDialog() {
     setOpen(false);
   };
   return (
-    <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/30" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}>
+    <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/30" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
       <div className="w-[min(560px,94vw)] rounded-lg bg-white text-sm shadow-xl" role="dialog" aria-label="Number Shapes">
         <div className="flex items-center border-b border-gray-200 px-4 py-2">
           <h2 className="text-base font-semibold text-gray-900">Number Shapes</h2>
