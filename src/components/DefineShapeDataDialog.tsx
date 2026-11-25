@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { STENCIL_CATEGORIES, type FieldDef, type FieldType } from '@/lib/types';
 import { useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { useEscape } from '@/lib/useEscape';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const TYPES: { value: FieldType; label: string }[] = [
@@ -25,6 +26,7 @@ const STARTERS: Omit<FieldDef, 'id'>[] = [
  * field name, so they also show in the info box, quick info, reports and exports.
  */
 export function DefineShapeDataDialog({ onClose }: { onClose: () => void }) {
+  useEscape(onClose);
   const project = useCurrentProject();
   const setDefs = useDiagram((s) => s.setFieldDefs);
   const defs = project.fieldDefs ?? [];

@@ -5,6 +5,7 @@
 import { cleanChangeLog } from './changeLog';
 import { migrateProject } from './project';
 import { cleanDeep, num } from './safe';
+import type { VlanDef } from './ipam';
 import type { AppNode, CableEdge, Page, Project, StencilDef } from './types';
 
 /** Newest project file version this build understands. */
@@ -19,9 +20,62 @@ export interface SanitizeReport {
   droppedEdges: number;
 }
 
-/** A device's number fields must be numbers (a hand-edited file may say "heavy"). */
+/**
+ * Text fields must be text: a number or yes/no becomes text, anything else (a list, an object, null) is removed.
+ * Features read these with .trim() / .match(), so a hand-edited or damaged file must not crash them.
+ */
+function texts(o: Record<string, unknown>, keys: readonly string[]) {
+  for (const k of keys) {
+    const v = o[k];
+    if (v === undefined || typeof v === 'string') continue;
+    if ((typeof v === 'number' && Number.isFinite(v)) || typeof v === 'boolean') o[k] = String(v);
+    else delete o[k];
+  }
+  return o;
+}
+
+const DEVICE_TEXT = ['model', 'ip', 'mac', 'serial', 'location', 'notes', 'assetTag', 'purchaseDate', 'warrantyEnd', 'endOfLife', 'status', 'layer', 'labelSide'] as const;
+const PORT_TEXT = ['label', 'description', 'ip', 'vlan', 'notes', 'speed', 'poe', 'status'] as const;
+const CABLE_TEXT = ['label', 'vlan', 'layer', 'route', 'arrows', 'color', 'length', 'role', 'tag'] as const;
+const VLAN_TEXT = ['name', 'vlan', 'subnet', 'gateway', 'dhcpStart', 'dhcpEnd', 'color', 'notes'] as const;
+
+/** A device's ports: an object of port objects with text fields. */
+function cleanPorts(ports: unknown) {
+  if (!isObj(ports)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [id, q] of Object.entries(ports)) {
+    if (!isObj(q)) continue;
+    const port = texts({ ...q }, PORT_TEXT);
+    if (port.uplink !== undefined) port.uplink = port.uplink === true;
+    out[id] = port;
+  }
+  return out;
+}
+
+/** A cable's data with the right types. */
+function cleanCable(d: unknown) {
+  if (!isObj(d)) return { cable: 'Cat6' };
+  const out = texts({ ...d }, CABLE_TEXT);
+  out.cable = typeof out.cable === 'string' && out.cable ? out.cable : 'Cat6';
+  for (const k of ['labelAt', 'weight']) if (out[k] !== undefined && !finite(out[k])) delete out[k];
+  if (out.showLength !== undefined) out.showLength = out.showLength === true;
+  return out;
+}
+
+/** A device's fields must have the right types (a hand-edited file may say "heavy" for a weight, or 5 for a name). */
 function cleanDevice(d: Record<string, unknown>) {
-  const out = { ...d };
+  const out = texts({ ...d }, DEVICE_TEXT);
+  out.name = typeof out.name === 'string' ? out.name : finite(out.name) ? String(out.name) : '';
+  out.stencilId = typeof out.stencilId === 'string' ? out.stencilId : '';
+  if (out.ports !== undefined) out.ports = cleanPorts(out.ports);
+  if (out.extraFields !== undefined) {
+    out.extraFields = Array.isArray(out.extraFields)
+      ? out.extraFields.filter(isObj).map((f) => texts({ label: f.label ?? '', value: f.value ?? '' }, ['label', 'value'])).filter((f) => typeof f.label === 'string')
+      : undefined;
+  }
+  if (out.labelFields !== undefined && !(Array.isArray(out.labelFields) && out.labelFields.every((f) => typeof f === 'string'))) delete out.labelFields;
+  if (out.labelOffset !== undefined && !(isObj(out.labelOffset) && finite(out.labelOffset.x) && finite(out.labelOffset.y))) delete out.labelOffset;
+  if (out.rotation !== undefined && !finite(out.rotation)) delete out.rotation;
   for (const k of ['powerW', 'weightLb']) if (out[k] !== undefined && !finite(out[k])) delete out[k];
   if (isObj(out.ups)) { const u = { ...out.ups }; for (const k of ['capacityW', 'runtimeHalfMin']) if (u[k] !== undefined && !finite(u[k])) delete u[k]; out.ups = u; }
   if (isObj(out.circuit) && out.circuit.monthlyCost !== undefined && !finite(out.circuit.monthlyCost)) out.circuit = { ...out.circuit, monthlyCost: undefined };
@@ -35,7 +89,9 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
   if (!hasPages && !(Array.isArray(raw.nodes) && Array.isArray(raw.edges))) throw new Error('Not a RackDraw diagram file.');
   const report: SanitizeReport = { droppedNodes: 0, droppedEdges: 0 };
   // Style values that could break out of markup, and absurdly deep nesting, are removed first.
-  const p = migrateProject({ name: fallbackName, createdAt: Date.now(), ...(cleanDeep(raw) as object) } as Project);
+  const cleaned = cleanDeep(raw) as Record<string, unknown>;
+  if (Array.isArray(cleaned.pages)) cleaned.pages = cleaned.pages.filter(isObj);
+  const p = migrateProject({ name: fallbackName, createdAt: Date.now(), ...cleaned } as unknown as Project);
 
   const pages: Page[] = (p.pages as unknown[]).filter(isObj).map((pg) => {
     const nodes = (Array.isArray(pg.nodes) ? pg.nodes : []).filter((n: unknown): n is AppNode => {
@@ -57,7 +113,7 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
       id: typeof pg.id === 'string' && pg.id ? pg.id : `p-${uid()}`,
       name: typeof pg.name === 'string' ? pg.name : 'Page',
       nodes: unique.map((n) => ({ ...n, selected: false, ...(n.type === 'device' ? { data: cleanDevice(n.data as unknown as Record<string, unknown>) } : {}) }) as AppNode),
-      edges: edges.map((e) => ({ ...e, data: isObj(e.data) ? e.data : { cable: 'Cat6' }, selected: false })) as CableEdge[],
+      edges: edges.map((e) => ({ ...e, data: cleanCable(e.data), selected: false })) as CableEdge[],
     };
   });
   if (!pages.length) throw new Error('This file has no pages.');
@@ -77,7 +133,10 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
     racks,
     activePageId: pages.some((pg) => pg.id === p.activePageId) ? p.activePageId : pages[0].id,
     changeLog: cleanChangeLog(p.changeLog),
-    vlans: Array.isArray(p.vlans) ? p.vlans.filter((v) => isObj(v) && typeof v.name === 'string').map((v) => ({ ...v, id: typeof v.id === 'string' ? v.id : `v-${uid()}`, vlan: String(v.vlan ?? '') })) : undefined,
+    vlans: Array.isArray(p.vlans)
+      ? p.vlans.filter((v) => isObj(v) && typeof v.name === 'string')
+        .map((v) => ({ ...texts({ ...v }, VLAN_TEXT), id: typeof v.id === 'string' ? v.id : `v-${uid()}`, vlan: typeof v.vlan === 'string' ? v.vlan : finite(v.vlan) ? String(v.vlan) : '' }) as VlanDef)
+      : undefined,
     createdAt: finite(p.createdAt) ? p.createdAt : Date.now(),
     updatedAt: finite(p.updatedAt) ? p.updatedAt : Date.now(),
   };

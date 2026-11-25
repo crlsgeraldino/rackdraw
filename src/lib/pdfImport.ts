@@ -37,6 +37,8 @@ export async function openPdf(file: File): Promise<{ pages: number; render: (pag
   const render = async (n: number): Promise<RenderedPdf> => {
     const page = await doc.getPage(Math.min(Math.max(1, n), doc.numPages));
     const base = page.getViewport({ scale: 1 }); // points: 72 per inch
+    // A damaged page size (zero, or absurdly large) would make the picture size infinite.
+    if (!(base.width >= 1 && base.height >= 1 && base.width < 1e6 && base.height < 1e6)) throw new Error(`Page ${n} of this PDF has no usable page size; it may be damaged.`);
     const k = Math.min(MAX_SIDE / Math.max(base.width, base.height), Math.sqrt(MAX_AREA / (base.width * base.height)));
     const vp = page.getViewport({ scale: k });
     const canvas = document.createElement('canvas');
