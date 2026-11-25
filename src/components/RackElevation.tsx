@@ -64,18 +64,34 @@ interface Props {
   onPortHover?: (h: { nodeId: string; port: string; x: number; y: number } | null) => void;
 }
 
+/**
+ * Where a device's front-panel art sits in its slot, and its scale across (kx) and down (ky). A full-width
+ * faceplate (a 19 in switch, a vendor's picture of one) fills the slot from post to post, as the real one does, even
+ * if the picture is a little wider or narrower than the slot; something clearly narrower (a desktop firewall on a
+ * shelf) keeps its proportions and is centred.
+ */
+export function artBox(st: StencilDef, x: number, y: number, w: number, h: number) {
+  const pad = 3;
+  const iw = w - pad * 2, ih = h - pad * 2;
+  const k = Math.min(iw / st.width, ih / st.height);
+  // Pictures only: the built-in panels are drawn to their own proportions and would look squashed.
+  const fullWidth = st.style === 'image' && st.width / st.height >= (iw / ih) * 0.7;
+  if (fullWidth) return { x: x + pad, y: y + pad, w: iw, h: ih, kx: iw / st.width, ky: ih / st.height, stretch: true };
+  const aw = st.width * k, ah = st.height * k;
+  return { x: x + (w - aw) / 2, y: y + (h - ah) / 2, w: aw, h: ah, kx: k, ky: k, stretch: false };
+}
+
 /** A port's box on the rack's front (for pointing at it), in the elevation's coordinates. */
 function portBox(rack: Rack, it: RackItem, st: StencilDef | undefined, port: string): { x: number; y: number; w: number; h: number } | null {
-  const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W, pad = 3;
+  const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W;
   if (!st || st.style === 'icon') {
     const spot = jackSpots(st, RAIL, y).get(port);
     return spot ? { x: spot[0] - 9, y: spot[1] - 8, w: 18, h: 16 } : null;
   }
   const p = st.ports.find((q) => q.id === port);
   if (!p) return null;
-  const k = Math.min((w - pad * 2) / st.width, (h - pad * 2) / st.height);
-  const ax = RAIL + (w - st.width * k) / 2, ay = y + (h - st.height * k) / 2;
-  return { x: ax + p.x * k, y: ay + p.y * k, w: p.w * k, h: p.h * k };
+  const a = artBox(st, RAIL, y, w, h);
+  return { x: a.x + p.x * a.kx, y: a.y + p.y * a.ky, w: p.w * a.kx, h: p.h * a.ky };
 }
 
 function onFace(it: RackItem, face: 'front' | 'rear') {
@@ -261,6 +277,9 @@ function DeviceFace({ x, y, h, device, stencil, ports }: { x: number; y: number;
   return <>{parts}</>;
 }
 
+/** A device's name for its back: a vendor's front-view shape is often named "… - Front"; that part is dropped. */
+export const rearName = (name: string) => name.replace(/\s*[-–(]\s*front(\s*view)?\s*\)?\s*$/i, '') || name;
+
 /** The back of any device: power supplies with fans and a handle, a row of fans, and its network ports. */
 function DeviceRear({ x, y, h, device, stencil, ports }: { x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState> }) {
   const w = INNER_W;
@@ -329,7 +348,7 @@ function DeviceRear({ x, y, h, device, stencil, ports }: { x: number; y: number;
   // Ports on the back only for equipment without a front panel (servers, NAS, UPS); switches show theirs on the front.
   const jacks = stencil?.style === 'icon' ? stencil.ports.filter((p) => p.kind === 'rj45' || p.kind === 'sfp').slice(0, 6) : [];
   jacks.forEach((p, i) => parts.push(<MiniJack key={p.id} cx={x + w - 140 - (jacks.length - i) * 20} cy={y + h / 2} lit={ports?.[p.id] === 'connected'} />));
-  parts.push(<text key="n" x={x + w - 120} y={y + h - 4} fontSize={8} fill="#d1d5db" textAnchor="end">{device?.data.name ?? 'Device'} (rear)</text>);
+  parts.push(<text key="n" x={x + w - 120} y={y + h - 4} fontSize={8} fill="#d1d5db" textAnchor="end">{rearName(device?.data.name ?? 'Device')} (rear)</text>);
   return <>{parts}</>;
 }
 
@@ -342,16 +361,11 @@ function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; 
     else if (!stencil || stencil.style === 'icon') parts.push(<DeviceFace key="d" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} />);
     else {
       parts.push(<Face key="p" x={x} y={y} w={w} h={h} fill="#1a1b1f" />);
-      // Fit the front-panel art inside the slot, keeping its proportions.
-      const pad = 3;
-      const k = Math.min((w - pad * 2) / stencil.width, (h - pad * 2) / stencil.height);
-      const aw = stencil.width * k;
-      const ah = stencil.height * k;
-      const ax = x + (w - aw) / 2;
-      const ay = y + (h - ah) / 2;
+      // The front-panel art in the slot: post to post for a full-width faceplate, else centred in proportion.
+      const { x: ax, y: ay, w: aw, h: ah, stretch } = artBox(stencil, x, y, w, h);
       parts.push(
         stencil.style === 'image'
-          ? <image key="a" href={stencil.image} x={ax} y={ay} width={aw} height={ah} preserveAspectRatio="xMidYMid meet" />
+          ? <image key="a" href={stencil.image} x={ax} y={ay} width={aw} height={ah} preserveAspectRatio={stretch ? 'none' : 'xMidYMid meet'} />
           : <g key="a" transform={`translate(${ax},${ay})`}><PanelArt stencil={stencil} portStates={ports ?? {}} width={aw} height={ah} /></g>,
       );
       // A light sheen across the top of the panel.
@@ -402,13 +416,12 @@ function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; 
 
 /** Where a port sits on the rack's front (its centre), in the elevation's coordinates. */
 function portPoint(rack: Rack, it: RackItem, st: StencilDef | undefined, port: string | undefined): [number, number] {
-  const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W, pad = 3;
+  const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W;
   if (!st || st.style === 'icon') return (port ? jackSpots(st, RAIL, y).get(port) : undefined) ?? [RAIL + w - 160, y + U_H / 2];
   const p = port ? st.ports.find((q) => q.id === port) : undefined;
   if (!p) return [RAIL + 24, y + h / 2];
-  const k = Math.min((w - pad * 2) / st.width, (h - pad * 2) / st.height);
-  const ax = RAIL + (w - st.width * k) / 2, ay = y + (h - st.height * k) / 2;
-  return [ax + (p.x + p.w / 2) * k, ay + (p.y + p.h / 2) * k];
+  const a = artBox(st, RAIL, y, w, h);
+  return [a.x + (p.x + p.w / 2) * a.kx, a.y + (p.y + p.h / 2) * a.ky];
 }
 
 /**
@@ -417,7 +430,8 @@ function portPoint(rack: Rack, it: RackItem, st: StencilDef | undefined, port: s
  * cable manager), then back in to the other port. `lane` spreads such cords so they don't overlap.
  */
 function cordPath([ax, ay]: [number, number], [bx, by]: [number, number], lane = 0) {
-  if (Math.abs(by - ay) <= U_H * 3) {
+  // Only a cord between neighbouring units hangs straight across; any longer one would cover the equipment between.
+  if (Math.abs(by - ay) <= U_H * 1.5) {
     const sag = 14 + Math.abs(bx - ax) * 0.06 + Math.abs(by - ay) * 0.15;
     return `M${ax} ${ay} C${ax} ${ay + sag} ${bx} ${by + sag} ${bx} ${by}`;
   }

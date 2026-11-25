@@ -878,6 +878,8 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   that only carries uplinks) goes at the top of its rack.
   - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
     if it needs more units; what is mounted stays put) or **build new racks**.
+  - In the rack, pictures of a full-width faceplate are drawn post to post (as the real ones are); patch cords hang
+    straight only between neighbouring units, longer ones run along the side of the rack.
   - Imported shapes (Visio stencils, pictures of a faceplate) without a rack size get one worked out from their
     shape: a wide, flat faceplate is 19 in wide, so a 19 × 1.75 in picture is 1U. Devices that look like rack
     equipment but still have no size (a switch drawn as a square icon) are named in a message, so you can set their
