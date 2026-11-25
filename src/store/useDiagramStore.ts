@@ -5,7 +5,7 @@ import { applyScanRows, type ScanRow } from '@/lib/scanImport';
 import type { WallMaterial } from '@/lib/wifi';
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
-import { planRacks } from '@/lib/autoRack';
+import { mountInto, planRacks, rackUnitsOf } from '@/lib/autoRack';
 import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
@@ -332,7 +332,8 @@ interface DiagramState {
    * Build rack from diagram: mounts the active page's rack-mountable devices (not already in a rack) in a new rack,
    * firewall at the top, panels above their switches, servers, UPS at the bottom. Returns how many were mounted.
    */
-  buildRackFromDiagram: (name?: string) => number;
+  /** Mounts the page's unmounted rack equipment: in new racks, or into the rack `into` (grown if needed). */
+  buildRackFromDiagram: (name?: string, into?: string) => number;
   updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes' | 'feedVolts' | 'feedAmps' | 'redundantFeeds'>>) => boolean;
   deleteRack: (id: string) => void;
   /** Places an item if it fits; returns false otherwise. */
@@ -2273,18 +2274,31 @@ export const useDiagram = create<DiagramState>()(
           set({ activeRackId: rack.id, selectedRackItemId: null });
           return rack.id;
         },
-        buildRackFromDiagram: (name) => {
+        buildRackFromDiagram: (name, into) => {
           const p = cur();
-          const racks = p.racks ?? [];
+          let racks = p.racks ?? [];
           const mounted = new Set(racks.flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
-          const devices = page().nodes.filter((n): n is DeviceNode => n.type === 'device' && !mounted.has(n.id));
+          let devices = page().nodes.filter((n): n is DeviceNode => n.type === 'device' && !mounted.has(n.id));
           const cables = p.pages.flatMap((pg) => pg.edges.map((e) => ({ a: e.source, b: e.target })));
+          let count = 0;
+          let first: string | undefined;
+          const target = into ? racks.find((r) => r.id === into) : undefined;
+          if (target) {
+            const res = mountInto(target, devices, getStencil);
+            if (res.mounted) {
+              racks = racks.map((r) => (r.id === target.id ? res.rack : r));
+              count += res.mounted;
+              first = target.id;
+            }
+            devices = res.left;
+          }
           // One rack per Location (MDF, IDF-1…) when the devices say where they are; otherwise a single rack.
-          const { racks: built, mounted: count } = planRacks(name || `Rack ${String.fromCharCode(65 + racks.length)}`, devices, getStencil, cables);
+          const { racks: built, mounted: n } = planRacks(name || `Rack ${String.fromCharCode(65 + racks.length)}`, devices, getStencil, cables);
+          count += n;
           if (!count) return 0;
           get().snapshot();
           commit({ racks: [...racks, ...built] });
-          set({ activeRackId: built[0].id, selectedRackItemId: null, view: 'racks' });
+          set({ activeRackId: first ?? built[0].id, selectedRackItemId: null, view: 'racks' });
           return count;
         },
         updateRack: (id, patch) => {
@@ -2335,7 +2349,7 @@ export const useDiagram = create<DiagramState>()(
           const s = findStencil(stencilId, get().customStencils);
           const r = (cur().racks ?? []).find((x) => x.id === rackId);
           if (!s || !r) return false;
-          const height = s.rackUnits ?? 1;
+          const height = rackUnitsOf(s) || 1;
           const at = u ?? findFreeU(r, height, 'full');
           if (at === null || !fits(r, at, height, 'full')) return false;
           get().snapshot();

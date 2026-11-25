@@ -25,6 +25,7 @@ import { backUpEverything } from '@/lib/backupFlow';
 import { ReportDialog } from '../ReportDialog';
 import { askText } from '../PromptHost';
 import { askChoice } from '../ChoiceHost';
+import { rackFromDiagram } from '../rackFromDiagram';
 import { deviceFieldValue, reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
@@ -2082,7 +2083,7 @@ function DataTab() {
         <Big
           icon="racks" label="Rack from Diagram"
           title="Mount this page's rack equipment (firewall, patch panels, switches, servers, UPS) in new racks, one per location, laid out like real ones; its cables show as patch cords"
-          onClick={() => { if (!useDiagram.getState().buildRackFromDiagram()) alert('Nothing to mount: this page has no rack-mountable devices that aren\'t already in a rack.'); }}
+          onClick={() => void rackFromDiagram().then((msg) => { if (msg) alert(msg); })}
         />
       </Group>
       <Group label="Reports">

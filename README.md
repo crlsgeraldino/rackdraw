@@ -876,6 +876,12 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   diagram's cables appear as patch cords straight away. When the devices have a **Location** (MDF, IDF-1,
   Building B IDF…), it builds **one rack per location**, each named after its room; an unmatched fiber panel (one
   that only carries uplinks) goes at the top of its rack.
+  - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
+    if it needs more units; what is mounted stays put) or **build new racks**.
+  - Imported shapes (Visio stencils, pictures of a faceplate) without a rack size get one worked out from their
+    shape: a wide, flat faceplate is 19 in wide, so a 19 × 1.75 in picture is 1U. Devices that look like rack
+    equipment but still have no size (a switch drawn as a square icon) are named in a message, so you can set their
+    Rack units in Edit shape & ports.
 - **Small, medium and large networks** (File → New):
   - **Small network + rack (up to 25 users)**: one wiring closet (the former "Office network + rack").
   - **Medium network (25–150 users)**: three floors. Dual-WAN firewall (fiber ISP + cable backup), a 10G core
@@ -1107,7 +1113,10 @@ preview, and imports the ones you tick into a library named after the file (e.g.
   styles, simple text, and embedded **PNG/JPG/GIF/BMP** pictures.
 - Converts embedded **EMF** pictures (the format most vendor stencils use) with a built-in EMF→SVG converter:
   paths, polygons, Béziers, pens, brushes, world transforms, clipping, text and bitmaps.
-- Visio **connection points become cable ports** automatically; rename them later with ✎.
+- Visio **connection points become cable ports** automatically; rename them later with ✎. Their type is worked out
+  where the stencil allows: points named for what they are (SFP, console, USB, power) keep that type and name, and a
+  switch named for its port count ("USW-Pro-24-PoE") with a few more points standing apart at one end of the faceplate
+  gets those as SFP. Anything unclear stays RJ45; change it in Edit shape & ports.
 - 19" gear (16.5–19.5" wide) gets a **rack height** from its height (1U = 1.75").
 - Old binary `.vss`/`.vsd` files aren't supported: open them in Visio and save as `.vssx`. EMF+-only pictures and
   WMF pictures are skipped with a note.
