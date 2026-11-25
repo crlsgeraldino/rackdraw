@@ -64,7 +64,7 @@ export type VShape = {
   angle?: number;
 } & (
   /** `ports`: connection points (cables glue here in Visio), inches from the picture's top-left. */
-  | { kind: 'image'; box: VBox; media: string; ports?: { x: number; y: number; name: string }[] }
+  | { kind: 'image'; box: VBox; media: string; ports?: { x: number; y: number; name: string }[]; border?: { color: string; weightPt: number; pattern?: VStyle['pattern'] } }
   | ({ kind: 'rect' | 'ellipse'; box: VBox } & VStyle)
   /** Polygon with points as fractions (0–1) of the box, y down. */
   | ({ kind: 'polygon'; box: VBox; points: VPt[] } & VStyle)
@@ -219,8 +219,13 @@ function pageXml(page: VPage): PageOut {
         const conns = s.ports?.length
           ? `<Section N="Connection">${s.ports.map((p, k) => `<Row N="${rowName(p.name, used)}" IX="${k}">${cell('X', p.x)}${cell('Y', box.h - p.y)}${cell('DirX', 0)}${cell('DirY', 0)}${cell('Type', 0)}</Row>`).join('')}</Section>`
           : '';
+        // A device outline (RackDraw's Line / Weight) is the picture shape's own line.
+        const bl = s.border ? hex(s.border.color) : null;
+        const line = bl
+          ? cell('LinePattern', { solid: 1, dash: 2, dot: 3, dashdot: 4 }[s.border!.pattern ?? 'solid']) + cell('LineColor', bl) + cell('LineWeight', s.border!.weightPt / 72, ' U="PT"')
+          : cell('LinePattern', 0);
         body = cell('ImgOffsetX', 0) + cell('ImgOffsetY', 0) + cell('ImgWidth', box.w) + cell('ImgHeight', box.h) +
-          cell('LinePattern', 0) + cell('FillPattern', 0) + textXml(s.text) + dataXml(s.data) + linksXml(s.links) + conns;
+          line + cell('FillPattern', 0) + textXml(s.text) + dataXml(s.data) + linksXml(s.links) + conns;
         // Schema order: cells, sections, Text, then ForeignData.
         foreign = `<ForeignData ForeignType="Bitmap" CompressionType="PNG"><Rel r:id="${relFor(s.media)}"/></ForeignData>`;
       } else {

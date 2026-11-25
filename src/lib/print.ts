@@ -1,6 +1,7 @@
 import { bomTableRows, cablePathRows, CHANGE_TABLE, connectionRows, deviceRows, ipPlanRows, lifecycleTableRows, patchingRows, PORT_MAP_TABLE, portMapTableRows, portRows, rackPowerRows, rackRows, recentChangeRows, renderRack, siteRowsForReport, titleBlockCells, type PageRenderer } from './export';
 import { FRAME_COLOR, type Project } from './types';
 import { safeColor } from './safe';
+import { borderHasTitle, borderLayout, borderSvg, borderText } from './borders';
 import { hasHeaderFooter, hfCss } from './headerFooter';
 
 import { PAPER, type PaperSize } from './pageSetup';
@@ -68,20 +69,41 @@ export async function printProject(p: Project, renderPage: PageRenderer, o: Prin
   const sheetH = ph - MARGIN * 2 - 0.05;
   const sheets: string[] = [];
 
-  const picture = (title: string, url: string) =>
-    `<section class="nc-sheet" style="height:${sheetH}in;${sheetStyle(p)}">${headerHtml(p, title)}<div class="art"><img src="${url}" alt=""></div>${titleBlockHtml(p, title)}</section>`;
+  const frame = p.display?.frame ?? 'none';
+  // The newer Borders & Titles designs are drawn as SVG over the sheet (the simple frame and banner use CSS).
+  const drawn = borderHasTitle(frame) && frame !== 'banner';
+  const sheetW = pw - MARGIN * 2;
+  const picture = (title: string, url: string, n: number, total: number) => {
+    if (!drawn) {
+      return `<section class="nc-sheet" style="height:${sheetH}in;${sheetStyle(p)}">${headerHtml(p, title)}<div class="art"><img src="${url}" alt=""></div>${titleBlockHtml(p, title)}</section>`;
+    }
+    const Wpx = sheetW * 96, Hpx = sheetH * 96;
+    const text = borderText({
+      title, client: p.name, site: p.site,
+      date: p.display?.frameDate === false ? false : p.titleBlock?.date,
+      page: p.display?.framePage === false ? undefined : n, pages: total,
+    });
+    const lay = borderLayout(frame, Wpx, Hpx, safeColor(p.display?.frameColor, FRAME_COLOR), text);
+    const pad = (v: number) => `${(v / 96 + 0.06).toFixed(3)}in`;
+    const bg = p.display?.pageColor ? `background:${safeColor(p.display.pageColor, '#ffffff')};` : '';
+    return `<section class="nc-sheet" style="height:${sheetH}in;position:relative;${bg}padding:${pad(lay.inset.top)} ${pad(lay.inset.right)} ${pad(lay.inset.bottom)} ${pad(lay.inset.left)}">`
+      + `<div style="position:absolute;inset:0">${borderSvg(lay, Wpx, Hpx)}</div>`
+      + `<div class="art"><img src="${url}" alt=""></div>${titleBlockHtml(p, title)}</section>`;
+  };
 
+  const pictures: { title: string; url: string }[] = [];
   for (const pg of p.pages) {
     if (!o.pageIds.includes(pg.id)) continue;
     const img = await renderPage(pg);
-    if (img) sheets.push(picture(p.pages.length > 1 ? `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` : 'Network diagram', img.url));
+    if (img) pictures.push({ title: p.pages.length > 1 ? `${pg.kind === 'floorplan' ? 'Floor plan' : 'Diagram'}: ${pg.name}` : 'Network diagram', url: img.url });
   }
   if (o.racks) {
     for (const rack of p.racks ?? []) {
       const img = await renderRack(p, rack);
-      sheets.push(picture(['Rack elevation', rack.name, rack.location].filter(Boolean).join(': '), img.url));
+      pictures.push({ title: ['Rack elevation', rack.name, rack.location].filter(Boolean).join(': '), url: img.url });
     }
   }
+  pictures.forEach((x, i) => sheets.push(picture(x.title, x.url, i + 1, pictures.length)));
   if (o.tables) {
     sheets.push(
       tableHtml(p, 'Devices', ['Page', 'Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack / location'],

@@ -138,7 +138,7 @@ export function Drop({
 /** Colour swatches used by the Fill / Line drop-downs. */
 export const SWATCHES = ['#ffffff', '#f3f4f6', '#dbeafe', '#dcfce7', '#fef9c3', '#fee2e2', '#ede9fe', '#93c5fd', '#2563eb', '#16a34a', '#ea580c', '#dc2626', '#7c3aed', '#374151', '#000000'];
 
-export function Swatches({ onPick, none, auto }: { onPick: (c: string | undefined) => void; none?: boolean; auto?: string }) {
+export function Swatches({ onPick, none, auto, noLine }: { onPick: (c: string | undefined) => void; none?: boolean; auto?: string; noLine?: boolean }) {
   return (
     <div>
       <div className="grid grid-cols-5 gap-1">
@@ -148,6 +148,7 @@ export function Swatches({ onPick, none, auto }: { onPick: (c: string | undefine
       </div>
       <div className="mt-2 flex items-center gap-2 text-xs">
         {none && <button type="button" className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50" onClick={() => onPick('transparent')}>No fill</button>}
+        {noLine && <button type="button" className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50" onClick={() => onPick('transparent')}>No line</button>}
         {auto && <button type="button" className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50" onClick={() => onPick(undefined)}>{auto}</button>}
         <label className="ml-auto flex cursor-pointer items-center gap-1 text-gray-600">
           More…

@@ -194,6 +194,15 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
   labelSide?: 'left';
   /** Turned clockwise by this many degrees (0–359). */
   rotation?: number;
+  /** An outline round the device (Home → Line / Weight); missing = none. */
+  border?: DeviceBorder;
+}
+
+export interface DeviceBorder {
+  color: string;
+  /** Line weight in px; missing = 1.5. */
+  width?: number;
+  pattern?: LinePattern;
 }
 
 export interface ExtraField {
@@ -287,6 +296,8 @@ export interface ZoneData extends Record<string, unknown>, NodeExtras, TextLook 
   style?: ZoneStyle;
   /** Show the room's area after its title (needs a page drawing scale), like Visio's space shapes. */
   showArea?: boolean;
+  /** Outline weight in px (Home → Weight); missing = the style's own. */
+  lineWidth?: number;
 }
 
 export type ZoneStyle = 'dashed' | 'solid' | 'header' | 'band' | 'filled';
@@ -549,14 +560,18 @@ export interface DisplaySettings {
   cablePorts?: boolean;
   /** Design → Backgrounds: the drawing page's colour; missing = white. */
   pageColor?: string;
-  /** Design → Borders & Titles: a frame round the page, or a title banner (page name and client). */
+  /** Design → Borders & Titles: a border design round the page, most with the page name, client, date and page number. */
   frame?: PageFrame;
-  /** Colour of the frame / banner; missing = navy. */
+  /** Colour of the border; missing = navy. */
   frameColor?: string;
+  /** Borders & Titles: show the date (missing = yes). */
+  frameDate?: boolean;
+  /** Borders & Titles: show "Page n of m" (missing = yes). */
+  framePage?: boolean;
 }
 
 export type JumpStyle = 'arc' | 'gap' | 'square';
-export type PageFrame = 'none' | 'simple' | 'banner';
+export type PageFrame = 'none' | 'simple' | 'banner' | 'classic' | 'engineer' | 'corners' | 'sideband' | 'underline' | 'footer' | 'headfoot' | 'tab' | 'rounded' | 'modern';
 export const FRAME_COLOR = '#1e3a8a';
 
 export interface DataGraphic {

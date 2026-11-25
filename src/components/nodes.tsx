@@ -247,6 +247,14 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
     ? { outline: `3px ${status === 'planned' ? 'dashed' : 'solid'} ${tint}`, outlineOffset: 4, borderRadius: 4 }
     : status === 'planned' ? { outline: '2px dashed #2563eb', outlineOffset: 4, borderRadius: 4 } : {};
   const fade: React.CSSProperties = status === 'retired' ? { opacity: 0.45, filter: 'grayscale(1)' } : status === 'planned' ? { opacity: 0.75 } : {};
+  // Home → Line / Weight: an outline round the device, just outside its drawing.
+  const bd = data.border;
+  const borderBox = (w: number, h: number) => bd && (
+    <div className="pointer-events-none absolute" style={{
+      left: -4, top: -4, width: w + 8, height: h + 8, borderRadius: 3,
+      border: `${bd.width ?? 1.5}px ${bd.pattern === 'dot' ? 'dotted' : bd.pattern === 'dash' || bd.pattern === 'dashdot' ? 'dashed' : 'solid'} ${bd.color}`,
+    }} />
+  );
 
   const handles = stencil.ports.map((p) => {
     const custom = data.ports?.[p.id];
@@ -290,6 +298,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         <DataGraphics data={data} />
         <div ref={iconPorts.ref} className="relative" style={{ width: stencil.width * k, height: stencil.height * k, ...outline, ...fade, transform: rot ? `rotate(${rot}deg)` : undefined }}>
           <IconArt id={stencil.id} size={stencil.width * k} />
+          {borderBox(stencil.width * k, stencil.height * k)}
           {handles}
         </div>
         {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
@@ -317,6 +326,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
             ? <ImageArt stencil={stencil} portStates={states} k={k} />
             : <PanelArt stencil={stencil} portStates={states} width={stencil.width * k} height={stencil.height * k} />}
         </div>
+        {borderBox(aw, ah)}
         {markers}
         {handles}
       </div>
@@ -338,7 +348,7 @@ function ZoneNodeView({ data, selected, width, height }: NodeProps<ZoneNode>) {
       <NodeResizer isVisible={selected && !data.locked} minWidth={160} minHeight={100} color={data.color} />
       <div
         className={`relative h-full w-full ${zs === 'band' ? 'flex' : ''} ${zs === 'header' || zs === 'band' ? 'rounded-md' : 'rounded-lg'} border-2 ${zs === 'dashed' ? 'border-dashed' : ''}`}
-        style={{ borderColor: data.color, background: `${data.color}${zs === 'filled' ? '30' : '12'}` }}
+        style={{ borderColor: data.color, background: `${data.color}${zs === 'filled' ? '30' : '12'}`, ...(data.lineWidth ? { borderWidth: data.lineWidth } : {}) }}
       >
         <NodeBadges data={data} selected={selected} />
         {zs === 'header' ? (

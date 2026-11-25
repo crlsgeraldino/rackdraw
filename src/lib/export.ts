@@ -24,6 +24,8 @@ import { SITE_TABLE, siteSummaries, siteTableRows } from './sites';
 import { edgeRole, roleLabel } from './cableRole';
 import { isRackdrawPackage, packRackdraw, RACKDRAW_EXT, RACKDRAW_MIME, RackdrawFileError, unpackRackdraw } from './rackdrawFile';
 import { FRAME_COLOR, isDocumented, portLink, type AppNode, type CableData, type Page, type Project, type Rack, type StencilDef, type StencilLibraryFile } from './types';
+import { safeColor } from './safe';
+import { borderHasTitle, borderLayout, borderText, type BorderPart } from './borders';
 import { csvOf } from './csv';
 
 /* ---------- helpers ---------- */
@@ -417,7 +419,17 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
   const m = 36;
   // Room kept free at the bottom of every sheet for the title block.
   const tbH = p.titleBlock?.show ? 30 : 0;
-  const bottom = H - m - (tbH ? tbH + 8 : 0);
+  // Design → Borders & Titles: a design that writes the title replaces the report's own heading, and its bands are
+  // kept clear of the content.
+  const look = p.display;
+  const frame = look?.frame ?? 'none';
+  const fc = safeColor(look?.frameColor, FRAME_COLOR);
+  const titled = borderHasTitle(frame);
+  const ins = borderLayout(frame, W, H, fc, borderText({ title: '', client: '' })).inset;
+  const L = Math.max(m, ins.left + 10), R = W - Math.max(m, ins.right + 10);
+  const pictureTop = titled ? Math.max(m, ins.top + 12) : m + 28;
+  const tableTop = titled ? Math.max(m, ins.top + 22) : m + 40;
+  const bottom = Math.min(H - m - (tbH ? tbH + 8 : 0), H - ins.bottom - 10);
   /** Sheet title of each PDF page, for its title block. */
   const sheetTitles: string[] = [];
   let pages = 0;
@@ -425,34 +437,29 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     if (pages++) doc.addPage();
   };
 
-  const look = p.display;
-  const frame = look?.frame ?? 'none';
-  const fc = look?.frameColor ?? FRAME_COLOR;
   const header = (title: string) => {
     sheetTitles[doc.getNumberOfPages() - 1] = title;
-    // Design → Backgrounds / Borders & Titles.
-    if (look?.pageColor && look.pageColor.toLowerCase() !== '#ffffff') { doc.setFillColor(look.pageColor); doc.rect(0, 0, W, H, 'F'); }
-    if (frame === 'simple') { doc.setDrawColor(fc); doc.setLineWidth(1.5); doc.rect(m / 2, m / 2, W - m, H - m); doc.setLineWidth(0.5); doc.rect(m / 2 - 3, m / 2 - 3, W - m + 6, H - m + 6); doc.setDrawColor(0); }
-    const banner = frame === 'banner';
-    if (banner) { doc.setFillColor(fc); doc.rect(0, 0, W, m + 22, 'F'); }
+    // Design → Backgrounds.
+    if (look?.pageColor && look.pageColor.toLowerCase() !== '#ffffff') { doc.setFillColor(safeColor(look.pageColor, '#ffffff')); doc.rect(0, 0, W, H, 'F'); }
+    // The border design writes the title (drawn once every sheet exists, for "Page n of m").
+    if (titled) return;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    if (banner) doc.setTextColor(255);
-    doc.text(banner ? title : p.name, m, m);
+    doc.text(pdfText(p.name), L, m);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.setTextColor(banner ? 230 : 100);
-    const sub = [banner ? p.name : '', p.site, p.address, banner ? '' : title, new Date().toLocaleDateString()].filter(Boolean).join('  ·  ');
-    doc.text(sub, m, m + 14);
+    doc.setTextColor(100);
+    const sub = [p.site, p.address, title, new Date().toLocaleDateString()].filter(Boolean).join('  ·  ');
+    doc.text(pdfText(sub), L, m + 14);
     doc.setTextColor(0);
   };
 
   const picture = (title: string, img: { url: string; width: number; height: number }) => {
     newPage();
     header(title);
-    const top = m + 28;
-    const ratio = Math.min((W - m * 2) / img.width, (bottom - top) / img.height);
-    doc.addImage(img.url, 'PNG', m, top, img.width * ratio, img.height * ratio, undefined, 'FAST');
+    const top = pictureTop;
+    const ratio = Math.min((R - L) / img.width, (bottom - top) / img.height);
+    doc.addImage(img.url, 'PNG', L, top, img.width * ratio, img.height * ratio, undefined, 'FAST');
   };
 
   // Legend for data colors, drawn in the top-right corner of each diagram page.
@@ -497,7 +504,7 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
     if (!rows.length) return;
     newPage();
     header(title);
-    let y = m + 40;
+    let y = tableTop;
     // Every line of a long cell is printed (the row grows to fit), in characters the built-in PDF font can draw.
     const lines = (cells: string[]) => cells.map((c, i) => doc.splitTextToSize(pdfText(c), widths[i] - 6) as string[]);
     const row = (cells: string[], bold: boolean) => {
@@ -505,13 +512,13 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
       doc.setFontSize(9);
       const ls = lines(cells);
       const n = Math.max(1, ...ls.map((l) => l.length));
-      let x = m;
+      let x = L;
       ls.forEach((l, i) => {
         doc.text(l, x + 3, y);
         x += widths[i];
       });
       doc.setDrawColor(220);
-      doc.line(m, y + 5 + (n - 1) * 11, W - m, y + 5 + (n - 1) * 11);
+      doc.line(L, y + 5 + (n - 1) * 11, R, y + 5 + (n - 1) * 11);
       y += 16 + (n - 1) * 11;
     };
     row(cols, true);
@@ -521,14 +528,14 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
       if (y + (n - 1) * 11 > bottom) {
         doc.addPage();
         header(`${title} (cont.)`);
-        y = m + 40;
+        y = tableTop;
         row(cols, true);
       }
       row(r, false);
     }
   };
 
-  const avail = W - m * 2;
+  const avail = R - L;
   table('Devices', ['Name', 'Type', 'Model', 'IP', 'Serial', 'Asset tag', 'Rack'], [0.18, 0.16, 0.14, 0.12, 0.13, 0.1, 0.17].map((f) => f * avail),
     deviceRows(p).map((d) => [d.name, d.type, d.model, d.ip, d.serial, d.assetTag, d.rack || d.location]));
   table('Rack contents', ['Rack', 'Position', 'Depth', 'Item', 'Model', 'Serial', 'Asset tag', 'Power'], [0.13, 0.1, 0.07, 0.2, 0.15, 0.14, 0.11, 0.1].map((f) => f * avail),
@@ -567,6 +574,20 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
   table('Port notes', ['Device', 'Port', 'Uplink', 'Link', 'Connected to', 'IP', 'VLAN', 'Notes'], [0.15, 0.07, 0.07, 0.13, 0.2, 0.11, 0.06, 0.21].map((f) => f * avail),
     portRows(p).map((r) => [r.device, r.port, r.uplink, r.link, r.connectedTo, r.ip, r.vlan, r.notes]));
 
+  // Borders & Titles, on every sheet, now that the number of sheets is known.
+  if (frame !== 'none') {
+    const total = doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i);
+      const text = borderText({
+        title: sheetTitles[i - 1] ?? '', client: p.name, site: p.site,
+        date: look?.frameDate === false ? false : p.titleBlock?.date,
+        page: look?.framePage === false ? undefined : i, pages: total,
+      });
+      drawBorderPdf(doc, borderLayout(frame, W, H, fc, { ...text, title: pdfText(text.title), client: pdfText(text.client) }).parts);
+    }
+  }
+
   // Header and footer (Design / Print → Header & Footer), on every sheet.
   const hf = p.headerFooter;
   if (hasHeaderFooter(hf)) {
@@ -599,6 +620,31 @@ export async function exportPdf(p: Project, renderPage: PageRenderer) {
 }
 
 type Pdf = InstanceType<typeof import('jspdf').jsPDF>;
+
+/** Draws a Borders & Titles design on the current PDF page (sizes in points). */
+function drawBorderPdf(doc: Pdf, parts: BorderPart[]) {
+  for (const p of parts) {
+    if (p.t === 'rect') {
+      if (p.fill) doc.setFillColor(p.fill);
+      if (p.stroke) { doc.setDrawColor(p.stroke); doc.setLineWidth(p.width ?? 1); }
+      const style = p.fill && p.stroke ? 'FD' : p.fill ? 'F' : 'S';
+      if (p.r) doc.roundedRect(p.x, p.y, p.w, p.h, p.r, p.r, style);
+      else doc.rect(p.x, p.y, p.w, p.h, style);
+    } else if (p.t === 'line') {
+      doc.setDrawColor(p.stroke);
+      doc.setLineWidth(p.width);
+      doc.line(p.x1, p.y1, p.x2, p.y2);
+    } else {
+      doc.setFont('helvetica', p.bold ? 'bold' : 'normal');
+      doc.setFontSize(p.size);
+      doc.setTextColor(p.color);
+      doc.text(p.text, p.x, p.y, p.up ? { angle: 90 } : { align: p.anchor === 'middle' ? 'center' : p.anchor === 'end' ? 'right' : 'left' });
+    }
+  }
+  doc.setTextColor(0);
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.5);
+}
 
 /** A one-row bordered title block: small grey labels over values. */
 function drawTitleBlock(doc: Pdf, cells: { label: string; value: string; weight: number }[], x: number, y: number, w: number, h: number) {

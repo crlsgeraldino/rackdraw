@@ -366,7 +366,10 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const k = ub.w / (s.width * (s.style === 'icon' ? 1 : s.scale));
           const kk = (s.style === 'icon' ? 1 : s.scale) * k;
           const ports = s.ports.map((p) => ({ x: inch((p.x + p.w / 2) * kk), y: inch((p.y + p.h / 2) * kk), name: d.ports?.[p.id]?.label || p.label }));
-          front.push({ kind: 'image', name: d.name, box: ibox(ub), media: name, ports, data: data.filter(([, v]) => v !== ''), angle: rot ? (-rot * Math.PI) / 180 : undefined });
+          front.push({
+            kind: 'image', name: d.name, box: ibox(ub), media: name, ports, data: data.filter(([, v]) => v !== ''), angle: rot ? (-rot * Math.PI) / 180 : undefined,
+            border: d.border ? { color: d.border.color, weightPt: (d.border.width ?? 1.5) * 0.75, pattern: d.border.pattern } : undefined,
+          });
           // Label and info box as drawn.
           const el = document.querySelector(`.react-flow__node[data-id="${CSS.escape(n.id)}"]`);
           const lab = el?.querySelector('.nc-device-label');

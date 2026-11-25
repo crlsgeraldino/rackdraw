@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.5.0',
+    title: 'Borders, titles and outlines',
+    items: [
+      'Design → Borders & Titles has 12 designs (classic, title strip, corners, side band, footer band, tab, rounded, modern and more) with the page name, client, date and "Page n of m".',
+      'The borders show on the page, in print and in the PDF report, where the page numbers count the report\'s pages. Switch the date or page number off in the same menu.',
+      'Home → Line, Weight and the dash patterns now put an outline round devices; "No line" removes it. Zones take a line weight too.',
+    ],
+  },
+  {
     version: '1.4.4',
     title: 'Ready to share',
     items: [

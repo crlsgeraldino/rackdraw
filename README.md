@@ -229,9 +229,18 @@ Bug reports, Visio files that don't import well, ideas and pull requests are wel
 ## Page color, borders and titles (Design → Backgrounds)
 
 - **Page Color**: a soft background for the drawing page (white, greys, ivory, light blue, green, pink, lilac).
-- **Borders & Titles** (like Visio's): a **simple frame** round the page, or a **title banner** across the top with the
-  page name and the client / site, in a colour you pick.
-- Both are set per client and show on the canvas, in prints, PDFs (page fill, frame, banner header) and pictures.
+- **Borders & Titles** (like Visio's): a gallery of 12 border designs (simple frame, title banner, classic double
+  rule, title strip, corners, side band, underlined, footer band, header & footer, tab, rounded, modern). Most write
+  the **page name, the client and site, the date and "Page n of m"** (the date and page number can be switched off;
+  the date is the title block's when set), in a colour you pick.
+- Both are set per client and show on the canvas, in prints and in the PDF report, where the designs' bands are kept
+  clear of the drawing and the page numbers count the report's sheets.
+
+## Outlines (Home → Shape Style)
+
+- **Line** puts an outline round the selected devices (and colours shapes, zones and cables as before); **Weight**
+  and the dash patterns under Line change it; **No line** or **Automatic** removes it. Zones take a weight too.
+- Device outlines are kept in Visio exports (the picture shape's line).
 
 ## Connector look (Design → Connectors)
 
