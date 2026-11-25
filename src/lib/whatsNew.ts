@@ -11,6 +11,14 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.4.4',
+    title: 'Ready to share',
+    items: [
+      'RackDraw is free and open source: Help → About lists the open-source libraries it uses, and their licences are installed next to RackDraw.exe (THIRD-PARTY-NOTICES.md).',
+      'Shapes window: the library export button names the right file type (.rackdraw-stencils.json).',
+    ],
+  },
+  {
     version: '1.4.3',
     title: 'Fewer surprises when editing',
     items: [

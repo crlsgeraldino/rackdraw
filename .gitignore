@@ -46,3 +46,6 @@ next-env.d.ts
 # end-to-end tests
 /test-results/
 /playwright-report/
+
+# logs
+*.log

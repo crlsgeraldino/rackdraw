@@ -1,0 +1,47 @@
+name: Bug report
+description: Something doesn't work, looks wrong, or loses data.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! **Please remove real client data** (names, IP addresses, serial numbers) from screenshots and files before attaching them.
+        Security problems: please report them privately instead (Security tab → Report a vulnerability).
+  - type: input
+    id: version
+    attributes:
+      label: RackDraw version
+      description: Help (F1) → About.
+      placeholder: "1.4.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Windows desktop app
+        - Browser (web version)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. File → New client → "Small network + rack"
+        2. Select the switch, Data → Port Map
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Screenshot or sample file (optional)
+      description: Drag files here. A small .rackdraw file, or the Visio / DXF / CSV file that doesn't open, helps a lot.

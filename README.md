@@ -1,11 +1,14 @@
 # RackDraw
 
-Free, browser-based network diagrams for documenting client sites — a lightweight Visio alternative for MSPs.
-Everything runs in your browser: diagrams are stored locally and never uploaded.
+Free, open-source network, rack and floor-plan documentation for client sites: a Visio alternative for IT providers
+(MSPs). A Windows desktop app and a web version; everything stays on your computer and nothing is ever uploaded.
+
+**Download:** the latest `RackDraw-Setup-x.y.z.exe` on the Releases page. **Contribute:** see
+[CONTRIBUTING.md](CONTRIBUTING.md). **Security problems:** see [SECURITY.md](SECURITY.md).
 
 > **Formerly NetCraft.** Installing RackDraw over NetCraft keeps every client: the app still keeps its data in
 > `%APPDATA%\NetCraft` (under its old internal `app://netcraft` address), and old `.netcraft.json` diagram files and
-> `.netcraft-stencils.json` libraries open as before. New saves use `.rackdraw.json`.
+> `.netcraft-stencils.json` libraries open as before. New saves use `.rackdraw` files.
 
 Built the same way as [PDFCraft](https://github.com/PDFCraftTool/pdfcraft): Next.js (App Router) + TypeScript +
 Tailwind CSS + Zustand, exported as a static site. The diagram engine is [React Flow](https://reactflow.dev) (MIT).
@@ -208,7 +211,13 @@ the clipboard (Copy buttons), persistent storage and full screen. The installed 
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). RackDraw bundles open-source libraries under their own licences: see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) (regenerate it with `npm run notices`).
+
+## Contributing
+
+Bug reports, Visio files that don't import well, ideas and pull requests are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately ([SECURITY.md](SECURITY.md)).
 
 ## Several links per item, grid spacing
 
