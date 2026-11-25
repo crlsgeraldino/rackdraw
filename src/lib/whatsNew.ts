@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.6.2',
+    title: 'Clearer patch cords in the rack',
+    items: [
+      'Imported switch faceplates fill the rack from post to post, so their ports (and the cords on them) line up with the equipment around them.',
+      'Patch cords between equipment that is not next to each other run along the side of the rack instead of across the equipment in between.',
+      'The back of the rack no longer shows "- Front" in the names of imported shapes.',
+    ],
+  },
+  {
     version: '1.6.1',
     title: 'Imported switches: SFP ports, and into the rack',
     items: [
