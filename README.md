@@ -876,6 +876,12 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   diagram's cables appear as patch cords straight away. When the devices have a **Location** (MDF, IDF-1,
   Building B IDF…), it builds **one rack per location**, each named after its room; an unmatched fiber panel (one
   that only carries uplinks) goes at the top of its rack.
+  - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
+    if it needs more units; what is mounted stays put) or **build new racks**.
+  - Imported shapes (Visio stencils, pictures of a faceplate) without a rack size get one worked out from their
+    shape: a wide, flat faceplate is 19 in wide, so a 19 × 1.75 in picture is 1U. Devices that look like rack
+    equipment but still have no size (a switch drawn as a square icon) are named in a message, so you can set their
+    Rack units in Edit shape & ports.
 - **Small, medium and large networks** (File → New):
   - **Small network + rack (up to 25 users)**: one wiring closet (the former "Office network + rack").
   - **Medium network (25–150 users)**: three floors. Dual-WAN firewall (fiber ISP + cable backup), a 10G core

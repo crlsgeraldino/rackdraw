@@ -12,10 +12,12 @@ export interface ReleaseNotes {
 export const RELEASES: ReleaseNotes[] = [
   {
     version: '1.6.1',
-    title: 'Visio stencils know their SFP ports',
+    title: 'Imported switches: SFP ports, and into the rack',
     items: [
       'Importing a vendor switch stencil (e.g. USW-Pro-24-PoE) now finds its SFP uplink ports, so the bill of materials counts transceivers for them.',
       'Connection points named in the stencil keep their name and type: power inlets, console and USB ports are no longer RJ45 ports.',
+      'Rack from Diagram mounts imported switches and firewalls too: a picture or stencil of a faceplate gets its rack size from its shape.',
+      'When the client already has a rack, Rack from Diagram asks whether to add the equipment to it or build a new rack, and it names any rack equipment it had to leave out.',
     ],
   },
   {

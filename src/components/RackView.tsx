@@ -4,6 +4,7 @@ import { fmtRuntime, rackPower, upsRating } from '@/lib/rackPower';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage, allDevices } from '@/lib/project';
 import { openPortMap } from '@/lib/events';
+import { rackUnitsOf } from '@/lib/autoRack';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
 import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
@@ -11,6 +12,7 @@ import { pathLength, pathText, tracePath } from '@/lib/trace';
 import { STENCILS } from '@/lib/stencils';
 import { PORT_STATUSES, type CableData, type Rack, type RackDepth, type RackItem, type StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { rackFromDiagram } from './rackFromDiagram';
 import { INNER_W, RackElevation, rackSize, uAtPoint, type RackPreview } from './RackElevation';
 
 /** What is being dragged from the side list. Kept outside React: dragover can't read dataTransfer contents. */
@@ -65,7 +67,7 @@ function SideList({ rack }: { rack: Rack | undefined }) {
     e.dataTransfer.setData(DND, '1');
     e.dataTransfer.effectAllowed = 'copy';
   };
-  const heightOf = (s?: StencilDef) => s?.rackUnits ?? 1;
+  const heightOf = (s?: StencilDef) => rackUnitsOf(s) || 1;
 
   return (
     <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-white p-2 text-sm">
@@ -153,10 +155,7 @@ function BuildFromDiagram({ className }: { className: string }) {
       <button
         className={className}
         title="Mount the diagram page's rack equipment (firewall, patch panels, switches, servers, UPS) in a new rack: firewall at the top, each patch panel above its switch with a cable manager between, UPS at the bottom"
-        onClick={() => {
-          const n = useDiagram.getState().buildRackFromDiagram();
-          setMsg(n ? '' : "Nothing to mount: the diagram page has no rack-mountable devices that aren't already in a rack.");
-        }}
+        onClick={() => void rackFromDiagram().then(setMsg)}
       >
         Build rack from diagram
       </button>

@@ -1,4 +1,4 @@
-import { RACK_SIZES } from './rack';
+import { findFreeU, fits, RACK_SIZES } from './rack';
 import type { DeviceNode, Rack, RackItem, StencilDef } from './types';
 
 /*
@@ -50,9 +50,76 @@ export function rackRole(d: DeviceNode, st?: StencilDef): Role {
     ?? 'other';
 }
 
-/** Rack units a device takes: its stencil's, else none (not rack equipment). */
+/**
+ * Rack units a device takes: its stencil's; for an imported shape that doesn't say (a picture of a faceplate, or a
+ * vendor stencil drawn at another scale), worked out from its shape: a wide, flat faceplate is rack equipment, 19 in
+ * wide. Otherwise none (not rack equipment).
+ */
 export function rackUnitsOf(st?: StencilDef) {
-  return st?.rackUnits && st.rackUnits > 0 ? st.rackUnits : 0;
+  if (st?.rackUnits && st.rackUnits > 0) return st.rackUnits;
+  return guessedUnits(st);
+}
+
+function guessedUnits(st?: StencilDef): number {
+  if (!st?.custom || !(st.width > 0) || !(st.height > 0)) return 0;
+  const ratio = st.width / st.height;
+  const gear = roleFromText(`${st.name} ${st.defaults?.model ?? ''}`.toLowerCase());
+  // Faceplates are at least 4:1 (a 10U chassis is 19 x 17.5 in, about 1:1, but those come with a size).
+  if (ratio < 4 && !(ratio >= 2.5 && gear && gear !== 'other')) return 0;
+  return Math.max(1, Math.min(10, Math.round(19 / ratio / 1.75)));
+}
+
+/** The order equipment goes into a rack, top down. */
+const ROLE_ORDER: Role[] = ['edge', 'panel', 'switch', 'server', 'storage', 'other', 'ups'];
+
+/**
+ * Mounts `devices` (rack-mountable ones) in an existing rack, in the planner's order, each in the highest free
+ * space; the rack grows (up to MAX_RACK_U) when it is full. Returns the rack and what didn't fit.
+ */
+export function mountInto(rack: Rack, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): { rack: Rack; mounted: number; left: DeviceNode[] } {
+  const gear = devices
+    .map((d) => ({ d, st: stencil(d.data.stencilId) }))
+    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st) }))
+    .filter((x) => x.units > 0)
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+  let r: Rack = { ...rack, items: [...rack.items] };
+  const left: DeviceNode[] = [];
+  let mounted = 0;
+  for (const g of gear) {
+    let u = g.role === 'ups' ? lowestFree(r, g.units) : findFreeU(r, g.units, 'full');
+    while (u === null && r.units < MAX_RACK_U) {
+      // Grow from the top: positions count from the bottom, so what is mounted stays put.
+      r = { ...r, units: RACK_SIZES.find((n) => n > r.units) ?? MAX_RACK_U };
+      u = findFreeU(r, g.units, 'full');
+    }
+    if (u === null) { left.push(g.d); continue; }
+    r.items.push({ id: `ri-${uid()}`, kind: 'device', nodeId: g.d.id, u, height: g.units, depth: 'full' });
+    mounted++;
+  }
+  return { rack: r, mounted, left };
+}
+
+function lowestFree(rack: Rack, height: number): number | null {
+  for (let u = 1; u + height - 1 <= rack.units; u++) if (fits(rack, u, height, 'full')) return u;
+  return null;
+}
+
+/** The devices Rack from Diagram mounts: those with a rack size (their stencil's, or worked out). */
+export function mountableGear(devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): DeviceNode[] {
+  return devices.filter((d) => rackUnitsOf(stencil(d.data.stencilId)) > 0);
+}
+
+/**
+ * Devices on a page that look like rack equipment (a switch, firewall, server… by their stencil, model or name) but
+ * have no rack size, so Rack from Diagram leaves them out: shown to the user so they can set Rack units.
+ */
+export function unsizedGear(devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): DeviceNode[] {
+  return devices.filter((d) => {
+    const st = stencil(d.data.stencilId);
+    if (rackUnitsOf(st)) return false;
+    if (st && !st.custom) return st.style !== 'icon' && (st.category === 'Switching' || st.category === 'Firewalls');
+    return rackRole(d, st) !== 'other' && roleFromText(`${st?.name ?? ''} ${d.data.model ?? ''}`.toLowerCase()) !== undefined;
+  });
 }
 
 /**
