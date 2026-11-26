@@ -3,6 +3,7 @@
  * cable runs and patch cords by type and length, transceivers for fiber / copper SFP ports, wall-end terminations,
  * racks and rack accessories, and the circuits and services the sites need. Plus port capacity per switch.
  */
+import { rackKitFor } from './autoRack';
 import { circuitName } from './lifecycle';
 import { lengthFt } from './length';
 import { allDevices } from './project';
@@ -219,7 +220,13 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
   for (const r of p.racks ?? []) {
     count(racks, `${r.units}U rack / cabinet`);
     for (const it of r.items) if (it.kind !== 'device') count(accessories, `${ACC[it.kind] ?? it.kind} ${it.height}U`);
-    count(accessories, 'Cage nuts and screws (pack of 50)', Math.max(1, Math.ceil(r.items.length * 4 / 50)));
+    // Desktop units mounted in the rack (not on a shelf) need their rack-mount kit, bought separately.
+    for (const it of r.items) {
+      const d = it.kind === 'device' && it.nodeId ? byId.get(it.nodeId) : undefined;
+      const kit = d ? rackKitFor(st(d), !!it.shelf) : undefined;
+      if (kit) count(accessories, kit);
+    }
+    count(accessories, 'Cage nuts and screws (pack of 50)', Math.max(1, Math.ceil(r.items.filter((it) => !it.shelf).length * 4 / 50)));
   }
 
   const sections: BomSection[] = [

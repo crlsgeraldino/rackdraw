@@ -887,6 +887,10 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
     picture narrower than a 19 in faceplate) stands on a shelf at its own size, side by side, instead of being
     stretched into a faceplate. Rack from Diagram puts it on a shelf at the top; dragging it into the rack puts it on
     the shelf under the pointer, or adds a 1U shelf in a free unit. Moving the shelf moves what stands on it.
+  - **Rack-mount kits**: a small unit can instead be mounted with its rack-mount kit (the rack item's **Mounting**):
+    drawn with steel brackets out to the rails, and the kit goes in the bill of materials (bought separately). The
+    SonicWall TZ570/TZ670 has its kit named and is mounted with it by default; other small units are on a shelf by
+    default and list a generic "Rack mount kit (brackets)" when mounted.
   - In the rack, pictures of a full-width faceplate are drawn post to post (as the real ones are); patch cords hang
     straight only between neighbouring units, longer ones run along the side of the rack.
   - Imported shapes (Visio stencils, pictures of a faceplate) without a rack size get one worked out from their

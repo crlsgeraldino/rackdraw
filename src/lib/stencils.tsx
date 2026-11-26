@@ -22,6 +22,7 @@ const sonicwallTz: StencilDef = {
   style: 'panel',
   rackUnits: 1,
   desktop: true,
+  rackKit: 'SonicWall TZ570/TZ670 rack mount kit',
   defaults: { model: 'TZ570 / TZ670' },
   ports: [
     { id: 'CONSOLE', label: 'Console', kind: 'console', x: 304, y: 76, w: 68, h: 60, side: 'top' },

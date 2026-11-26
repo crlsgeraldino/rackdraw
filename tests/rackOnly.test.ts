@@ -1,13 +1,14 @@
 /** Rack-only devices (hidden on the diagram, cables drawn "via" them) and small devices on rack shelves. */
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { isShelfDevice } from '../src/lib/autoRack';
+import { isShelfDevice, isSmallGear, rackKitFor } from '../src/lib/autoRack';
 import { fits } from '../src/lib/rack';
 import { drawingCables } from '../src/lib/rackOnly';
 import { INNER_PX, placeOnShelf, SHELF_PAD, shelfWidth } from '../src/lib/rackShelf';
 import { sanitizeProject } from '../src/lib/sanitize';
 import { STENCIL_MAP } from '../src/lib/stencils';
-import type { AppNode, CableEdge, Rack, RackItem, StencilDef } from '../src/lib/types';
+import type { AppNode, CableEdge, Project, Rack, RackItem, StencilDef } from '../src/lib/types';
+import { billOfMaterials } from '../src/lib/bom';
 
 const st = (id: string) => STENCIL_MAP[id];
 const dev = (id: string, stencilId: string, extra: Record<string, unknown> = {}): AppNode =>
@@ -73,7 +74,13 @@ describe('rack-only devices on the diagram', () => {
 
 describe('shelves', () => {
   it('knows which equipment is small', () => {
-    assert.equal(isShelfDevice(st('sonicwall-tz570-670')), true);
+    // The TZ is small, but SonicWall sells a rack-mount kit for it: it is mounted with the kit by default.
+    assert.equal(isSmallGear(st('sonicwall-tz570-670')), true);
+    assert.equal(isShelfDevice(st('sonicwall-tz570-670')), false);
+    assert.equal(rackKitFor(st('sonicwall-tz570-670'), false), 'SonicWall TZ570/TZ670 rack mount kit');
+    assert.equal(rackKitFor(st('sonicwall-tz570-670'), true), undefined);
+    assert.equal(rackKitFor(st('switch-8'), false), 'Rack mount kit (brackets) for Switch 8-port + 2 SFP');
+    assert.equal(rackKitFor(st('switch-24-poe'), false), undefined);
     assert.equal(isShelfDevice(st('switch-8')), true);
     assert.equal(isShelfDevice(st('modem')), true);
     assert.equal(isShelfDevice(st('switch-24-poe')), false);
@@ -117,5 +124,28 @@ describe('shelves', () => {
     assert.equal(d.id, 'd');
     assert.deepEqual([d.u, d.shelf!.id], [2, 's2']);
     assert.equal(moved.items.filter((it) => it.nodeId === 'n').length, 1);
+  });
+});
+
+describe('rack-mount kits in the bill of materials', () => {
+  const proj = (shelf: boolean) => ({
+    id: 'p', name: 'T', activePageId: 'pg', createdAt: 0, updatedAt: 0,
+    pages: [{ id: 'pg', name: 'N', kind: 'network', nodes: [dev('tz', 'sonicwall-tz570-670')], edges: [] }],
+    racks: [{
+      id: 'r', name: 'R', units: 6,
+      items: shelf
+        ? [{ id: 's', kind: 'shelf', u: 6, height: 1, depth: 'full' }, { id: 'd', kind: 'device', nodeId: 'tz', u: 6, height: 1, depth: 'full', shelf: { id: 's', x: 8 } }]
+        : [{ id: 'd', kind: 'device', nodeId: 'tz', u: 6, height: 1, depth: 'full' }],
+    }],
+  }) as unknown as Project;
+  const rackLines = (p: Project) => billOfMaterials(p, st).sections.find((s) => s.title === 'Racks & accessories')!.rows.map((r) => r.item);
+
+  it('lists the kit for a desktop unit mounted in the rack', () => {
+    assert.ok(rackLines(proj(false)).includes('SonicWall TZ570/TZ670 rack mount kit'));
+  });
+  it('lists a shelf instead when it stands on one', () => {
+    const lines = rackLines(proj(true));
+    assert.ok(!lines.some((l) => /mount kit/.test(l)));
+    assert.ok(lines.includes('Rack shelf 1U'));
   });
 });

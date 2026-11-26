@@ -61,6 +61,11 @@ export interface StencilDef {
   rackUnits?: number;
   /** Smaller than a 19 in faceplate (a desktop firewall, an 8-port switch): in a rack it sits on a shelf. */
   desktop?: boolean;
+  /**
+   * The vendor's rack-mount kit (bracket) for a desktop unit, bought separately ("SonicWall TZ570/TZ670 rack mount
+   * kit"). A stencil that has one is mounted with it by default instead of standing on a shelf.
+   */
+  rackKit?: string;
   defaults?: Partial<DeviceData>;
   /** The kinds of network it is used in (PAN … WAN). */
   networks?: NetworkScope[];

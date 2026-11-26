@@ -76,11 +76,11 @@ function guessedUnits(st?: StencilDef): number {
 const SHELF_BUILT_IN = new Set(['modem', 'lte-router']);
 
 /**
- * Small equipment that sits on a shelf in a rack instead of being mounted: a desktop firewall or switch (the stencil
- * says so), the ISP modem, a picture narrower than a 19 in faceplate, or an imported switch / firewall / router
- * shape without a rack size.
+ * Small equipment, narrower than a 19 in faceplate: a desktop firewall or switch (the stencil says so), the ISP
+ * modem, a picture narrower than a faceplate, or an imported switch / firewall / router shape without a rack size.
+ * In a rack it stands on a shelf, or is mounted with a rack-mount kit (bracket) bought separately.
  */
-export function isShelfDevice(st?: StencilDef): boolean {
+export function isSmallGear(st?: StencilDef): boolean {
   if (!st) return false;
   if (st.desktop) return true;
   if (!st.custom) return SHELF_BUILT_IN.has(st.id);
@@ -91,8 +91,17 @@ export function isShelfDevice(st?: StencilDef): boolean {
   return role === 'edge' || role === 'switch' || role === 'server' || role === 'storage';
 }
 
+/** Small equipment that goes on a shelf by default: what has no rack-mount kit of its own (SonicWall TZs do). */
+export const isShelfDevice = (st?: StencilDef) => isSmallGear(st) && !st?.rackKit;
+
+/** The rack-mount kit a small device needs when it is mounted rather than on a shelf; undefined = none needed. */
+export function rackKitFor(st: StencilDef | undefined, onShelf: boolean): string | undefined {
+  if (onShelf || !isSmallGear(st)) return undefined;
+  return st?.rackKit ?? `Rack mount kit (brackets) for ${st?.name ?? 'desktop unit'}`;
+}
+
 /** Whether Rack from Diagram puts a device in the rack: mounted (it has a rack size) or on a shelf. */
-export const rackable = (st?: StencilDef) => isShelfDevice(st) || rackUnitsOf(st) > 0;
+export const rackable = (st?: StencilDef) => isSmallGear(st) || rackUnitsOf(st) > 0;
 
 /** The order equipment goes into a rack, top down. */
 const ROLE_ORDER: Role[] = ['edge', 'panel', 'switch', 'server', 'storage', 'other', 'ups'];
@@ -104,8 +113,8 @@ const ROLE_ORDER: Role[] = ['edge', 'panel', 'switch', 'server', 'storage', 'oth
 export function mountInto(rack: Rack, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): { rack: Rack; mounted: number; left: DeviceNode[] } {
   const gear = devices
     .map((d) => ({ d, st: stencil(d.data.stencilId) }))
-    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st), shelf: isShelfDevice(x.st) }))
-    .filter((x) => x.shelf || x.units > 0)
+    .map((x) => ({ ...x, units: rackUnitsOf(x.st) || 1, role: rackRole(x.d, x.st), shelf: isShelfDevice(x.st) }))
+    .filter((x) => x.shelf || rackable(x.st))
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
   let r: Rack = { ...rack, items: [...rack.items] };
   const left: DeviceNode[] = [];
@@ -164,7 +173,7 @@ export function unsizedGear(devices: DeviceNode[], stencil: (id: string) => Sten
 export function planRack(name: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { rack: Rack; mounted: number } {
   const all = devices
     .map((d) => ({ d, st: stencil(d.data.stencilId) }))
-    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st), shelf: isShelfDevice(x.st) }));
+    .map((x) => ({ ...x, units: rackUnitsOf(x.st) || (isSmallGear(x.st) ? 1 : 0), role: rackRole(x.d, x.st), shelf: isShelfDevice(x.st) }));
   const gear = all.filter((x) => !x.shelf && x.units > 0);
   const small = all.filter((x) => x.shelf);
   const by = (r: Role) => gear.filter((g) => g.role === r);

@@ -349,6 +349,8 @@ interface DiagramState {
    * is already in this rack (on a shelf or mounted).
    */
   putOnShelf: (rackId: string, nodeId: string, u?: number) => boolean;
+  /** Takes a small device off its shelf and mounts it with its rack-mount kit, in the highest free unit. */
+  mountWithKit: (rackId: string, nodeId: string) => boolean;
   /** Shows or hides, on the diagram, every patch panel mounted in a rack (Show on: Rack only). */
   setRackedPanelsShown: (show: boolean) => void;
 
@@ -2360,6 +2362,21 @@ export const useDiagram = create<DiagramState>()(
           // Taking a shelf out takes what stands on it out of the rack too (it stays on the diagram).
           commit({ racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: x.items.filter((y) => y.id !== itemId && y.shelf?.id !== itemId) } : x)) });
           set({ selectedRackItemId: null });
+        },
+        mountWithKit: (rackId, nodeId) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          const it = r?.items.find((x) => x.nodeId === nodeId);
+          if (!r || !it) return false;
+          const node = cur().pages.flatMap((pg) => pg.nodes).find((n) => n.id === nodeId);
+          const height = node?.type === 'device' ? rackUnitsOf(findStencil(node.data.stencilId, get().customStencils)) || 1 : 1;
+          const rest: Rack = { ...r, items: r.items.filter((x) => x.id !== it.id) };
+          const u = findFreeU(rest, height, 'full');
+          if (u === null) return false;
+          get().snapshot();
+          const mounted: RackItem = { id: it.id, kind: 'device', nodeId, u, height, depth: 'full' };
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...rest, items: [...rest.items, mounted] } : x)) });
+          return true;
         },
         setRackedPanelsShown: (show) => {
           const p = cur();

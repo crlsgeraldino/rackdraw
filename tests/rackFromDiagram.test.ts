@@ -50,7 +50,11 @@ describe('Rack from Diagram', () => {
     const shelf = items.find((it) => it.kind === 'shelf')!;
     assert.equal(shelf.u, Math.max(...items.map((it) => it.u + it.height - 1)));
     const onIt = items.filter((it) => it.shelf?.id === shelf.id).map((it) => devices.find((d) => d.id === it.nodeId)?.data.name).sort();
-    assert.deepEqual(onIt, ['Firewall logo', 'TZ570']);
+    assert.deepEqual(onIt, ['Firewall logo']);
+    // The TZ has a rack-mount kit: mounted in its own unit, right under the shelf.
+    const tz = items.find((it) => devices.find((d) => d.id === it.nodeId)?.data.name === 'TZ570')!;
+    assert.equal(tz.shelf, undefined);
+    assert.equal(tz.u, shelf.u - 1);
     assert.ok(items.filter((it) => it.shelf).every((it) => it.u === shelf.u));
   });
 

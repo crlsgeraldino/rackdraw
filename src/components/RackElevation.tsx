@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { rackLabel } from '@/lib/rack';
 import { shelfArtHeight, shelfWidth, TRAY_PX } from '@/lib/rackShelf';
+import { isSmallGear } from '@/lib/autoRack';
 import type { RackCable } from '@/lib/rackPatching';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import type { DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
@@ -417,6 +418,18 @@ function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; 
       parts.push(<Face key="p" x={x} y={y} w={w} h={h} fill="#1a1b1f" />);
       // The front-panel art in the slot: post to post for a full-width faceplate, else centred in proportion.
       const { x: ax, y: ay, w: aw, h: ah, stretch } = artBox(stencil, x, y, w, h);
+      // A desktop unit mounted with its rack-mount kit: steel brackets from the unit out to the rails.
+      if (!stretch && isSmallGear(stencil)) {
+        for (const [bx, bw] of [[x, ax - x], [ax + aw, x + w - ax - aw]] as const) {
+          if (bw < 4) continue;
+          parts.push(
+            <g key={`kit${bx}`}>
+              <rect x={bx} y={y + 3} width={bw} height={h - 6} rx={1.5} fill="url(#rk-ear)" stroke="#00000055" />
+              {Array.from({ length: Math.max(1, Math.floor(bw / 26)) }, (_, i) => <rect key={i} x={bx + 8 + i * 26} y={y + h / 2 - 3} width={14} height={6} rx={3} fill="#1f2228" opacity={0.7} />)}
+            </g>,
+          );
+        }
+      }
       parts.push(
         stencil.style === 'image'
           ? <image key="a" href={stencil.image} x={ax} y={ay} width={aw} height={ah} preserveAspectRatio={stretch ? 'none' : 'xMidYMid meet'} />

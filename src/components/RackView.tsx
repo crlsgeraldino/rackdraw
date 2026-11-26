@@ -4,7 +4,7 @@ import { fmtRuntime, rackPower, upsRating } from '@/lib/rackPower';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage, allDevices } from '@/lib/project';
 import { openPortMap } from '@/lib/events';
-import { isShelfDevice, rackUnitsOf } from '@/lib/autoRack';
+import { isShelfDevice, isSmallGear, rackKitFor, rackUnitsOf } from '@/lib/autoRack';
 import { shelfAt } from '@/lib/rackShelf';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
@@ -112,7 +112,7 @@ function SideList({ rack }: { rack: Rack | undefined }) {
               return (
                 <div key={n.id} draggable onDragStart={(e) => start(e, { type: 'node', nodeId: n.id, height: heightOf(s) })} className="flex cursor-grab items-center justify-between rounded border border-gray-200 px-2 py-1 text-xs hover:bg-gray-50" title="Drag into the rack">
                   <span className="truncate">{n.data.name}</span>
-                  <span className="ml-1 shrink-0 text-[10px] text-gray-400">{isShelfDevice(s) ? 'shelf' : `${heightOf(s)}U`}</span>
+                  <span className="ml-1 shrink-0 text-[10px] text-gray-400">{isShelfDevice(s) ? 'shelf' : isSmallGear(s) ? `${heightOf(s)}U kit` : `${heightOf(s)}U`}</span>
                 </div>
               );
             })}
@@ -407,6 +407,16 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
               <input type="number" min={0} className={inputCls} value={d.weightLb ?? ''} onFocus={snapshot} onChange={(e) => updateNodeData(device.id, { weightLb: e.target.value === '' ? undefined : Number(e.target.value) })} />
             </Field>
           </div>
+          {isSmallGear(getStencil(d.stencilId)) && (
+            <Field label="Mounting">
+              <select className={inputCls} value={item.shelf ? 'shelf' : 'kit'} aria-label="Mounting"
+                onChange={(e) => setErr((e.target.value === 'shelf' ? useDiagram.getState().putOnShelf(rack.id, device.id) : useDiagram.getState().mountWithKit(rack.id, device.id)) ? '' : 'There is no room for that in this rack.')}>
+                <option value="kit">Rack-mount kit (bought separately)</option>
+                <option value="shelf">On a shelf</option>
+              </select>
+              {!item.shelf && <span className="mt-0.5 block text-[11px] text-gray-500">In the bill of materials: {rackKitFor(getStencil(d.stencilId), false)}</span>}
+            </Field>
+          )}
           <label className="mb-2 flex items-start gap-1.5 text-xs text-gray-700" title="Patch panels, cable managers and the like usually belong in the rack only. Cables through a rack-only patch panel are drawn on the diagram as one line &quot;via&quot; it.">
             <input type="checkbox" className="mt-0.5" checked={d.showOn !== 'rack'} onChange={(e) => { snapshot(); updateNodeData(device.id, { showOn: e.target.checked ? undefined : 'rack' }); }} />
             <span>Show on the diagram too<span className="block text-[11px] text-gray-500">Off: only in the rack (still in the bill of materials, port maps and cable paths).</span></span>
