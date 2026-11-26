@@ -719,6 +719,8 @@ export interface Page {
   background?: boolean;
   /** The background page shown behind this page. */
   backgroundId?: string;
+  /** Design → Device Look: 'icons' draws front-panel devices as network symbols on this page; missing = faceplates. */
+  look?: 'icons';
 }
 
 export interface Project {

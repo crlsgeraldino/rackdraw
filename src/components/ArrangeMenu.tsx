@@ -95,7 +95,7 @@ export function useAutoArrange() {
     const nodes = (sel.length >= 2 ? sel : page.nodes.filter((n) => n.type === 'device')).filter((n) => !isLocked(n));
     if (nodes.length < 2) return alert('Add or select at least two devices to arrange.');
     const items: LayoutItem[] = nodes.map((n) => {
-      const size = deviceSize(n, getStencil);
+      const size = deviceSize(n, getStencil, page.look);
       const d = n.type === 'device' ? n.data : undefined;
       // Leave room for the info box beside the device and the label under it.
       const info = d?.infoBox?.show ? overlaySize(`${n.id}|info`) : undefined;
@@ -105,7 +105,7 @@ export function useAutoArrange() {
         id: n.id,
         w: size.w + (info ? INFO_GAP + info.w : 0),
         h: Math.max(size.h + (label ? label.h + 8 : 0), info?.h ?? 0),
-        category: s?.category ?? 'Custom',
+        category: d?.stencilId === 'internet' ? 'Internet' : s?.category ?? 'Custom',
         name: d?.name ?? '',
       };
     });

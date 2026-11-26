@@ -144,6 +144,13 @@ interface DiagramState {
   setPageSetup: (setup: NonNullable<Page['setup']>) => void;
   /** Sets or clears the active page's drawing scale (undoable). */
   setPageScale: (scale: PageScale | null) => void;
+  /** Design → Device Look: faceplates (undefined) or network symbols ('icons') on the active page (undoable). */
+  setPageLook: (look: Page['look']) => void;
+  /**
+   * Changes the active page in one go (Tidy Diagram). `snapshot` false adds to the previous undo step, so a change
+   * made in two passes (show the devices, then lay them out once they are measured) undoes as one.
+   */
+  editPage: (fn: (pg: Page) => Page, snapshot?: boolean) => void;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
   /** Wi-Fi Plan: settings of the active page (show the coverage map, people on the floor). */
   setPageWifi: (patch: NonNullable<Page['wifi']>) => void;
@@ -1186,6 +1193,16 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           const id = page().id;
           commit({ pages: cur().pages.map((pg) => (pg.id === id ? { ...pg, setup } : pg)) });
+        },
+        setPageLook: (look) => {
+          get().snapshot();
+          const id = page().id;
+          commit({ pages: cur().pages.map((pg) => (pg.id === id ? { ...pg, look } : pg)) });
+        },
+        editPage: (fn, snapshot = true) => {
+          if (snapshot) get().snapshot();
+          const id = page().id;
+          commit({ pages: cur().pages.map((pg) => (pg.id === id ? fn(pg) : pg)) });
         },
         setPageScale: (scale) => {
           get().snapshot();

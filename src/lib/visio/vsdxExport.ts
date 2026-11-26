@@ -14,6 +14,7 @@ import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { RD_SHAPE, writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 import { cableText, edgeRole, roleLabel } from '../cableRole';
 import { drawingCables, isRackOnly } from '../rackOnly';
+import { drawsAsSymbol, symbolStencil } from '../logicalIcon';
 
 /**
  * "Save as Visio drawing": shows each page in turn and turns what is drawn into Visio shapes — devices as pictures
@@ -156,7 +157,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       if (!b) return;
       x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h);
     };
-    pg.nodes.forEach((n) => grow(box(n.id)));
+    pg.nodes.filter((n) => !isRackOnly(n)).forEach((n) => grow(box(n.id))); // rack-only devices aren't drawn here
     related(pg).forEach((x) => grow(estimate(x)));
     document.querySelectorAll('.react-flow__viewport .nc-infobox, .react-flow__viewport .nc-device-label').forEach((el) => grow(domBox(el)));
     const sheet = sheetSize(pg.setup ?? DEFAULT_SETUP);
@@ -338,11 +339,14 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
         }
         case 'device': {
           const d = n.data;
-          const s = ctx.stencilOf(d.stencilId);
-          if (!s) break;
+          const s0 = ctx.stencilOf(d.stencilId);
+          if (!s0) break;
+          // A page drawn with Device Look "Icons": the network symbol, as on screen.
+          const s = drawsAsSymbol(pg.look, s0) ? symbolStencil(s0) : s0;
           // One picture per shape, drawn at its native size (pictures are shared by every device using the shape).
           const src = s.style === 'image' && s.image ? s.image : editableCopy(s).image!;
-          const name = await addMedia(`st:${s.id}`, src, s.width * (s.style === 'icon' ? 2 : 1), s.height * (s.style === 'icon' ? 2 : 1));
+          const sharp = s.style === 'icon' || s !== s0 ? 2 : 1; // symbols are small: drawn at twice their size
+          const name = await addMedia(`${s !== s0 ? 'sym' : 'st'}:${s.id}`, src, s.width * sharp, s.height * sharp);
           const data: [string, string][] = [
             ['Name', d.name], ['Model', d.model ?? ''], ['IP', d.ip ?? ''], ['MAC', d.mac ?? ''], ['Serial', d.serial ?? ''],
             ['Asset tag', d.assetTag ?? ''], ['Location', d.location ?? ''], ['Status', d.status ?? 'active'], ['Type', s.name],
@@ -432,7 +436,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       const text = cableText(d, role, d.tag ?? project.display?.cableTag ?? 'label');
       if (text) {
         const mid = path.getPointAtLength(total * (d.labelAt ?? 0.5));
-        const w = Math.max(0.4, text.length * 0.055);
+        const w = Math.max(0.4, text.length * 0.062 + 0.12); // room for Visio's text margins and wider font
         texts.push({ kind: 'rect', box: { x: X(mid.x) - w / 2, y: Y(mid.y) - 0.08, w, h: 0.16 }, fill: '#FFFFFF', line: st.color, lineWeightPt: 0.5, text: { text, color: st.color, ...vLook(d, 6.5) } });
       }
     }
