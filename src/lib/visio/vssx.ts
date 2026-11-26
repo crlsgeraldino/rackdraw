@@ -400,9 +400,10 @@ export class VisioPackage {
       const charRow = charSec ? children(charSec, 'Row')[0] : undefined;
       const textColor = this.colorOf(s, 'font', ctx) ?? '#000000';
       const fontPx = num(charRow ? cell(charRow, 'Size') : get('Size', 'text'), 0.1111) * PX;
-      // Layer membership ("0;2") and Visio containers (User.msvStructureType = Container).
+      // Layer membership ("0;2") and Visio containers (User.msvStructureType = Container). Visio itself saves
+      // LayerMember as a cell of the shape; older writers (and RackDraw before 1.10.2) in a LayerMem section.
       const memRow = section(s, 'LayerMem') ? children(section(s, 'LayerMem')!, 'Row')[0] : undefined;
-      const layerMember = memRow ? cell(memRow, 'LayerMember') : null;
+      const layerMember = cell(s, 'LayerMember') ?? (memRow ? cell(memRow, 'LayerMember') : null);
       const layers = layerMember ? layerMember.split(';').map(Number).filter((x) => Number.isFinite(x)) : undefined;
       const userSec = section(s, 'User');
       const container = !!userSec && children(userSec, 'Row').some((r) => r.getAttribute('N') === 'msvStructureType' && /container/i.test(cell(r, 'Value') ?? ''));

@@ -330,7 +330,17 @@ export function writeVsdx(doc: VDocument): Uint8Array {
   files['visio/pages/pages.xml'] = strToU8(`${XML}<Pages xmlns="${NS}" xmlns:r="${R}" xml:space="preserve">${pageEntries.join('')}</Pages>`);
   files['visio/pages/_rels/pages.xml.rels'] = strToU8(relsXml(pageRels));
   files['visio/document.xml'] = strToU8(DOC_XML);
-  files['visio/_rels/document.xml.rels'] = strToU8(relsXml([{ id: 'rId1', type: `${T}/pages`, target: 'pages/pages.xml' }]));
+  // Visio refuses a drawing without a windows part ("some parts are missing or invalid"); one drawing window on the
+  // first foreground page, fitted to the window.
+  const first = Math.max(0, doc.pages.findIndex((p) => !p.background));
+  files['visio/windows.xml'] = strToU8(
+    `${XML}<Windows xmlns="${NS}" xmlns:r="${R}" xml:space="preserve">` +
+    `<Window ID="0" WindowType="Drawing" ContainerType="Page" Page="${first}" ViewScale="-1"/></Windows>`,
+  );
+  files['visio/_rels/document.xml.rels'] = strToU8(relsXml([
+    { id: 'rId1', type: `${T}/pages`, target: 'pages/pages.xml' },
+    { id: 'rId2', type: `${T}/windows`, target: 'windows.xml' },
+  ]));
   for (const [name, bytes] of Object.entries(doc.media)) files[`visio/media/${name}`] = bytes;
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   files['docProps/core.xml'] = strToU8(
@@ -351,6 +361,7 @@ export function writeVsdx(doc: VDocument): Uint8Array {
     '<Default Extension="png" ContentType="image/png"/>' +
     '<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>' +
     '<Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>' +
+    '<Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/>' +
     overrides.join('') +
     '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
     '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' +
