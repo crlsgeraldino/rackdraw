@@ -87,3 +87,23 @@ describe('power inlets of a vendor back', () => {
     assert.deepEqual(inletsOf({ id: 'i', kind: 'device', nodeId: 'd', u: 1, height: 1, depth: 'full' }, d, both).map((i) => i.label), ['AC Power']);
   });
 });
+
+describe('names of two-sided devices', () => {
+  it('drops "- Front" when the shape is the whole device', async () => {
+    const { deviceName } = await import('../src/lib/backView');
+    assert.equal(deviceName(findStencil('f', custom)!), 'Dell PowerEdge R760');
+    assert.equal(deviceName(front), 'Dell PowerEdge R760 - Front'); // no back: the name as it is
+  });
+  it('renames a front still named after its shape when its back is combined into it', () => {
+    const p = {
+      id: 'p1', name: 'T', activePageId: 'pg', createdAt: 0, updatedAt: 0, racks: [],
+      pages: [{ id: 'pg', name: 'N', kind: 'network', edges: [], nodes: [
+        { id: 'a', type: 'device', position: { x: 0, y: 0 }, data: { stencilId: 'f', name: 'Dell PowerEdge R760 - Front 2' } },
+        { id: 'b', type: 'device', position: { x: 0, y: 0 }, data: { stencilId: 'r', name: 'Dell PowerEdge R760 - Rear' } },
+      ] }],
+    } as unknown as Project;
+    useDiagram.setState({ projects: { p1: p }, currentId: 'p1', past: [], future: [], customStencils: custom });
+    useDiagram.getState().combineWithFront('b');
+    assert.equal((activePage(useDiagram.getState().projects.p1).nodes[0] as DeviceNode).data.name, 'Dell PowerEdge R760 2');
+  });
+});

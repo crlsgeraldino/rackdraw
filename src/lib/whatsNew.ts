@@ -11,6 +11,14 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.10.1',
+    title: 'Tidier info boxes',
+    items: [
+      'Info boxes line up long port names ("RJ45 38", "NIC 1 RJ45", "SFP28 49") in their own column, so they no longer run into what the port connects to; long lines wrap.',
+      'A device whose shape has a front and a back is named without "- Front" (also when its back is combined into it).',
+    ],
+  },
+  {
     version: '1.10.0',
     title: 'Move cords in the rack',
     items: [

@@ -8,7 +8,7 @@ import { isPassThrough } from '@/lib/trace';
 import { isShelfDevice, mountInto, planRacks, rackUnitsOf } from '@/lib/autoRack';
 import { placeOnShelf, shelfWidth } from '@/lib/rackShelf';
 import { plugInAll } from '@/lib/powerCords';
-import { backIds, backOf, backPortId, withBack } from '@/lib/backView';
+import { backIds, backOf, backPortId, deviceName, withBack } from '@/lib/backView';
 import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
@@ -907,7 +907,7 @@ export const useDiagram = create<DiagramState>()(
             id: `n-${uid()}`,
             type: 'device',
             position,
-            data: { stencilId, name: count ? `${s.name} ${count + 1}` : s.name, ...s.defaults, layer: activeLayer(cur()) } as DeviceData,
+            data: { stencilId, name: count ? `${deviceName(s)} ${count + 1}` : deviceName(s), ...s.defaults, layer: activeLayer(cur()) } as DeviceData,
           };
           commit({ nodes: [...page().nodes.map((n) => ({ ...n, selected: false })), { ...node, selected: true }] });
         },
@@ -2499,7 +2499,11 @@ export const useDiagram = create<DiagramState>()(
           }));
           // Its port notes go with its ports; it leaves any rack (the front device is the one mounted).
           const notes = Object.fromEntries(Object.entries(rear.data.ports ?? {}).map(([k, v]) => [backPortId(k), v]));
-          const withNotes = pages.map((x) => ({ ...x, nodes: x.nodes.map((n) => (n.id === front.id && n.type === 'device' ? { ...n, data: { ...n.data, ports: { ...notes, ...n.data.ports } } } as AppNode : n)) }));
+          // Still named after its "… - Front" shape: it's the whole device now.
+          const fst = findStencil(front.data.stencilId, custom);
+          const shapeName = storedStencil(front.data.stencilId, custom)?.name;
+          const rename = fst && shapeName && front.data.name.startsWith(shapeName) ? { name: front.data.name.replace(shapeName, deviceName(fst)) } : {};
+          const withNotes = pages.map((x) => ({ ...x, nodes: x.nodes.map((n) => (n.id === front.id && n.type === 'device' ? { ...n, data: { ...n.data, ...rename, ports: { ...notes, ...n.data.ports } } } as AppNode : n)) }));
           const racks = (cur().racks ?? []).map((r) => {
             const gone = r.items.filter((it) => it.nodeId === nodeId).map((it) => it.id);
             return gone.length ? { ...r, items: r.items.filter((it) => !gone.includes(it.id)), ...(r.power ? { power: r.power.filter((c) => !gone.includes(c.from) && !gone.includes(c.to)) } : {}) } : r;
@@ -2571,7 +2575,7 @@ export const useDiagram = create<DiagramState>()(
             type: 'device',
             position: { x: 0, y: nodes.length ? bottom + 80 : 0 },
             data: {
-              stencilId, name: count ? `${s.name} ${count + 1}` : s.name, location: r.name, ...s.defaults,
+              stencilId, name: count ? `${deviceName(s)} ${count + 1}` : deviceName(s), location: r.name, ...s.defaults,
               // Patch panels added in the rack view belong in the rack, not on the diagram.
               ...(isPassThrough({ data: { stencilId, name: s.name } } as DeviceNode, s) ? { showOn: 'rack' } : {}),
             } as DeviceData,
