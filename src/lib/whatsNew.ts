@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.10.2',
+    title: 'Visio drawings open in Visio',
+    items: [
+      'Drawings saved with "Save as Visio drawing" now open in Microsoft Visio (Visio refused them as having missing parts).',
+      'Device names no longer break in the middle of a word in Visio.',
+      'Drawings saved by Visio keep their layers when you open them in RackDraw.',
+    ],
+  },
+  {
     version: '1.10.1',
     title: 'Tidier info boxes',
     items: [

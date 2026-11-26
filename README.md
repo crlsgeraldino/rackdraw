@@ -138,8 +138,9 @@ npm run e2e        # Playwright: starts RackDraw (Electron) with a throwaway dat
 
 They click every ribbon button (with and without a selection), save a client, restart, reopen its file, make every
 export and check each file, insert a large and a damaged CAD drawing, and import network scans. On Windows with
-Microsoft Office installed they also open the Word, PowerPoint, CSV (and, with Visio, .vsdx) exports in Office; an
-Office app that is already running is left alone and that check is skipped. Your own clients are never touched:
+Microsoft Office installed they also open the Word, PowerPoint, CSV (and, with Visio, .vsdx) exports in Office, and
+have Visio save the drawing again so RackDraw can open Visio's own copy; an Office app that is already running is
+left alone and that check is skipped. Your own clients are never touched:
 each test uses its own temporary folder (`RACKDRAW_DATA_DIR`). GitHub runs all of this on every pull request
 (`.github/workflows/ci.yml`).
 

@@ -377,7 +377,13 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
           const lab = el?.querySelector('.nc-device-label');
           if (lab) {
             const lines = [...lab.children].map((c) => c.textContent ?? '').filter(Boolean);
-            texts.push({ kind: 'rect', name: `${d.name} label`, box: ibox(domBox(lab)), fill: null, line: null, text: { text: lines.join('\n'), ...vLook(d, 8, true), align: s.style === 'icon' ? 'center' : 'left' } });
+            // The box as drawn is exactly as wide as the text; Visio takes its text margins (0.05" a side) off that and
+            // its font runs a little wider, so names broke mid-word ("Intern / et"). Widen it, keeping the text in place.
+            const lb = ibox(domBox(lab));
+            const extra = 0.1 + lb.w * 0.15;
+            const centred = s.style === 'icon';
+            const wide = { ...lb, x: lb.x - (centred ? extra / 2 : 0.05), w: lb.w + extra };
+            texts.push({ kind: 'rect', name: `${d.name} label`, box: wide, fill: null, line: null, text: { text: lines.join('\n'), ...vLook(d, 8, true), align: centred ? 'center' : 'left' } });
           }
           const info = el?.querySelector('.nc-infobox');
           if (info) {
