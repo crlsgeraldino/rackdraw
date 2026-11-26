@@ -4,6 +4,7 @@
  * racks and rack accessories, and the circuits and services the sites need. Plus port capacity per switch.
  */
 import { rackKitFor } from './autoRack';
+import { validCords } from './powerCords';
 import { circuitName } from './lifecycle';
 import { lengthFt } from './length';
 import { allDevices } from './project';
@@ -226,6 +227,9 @@ export function billOfMaterials(p: Project, stencil: Stencils): { sections: BomS
       const kit = d ? rackKitFor(st(d), !!it.shelf) : undefined;
       if (kit) count(accessories, kit);
     }
+    // Power cords drawn in the rack (a device's supply to a PDU / UPS outlet); a PDU comes with its own input cord.
+    const cords = validCords(r, byId, stencil).filter((c) => r.items.find((it) => it.id === c.from)?.kind === 'device');
+    if (cords.length) count(accessories, 'Power cord C13–C14, 2 ft', cords.length);
     count(accessories, 'Cage nuts and screws (pack of 50)', Math.max(1, Math.ceil(r.items.filter((it) => !it.shelf).length * 4 / 50)));
   }
 

@@ -81,6 +81,7 @@ function cleanDevice(d: Record<string, unknown>) {
   if (isObj(out.ups)) { const u = { ...out.ups }; for (const k of ['capacityW', 'runtimeHalfMin']) if (u[k] !== undefined && !finite(u[k])) delete u[k]; out.ups = u; }
   if (isObj(out.circuit) && out.circuit.monthlyCost !== undefined && !finite(out.circuit.monthlyCost)) out.circuit = { ...out.circuit, monthlyCost: undefined };
   if (out.showOn !== undefined && out.showOn !== 'rack') delete out.showOn;
+  if (out.psus !== undefined && !(finite(out.psus) && (out.psus as number) >= 1 && (out.psus as number) <= 2)) delete out.psus;
   return out;
 }
 
@@ -128,7 +129,11 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
     units: finite(r.units) && r.units > 0 ? Math.min(60, Math.round(r.units)) : 42,
     items: (Array.isArray(r.items) ? r.items : [])
       .filter((it) => isObj(it) && finite(it.u) && finite(it.height) && (!it.nodeId || ids.has(it.nodeId)))
-      .map((it) => (it.shelf !== undefined && !(isObj(it.shelf) && typeof it.shelf.id === 'string' && finite(it.shelf.x)) ? { ...it, shelf: undefined } : it)),
+      .map((it) => (it.shelf !== undefined && !(isObj(it.shelf) && typeof it.shelf.id === 'string' && finite(it.shelf.x)) ? { ...it, shelf: undefined } : it))
+      .map((it) => (it.outlets !== undefined && !(finite(it.outlets) && it.outlets >= 1 && it.outlets <= 48) ? { ...it, outlets: undefined } : it)),
+    power: Array.isArray(r.power)
+      ? r.power.filter((c: unknown) => isObj(c) && typeof c.id === 'string' && typeof c.from === 'string' && typeof c.inlet === 'string' && typeof c.to === 'string' && finite(c.outlet))
+      : undefined,
   }));
   const project: Project = {
     ...p,
