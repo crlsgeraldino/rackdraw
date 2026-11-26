@@ -1,5 +1,6 @@
 'use client';
 
+import { drawingCables } from '@/lib/rackOnly';
 import {
   ConnectionMode,
   MarkerType,
@@ -193,7 +194,8 @@ function Canvas() {
     const keep = new Map<string, { src: AppNode; ctx: string; out: AppNode }>();
     const list = [...bg.nodes, ...page.nodes].map((src) => {
       const layerOf = (src.type === 'device' || src.type === 'shape' || src.type === 'measure') ? src.data.layer : undefined;
-      const ctx = `${labelBeside.has(src.id) ? 1 : 0}${layerOf && display.hidden.has(layerOf) ? 1 : 0}${layerOf && layerProps.locked.has(layerOf) ? 1 : 0}${layerOf && layerProps.noPrint.has(layerOf) ? 1 : 0}`;
+      const rackOnly = src.type === 'device' && src.data.showOn === 'rack';
+      const ctx = `${rackOnly ? 1 : 0}${labelBeside.has(src.id) ? 1 : 0}${layerOf && display.hidden.has(layerOf) ? 1 : 0}${layerOf && layerProps.locked.has(layerOf) ? 1 : 0}${layerOf && layerProps.noPrint.has(layerOf) ? 1 : 0}`;
       const hit = derived.current.get(src.id);
       if (hit && hit.src === src && hit.ctx === ctx) { keep.set(src.id, hit); return hit.out; }
       let n = src;
@@ -209,6 +211,8 @@ function Canvas() {
       // Protection → can't be selected: clicks go through to what's behind.
       if (n.type !== 'backdrop' && n.data.noSelect) n = { ...n, selectable: false, draggable: false, deletable: false, selected: false, className: [n.className, 'nc-noselect'].filter(Boolean).join(' ') } as AppNode;
       const out = ((): AppNode => {
+        // Rack-only (patch panels…): drawn in the rack elevation, not here.
+        if (rackOnly) return { ...n, hidden: true, selected: false };
         if (!layer) return n;
         if (display.hidden.has(layer)) return { ...n, hidden: true };
         const locked = layerProps.locked.has(layer), noPrint = layerProps.noPrint.has(layer);
@@ -225,9 +229,12 @@ function Canvas() {
     derived.current = keep;
     return list;
   }, [page.nodes, bg.nodes, display.hidden, layerProps, labelBeside]);
+  // Cables through rack-only patch panels: one line from end to end, "via" the panels.
+  const drawn = useMemo(() => drawingCables(page.nodes, page.edges, getStencil), [page.nodes, page.edges]);
   const edges = useMemo(
     () =>
-      [...bg.edges, ...page.edges].map((e) => {
+      [...bg.edges, ...page.edges, ...drawn.via].map((e) => {
+        if (drawn.hidden.has(e.id)) return { ...e, hidden: true, selected: false };
         const hidden = !!(e.data?.layer && display.hidden.has(e.data.layer));
         const locked = !!(e.data?.layer && layerProps.locked.has(e.data.layer));
         const noPrint = !!(e.data?.layer && layerProps.noPrint.has(e.data.layer));
@@ -244,7 +251,7 @@ function Canvas() {
           markerStart: arrows === 'start' || arrows === 'both' ? marker : undefined,
         };
       }),
-    [page.edges, bg.edges, display, layerProps],
+    [page.edges, bg.edges, drawn, display, layerProps],
   );
   const { onNodesChange, onEdgesChange, onConnect, addStencil, addZone, addNote, addShape, snapshot, deleteSelected, duplicateSelected } = useDiagram.getState();
   const [find, setFind] = useState<{ replace: boolean } | null>(null);

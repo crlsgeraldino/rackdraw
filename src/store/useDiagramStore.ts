@@ -5,7 +5,8 @@ import { applyScanRows, type ScanRow } from '@/lib/scanImport';
 import type { WallMaterial } from '@/lib/wifi';
 import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from '@xyflow/react';
 import { isPassThrough } from '@/lib/trace';
-import { mountInto, planRacks, rackUnitsOf } from '@/lib/autoRack';
+import { isShelfDevice, mountInto, planRacks, rackUnitsOf } from '@/lib/autoRack';
+import { placeOnShelf, shelfWidth } from '@/lib/rackShelf';
 import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
@@ -343,6 +344,15 @@ interface DiagramState {
   removeRackItem: (rackId: string, itemId: string) => void;
   /** Creates a new diagram device from a stencil and mounts it at `u` (or the first free slot). */
   addDeviceToRack: (rackId: string, stencilId: string, u?: number) => boolean;
+  /**
+   * Stands a small device on a shelf: the shelf at `u` (or a new one there), or anywhere with room. Moves it when it
+   * is already in this rack (on a shelf or mounted).
+   */
+  putOnShelf: (rackId: string, nodeId: string, u?: number) => boolean;
+  /** Takes a small device off its shelf and mounts it with its rack-mount kit, in the highest free unit. */
+  mountWithKit: (rackId: string, nodeId: string) => boolean;
+  /** Shows or hides, on the diagram, every patch panel mounted in a rack (Show on: Rack only). */
+  setRackedPanelsShown: (show: boolean) => void;
 
   // custom stencils
   saveCustomStencil: (s: StencilDef) => void;
@@ -570,7 +580,11 @@ export const useDiagram = create<DiagramState>()(
        */
       const reachable = () => {
         const blocked = new Set((cur().layers ?? []).filter((l) => !l.visible || l.locked).map((l) => l.id));
-        return (x: { data?: Record<string, unknown> }) => !(typeof x.data?.layer === 'string' && blocked.has(x.data.layer));
+        // Rack-only devices (and their cables) aren't on the diagram: Select All / Delete there must not reach them.
+        const rackOnly = new Set(cur().pages.flatMap((pg) => pg.nodes).filter((n) => n.type === 'device' && n.data.showOn === 'rack').map((n) => n.id));
+        return (x: { source?: string; target?: string; data?: Record<string, unknown> }) =>
+          !(typeof x.data?.layer === 'string' && blocked.has(x.data.layer)) && x.data?.showOn !== 'rack'
+          && !(x.source !== undefined && (rackOnly.has(x.source) || rackOnly.has(x.target ?? '')));
       };
       /** Selected items on layers that were just hidden or locked are deselected. */
       const deselectBlocked = () => {
@@ -2335,23 +2349,74 @@ export const useDiagram = create<DiagramState>()(
           if (!r || !it) return false;
           const next = { ...it, ...patch };
           const moved = next.u !== it.u || next.height !== it.height || next.depth !== it.depth;
+          if (moved && it.shelf) return get().putOnShelf(rackId, it.nodeId!, next.u);
           if (moved && !fits(r, next.u, next.height, next.depth, itemId)) return false;
           if (moved) get().snapshot();
-          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, items: x.items.map((y) => (y.id === itemId ? next : y)) } : x)) });
+          // What stands on a shelf moves with it.
+          const follow = (y: RackItem) => (y.shelf?.id === itemId ? { ...y, u: next.u, height: next.height, depth: next.depth } : y);
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, items: x.items.map((y) => (y.id === itemId ? next : it.kind === 'shelf' ? follow(y) : y)) } : x)) });
           return true;
         },
         removeRackItem: (rackId, itemId) => {
           get().snapshot();
-          commit({ racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: x.items.filter((y) => y.id !== itemId) } : x)) });
+          // Taking a shelf out takes what stands on it out of the rack too (it stays on the diagram).
+          commit({ racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: x.items.filter((y) => y.id !== itemId && y.shelf?.id !== itemId) } : x)) });
           set({ selectedRackItemId: null });
+        },
+        mountWithKit: (rackId, nodeId) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          const it = r?.items.find((x) => x.nodeId === nodeId);
+          if (!r || !it) return false;
+          const node = cur().pages.flatMap((pg) => pg.nodes).find((n) => n.id === nodeId);
+          const height = node?.type === 'device' ? rackUnitsOf(findStencil(node.data.stencilId, get().customStencils)) || 1 : 1;
+          const rest: Rack = { ...r, items: r.items.filter((x) => x.id !== it.id) };
+          const u = findFreeU(rest, height, 'full');
+          if (u === null) return false;
+          get().snapshot();
+          const mounted: RackItem = { id: it.id, kind: 'device', nodeId, u, height, depth: 'full' };
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...rest, items: [...rest.items, mounted] } : x)) });
+          return true;
+        },
+        setRackedPanelsShown: (show) => {
+          const p = cur();
+          const racked = new Set((p.racks ?? []).flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
+          const custom = get().customStencils;
+          const panel = (n: AppNode) => n.type === 'device' && racked.has(n.id) && n.data.stencilId !== 'wall-jack' && isPassThrough(n, findStencil(n.data.stencilId, custom));
+          get().snapshot();
+          commit({
+            pages: p.pages.map((pg) => ({
+              ...pg,
+              nodes: pg.nodes.map((n) => (panel(n) && n.type === 'device' && (n.data.showOn === 'rack') === show
+                ? { ...n, selected: false, data: { ...n.data, showOn: show ? undefined : 'rack' } } as AppNode
+                : n)),
+            })),
+          });
+        },
+        putOnShelf: (rackId, nodeId, u) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          if (!r || racks.some((x) => x.id !== rackId && x.items.some((it) => it.nodeId === nodeId))) return false;
+          const custom = get().customStencils;
+          const devs = new Map(cur().pages.flatMap((pg) => pg.nodes).filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n]));
+          const stOf = (id?: string) => { const d = id ? devs.get(id) : undefined; return d ? findStencil(d.data.stencilId, custom) : undefined; };
+          const moving = r.items.find((it) => it.nodeId === nodeId);
+          const placed = placeOnShelf(r, nodeId, shelfWidth(stOf(nodeId), 1), (it) => shelfWidth(stOf(it.nodeId), it.height), u, moving);
+          if (!placed) return false;
+          get().snapshot();
+          commit({ racks: racks.map((x) => (x.id === rackId ? placed : x)) });
+          set({ selectedRackItemId: placed.items.find((it) => it.nodeId === nodeId)?.id ?? null });
+          return true;
         },
         addDeviceToRack: (rackId, stencilId, u) => {
           const s = findStencil(stencilId, get().customStencils);
           const r = (cur().racks ?? []).find((x) => x.id === rackId);
           if (!s || !r) return false;
           const height = rackUnitsOf(s) || 1;
+          const shelf = isShelfDevice(s);
           const at = u ?? findFreeU(r, height, 'full');
-          if (at === null || !fits(r, at, height, 'full')) return false;
+          if (!shelf && (at === null || !fits(r, at, height, 'full'))) return false;
+          if (shelf && !placeOnShelf(r, 'probe', shelfWidth(s, 1), () => 0, u ?? undefined)) return false;
           get().snapshot();
           // Put the new device on the diagram below everything else so it doesn't cover existing work.
           const nodes = page().nodes;
@@ -2361,9 +2426,24 @@ export const useDiagram = create<DiagramState>()(
             id: `n-${uid()}`,
             type: 'device',
             position: { x: 0, y: nodes.length ? bottom + 80 : 0 },
-            data: { stencilId, name: count ? `${s.name} ${count + 1}` : s.name, location: r.name, ...s.defaults } as DeviceData,
+            data: {
+              stencilId, name: count ? `${s.name} ${count + 1}` : s.name, location: r.name, ...s.defaults,
+              // Patch panels added in the rack view belong in the rack, not on the diagram.
+              ...(isPassThrough({ data: { stencilId, name: s.name } } as DeviceNode, s) ? { showOn: 'rack' } : {}),
+            } as DeviceData,
           };
-          const item: RackItem = { id: `ri-${uid()}`, kind: 'device', nodeId: node.id, u: at, height, depth: 'full' };
+          if (shelf) {
+            commit({ nodes: [...nodes, node] });
+            const devs = new Map(cur().pages.flatMap((pg) => pg.nodes).filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n]));
+            const custom = get().customStencils;
+            const widthOf = (it: RackItem) => { const d = it.nodeId ? devs.get(it.nodeId) : undefined; return shelfWidth(d ? findStencil(d.data.stencilId, custom) : undefined, it.height); };
+            const placed = placeOnShelf(r, node.id, shelfWidth(s, 1), widthOf, u ?? undefined);
+            if (!placed) return false;
+            commit({ racks: (cur().racks ?? []).map((x) => (x.id === rackId ? placed : x)) });
+            set({ selectedRackItemId: placed.items.find((it) => it.nodeId === node.id)?.id ?? null });
+            return true;
+          }
+          const item: RackItem = { id: `ri-${uid()}`, kind: 'device', nodeId: node.id, u: at!, height, depth: 'full' };
           commit({
             nodes: [...nodes, node],
             racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: [...x.items, item] } : x)),

@@ -59,6 +59,7 @@ function cleanCable(d: unknown) {
   out.cable = typeof out.cable === 'string' && out.cable ? out.cable : 'Cat6';
   for (const k of ['labelAt', 'weight']) if (out[k] !== undefined && !finite(out[k])) delete out[k];
   if (out.showLength !== undefined) out.showLength = out.showLength === true;
+  delete out.via; // worked out when drawn
   return out;
 }
 
@@ -79,6 +80,7 @@ function cleanDevice(d: Record<string, unknown>) {
   for (const k of ['powerW', 'weightLb']) if (out[k] !== undefined && !finite(out[k])) delete out[k];
   if (isObj(out.ups)) { const u = { ...out.ups }; for (const k of ['capacityW', 'runtimeHalfMin']) if (u[k] !== undefined && !finite(u[k])) delete u[k]; out.ups = u; }
   if (isObj(out.circuit) && out.circuit.monthlyCost !== undefined && !finite(out.circuit.monthlyCost)) out.circuit = { ...out.circuit, monthlyCost: undefined };
+  if (out.showOn !== undefined && out.showOn !== 'rack') delete out.showOn;
   return out;
 }
 
@@ -124,7 +126,9 @@ export function sanitizeProject(raw: unknown, fallbackName = 'Imported client'):
     feedVolts: finite(r.feedVolts) ? r.feedVolts : undefined,
     feedAmps: finite(r.feedAmps) ? r.feedAmps : undefined,
     units: finite(r.units) && r.units > 0 ? Math.min(60, Math.round(r.units)) : 42,
-    items: (Array.isArray(r.items) ? r.items : []).filter((it) => isObj(it) && finite(it.u) && finite(it.height) && (!it.nodeId || ids.has(it.nodeId))),
+    items: (Array.isArray(r.items) ? r.items : [])
+      .filter((it) => isObj(it) && finite(it.u) && finite(it.height) && (!it.nodeId || ids.has(it.nodeId)))
+      .map((it) => (it.shelf !== undefined && !(isObj(it.shelf) && typeof it.shelf.id === 'string' && finite(it.shelf.x)) ? { ...it, shelf: undefined } : it)),
   }));
   const project: Project = {
     ...p,

@@ -21,6 +21,8 @@ const sonicwallTz: StencilDef = {
   scale: 0.5,
   style: 'panel',
   rackUnits: 1,
+  desktop: true,
+  rackKit: 'SonicWall TZ570/TZ670 rack mount kit',
   defaults: { model: 'TZ570 / TZ670' },
   ports: [
     { id: 'CONSOLE', label: 'Console', kind: 'console', x: 304, y: 76, w: 68, h: 60, side: 'top' },
@@ -129,7 +131,7 @@ export const STENCILS: StencilDef[] = [
   switchStencil('switch-24-poe', 'Switch 24-port PoE + 4 SFP', 24, 4, true),
   switchStencil('switch-48', 'Switch 48-port + 4 SFP', 48, 4, false),
   switchStencil('switch-48-poe', 'Switch 48-port PoE + 4 SFP+', 48, 4, true),
-  switchStencil('switch-8', 'Switch 8-port + 2 SFP', 8, 2, false),
+  { ...switchStencil('switch-8', 'Switch 8-port + 2 SFP', 8, 2, false), desktop: true },
   fiberSwitch('switch-core-24sfp', 'Core / aggregation switch 24× SFP+ + 4× QSFP', 24, 4, '24× 10G SFP+, 4× 40/100G QSFP28 L3 switch'),
   patchPanel(24),
   patchPanel(48),

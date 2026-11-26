@@ -13,6 +13,7 @@ import { realArea } from '../units';
 import type { AppNode, CableData, Page, Project, StencilDef } from '../types';
 import { RD_SHAPE, writeVsdx, type VPage, type VPt, type VShape } from './vsdxWriter';
 import { cableText, edgeRole, roleLabel } from '../cableRole';
+import { drawingCables, isRackOnly } from '../rackOnly';
 
 /**
  * "Save as Visio drawing": shows each page in turn and turns what is drawn into Visio shapes — devices as pictures
@@ -170,6 +171,7 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
       if (!b || !b.w || !b.h) continue;
       const layer = n.type === 'device' || n.type === 'shape' || n.type === 'measure' ? n.data.layer : undefined;
       if (layer && hidden.has(layer)) continue;
+      if (isRackOnly(n)) continue; // drawn in its rack only
       const f0 = front.length, t0 = texts.length, z0 = zones.length;
       switch (n.type) {
         case 'backdrop':
@@ -400,7 +402,9 @@ export async function exportVsdx(project: Project, ctx: ExportContext): Promise<
     }
 
     // Cables along their drawn path.
-    for (const e of pg.edges) {
+    // Cables through rack-only patch panels go out as the one line the diagram draws ("via" the panels).
+    const drawn = drawingCables(pg.nodes, pg.edges, ctx.stencilOf);
+    for (const e of [...pg.edges.filter((x) => !drawn.hidden.has(x.id)), ...drawn.via]) {
       const d = (e.data ?? { cable: 'Cat6' }) as CableData;
       if (d.layer && hidden.has(d.layer)) continue;
       const path = document.querySelector<SVGPathElement>(`.react-flow__edge[data-id="${CSS.escape(e.id)}"] path.react-flow__edge-path`);

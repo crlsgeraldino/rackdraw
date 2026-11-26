@@ -8,8 +8,9 @@ function sharesFace(a: RackDepth, b: RackDepth) {
 /** True when an item of this size/depth can sit at `u` without leaving the rack or overlapping another item. */
 export function fits(rack: Rack, u: number, height: number, depth: RackDepth, ignoreId?: string) {
   if (!Number.isInteger(u) || u < 1 || !Number.isInteger(height) || height < 1 || u + height - 1 > rack.units) return false;
+  // Devices on a shelf stand within the shelf's units: the shelf is what takes the space.
   return !rack.items.some(
-    (it) => it.id !== ignoreId && sharesFace(it.depth, depth) && u <= it.u + it.height - 1 && it.u <= u + height - 1,
+    (it) => it.id !== ignoreId && !it.shelf && sharesFace(it.depth, depth) && u <= it.u + it.height - 1 && it.u <= u + height - 1,
   );
 }
 

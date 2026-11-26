@@ -130,6 +130,7 @@ export function cableText(data: CableData | undefined, role: CableRole | undefin
   if (label && !parts.some((p) => norm(p).includes(norm(label)) || norm(label).includes(norm(p)))) parts.push(label);
   if (data?.vlan) parts.push(`VLAN ${data.vlan}`);
   if (data?.showLength && data.length) parts.push(data.length);
+  if (data?.via) parts.push(`via ${data.via}`);
   return parts.join(' · ');
 }
 
