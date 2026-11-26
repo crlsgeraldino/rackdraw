@@ -878,6 +878,14 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   that only carries uplinks) goes at the top of its rack.
   - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
     if it needs more units; what is mounted stays put) or **build new racks**.
+  - **Front and back**: a shape of your own can have a back view (Edit shape → **Back view**). Vendor stencils that
+    come in pairs ("Dell PowerEdge R760 - Front" / "… - Rear", "USW-Pro-24-PoE - Front" / "… - Rear") are paired
+    automatically in the same library. The device is then one device: its front picture on the diagram (Shape Data →
+    **Show on the diagram**: Front or Back), the front picture in the rack's front view and the back picture in its
+    rear view, taking its real height once. The back's ports belong to the device too: cables to them hang on the
+    rack's back, power cords plug into the back picture's power inlets, and on the diagram the side not shown has its
+    ports as small grey sockets along the bottom edge. A back already placed as its own device has **Combine with …**
+    in Shape Data (its cables move to the back ports); Rack from Diagram doesn't mount it separately.
   - **Power cords**: each device's power supplies plug into an outlet of a PDU or UPS, and a PDU's input into a UPS.
     Select a rack item to choose the outlet of each supply (and 1 or 2 power supplies; servers and storage have 2),
     or use **Plug in everything** (Rack → Power cords): PDUs into the UPS, a device's two supplies on two different

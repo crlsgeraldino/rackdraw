@@ -11,7 +11,7 @@ import { createElement } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { RackElevation, rackSize } from '@/components/RackElevation';
-import { getStencil } from '@/store/useDiagramStore';
+import { getStencil, storedStencil, useDiagram } from '@/store/useDiagramStore';
 import { libraryNameFromFile } from './libraries';
 import { deviceListRows } from './dataImport';
 import { DEFAULT_DISPLAY, displayColors } from './display';
@@ -737,7 +737,10 @@ export function projectFilePayload(p: Project) {
     })),
   };
   const used = new Set(allDevices(p).map((n) => n.data.stencilId));
-  const stencils = [...used].map(getStencil).filter((s): s is StencilDef => !!s?.custom);
+  // Shapes as stored (a back view goes as its own shape, next to the front that uses it).
+  const custom = useDiagram.getState().customStencils;
+  for (const id of [...used]) { const b = getStencil(id)?.back; if (b) used.add(b.id); }
+  const stencils = [...used].map((id) => storedStencil(id, custom)).filter((s): s is StencilDef => !!s?.custom);
   return { format: 'netcraft', version: 3, project: clean, stencils };
 }
 

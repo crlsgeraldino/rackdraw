@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.9.0',
+    title: 'One device, front and back',
+    items: [
+      'Shapes that come as a pair ("… - Front" / "… - Rear") become one device: the front on the diagram, the front and the back in the rack, its real height once.',
+      'The back\'s ports are the device\'s too: cables to them hang on the back of the rack, power cords plug into the back picture\'s power inlets.',
+      'Shape Data → Show on the diagram: Front or Back. Edit shape → Back view to pair shapes yourself. A back placed as its own device can be combined with its front.',
+    ],
+  },
+  {
     version: '1.8.0',
     title: 'Power cords in the rack',
     items: [

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { rackLabel } from '@/lib/rack';
 import { shelfArtHeight, shelfWidth, TRAY_PX } from '@/lib/rackShelf';
 import { isSmallGear } from '@/lib/autoRack';
+import { isBackPort, sideOf } from '@/lib/backView';
 import { inletsOf, PDU_OUTLETS, powerSources, sourceOf, UPS_OUTLETS, validCords } from '@/lib/powerCords';
 import type { RackCable } from '@/lib/rackPatching';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
@@ -112,6 +113,7 @@ function inletPoint(rack: Rack, it: RackItem, d: DeviceNode | undefined, st: Ste
   const all = inletsOf(it, d, st);
   const k = all.findIndex((i) => i.id === inlet);
   if (k < 0) return null;
+  if (st?.back && isBackPort(inlet)) return portPoint(rack, it, st, inlet);
   const n = all.length;
   if (n <= 2) { const px = RAIL + INNER_W - 112 + (n === 1 ? 1 : k) * 54; return [px + 38.5, y + h / 2]; }
   return [RAIL + INNER_W - 120 - (n - 1 - k) * 18, y + h / 2];
@@ -179,7 +181,7 @@ function portBox(rack: Rack, it: RackItem, st: StencilDef | undefined, port: str
   }
   const p = st.ports.find((q) => q.id === port);
   if (!p) return null;
-  const a = artBox(st, RAIL, y, w, h);
+  const a = artBox(st.back && isBackPort(port) ? sideOf(st, 'back') : st, RAIL, y, w, h);
   return { x: a.x + p.x * a.kx, y: a.y + p.y * a.ky, w: p.w * a.kx, h: p.h * a.ky };
 }
 
@@ -460,9 +462,12 @@ function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; 
   const parts: ReactNode[] = [];
 
   if (it.kind === 'device') {
-    if (face === 'rear') parts.push(<DeviceRear key="r" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} outlets={sourceOf(it, device, stencil)?.outlets} />);
-    else if (!stencil || stencil.style === 'icon') parts.push(<DeviceFace key="d" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} />);
+    // A device with a back view shows its own back picture on the rear.
+    const shown = face === 'rear' && stencil?.back ? sideOf(stencil, 'back') : stencil && sideOf(stencil, 'front');
+    if (face === 'rear' && !stencil?.back) parts.push(<DeviceRear key="r" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} outlets={sourceOf(it, device, stencil)?.outlets} />);
+    else if (!shown || shown.style === 'icon') parts.push(<DeviceFace key="d" x={x} y={y} h={h} device={device} stencil={shown} ports={ports} />);
     else {
+      const stencil = shown;
       parts.push(<Face key="p" x={x} y={y} w={w} h={h} fill="#1a1b1f" />);
       // The front-panel art in the slot: post to post for a full-width faceplate, else centred in proportion.
       const { x: ax, y: ay, w: aw, h: ah, stretch } = artBox(stencil, x, y, w, h);
@@ -533,7 +538,7 @@ function portPoint(rack: Rack, it: RackItem, st: StencilDef | undefined, port: s
   if (!st || st.style === 'icon') return (port ? jackSpots(st, RAIL, y).get(port) : undefined) ?? [RAIL + w - 160, y + U_H / 2];
   const p = port ? st.ports.find((q) => q.id === port) : undefined;
   if (!p) return [RAIL + 24, y + h / 2];
-  const a = artBox(st, RAIL, y, w, h);
+  const a = artBox(st.back && isBackPort(port) ? sideOf(st, 'back') : st, RAIL, y, w, h);
   return [a.x + (p.x + p.w / 2) * a.kx, a.y + (p.y + p.h / 2) * a.ky];
 }
 
@@ -706,21 +711,25 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
         );
       })()}
 
-      {face === 'front' && cables && cables.length > 0 && (() => {
-        // Patch cords on the front: between two ports in this rack, or a short lead from a port whose cable leaves it.
-        const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId && onFace(it, 'front')).map((it) => [it.nodeId!, it]));
+      {cables && cables.length > 0 && (face === 'front' || cables.some((c) => isBackPort(c.a.port) || isBackPort(c.b.port))) && (() => {
+        // Patch cords: between two ports in this rack, or a short lead from a port whose cable leaves it. A port on a
+        // device's back (its back view) has its cord on the rear; a cord from the front to the back shows as a lead
+        // on each side.
+        const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId && onFace(it, face)).map((it) => [it.nodeId!, it]));
         const at = (nodeId: string, port?: string) => {
           const it = itemOf.get(nodeId);
           if (!it) return null;
+          if (isBackPort(port) !== (face === 'rear')) return null;
           const d = devices.get(nodeId);
           return portPoint(rack, it, d ? stencil(d.data.stencilId) : undefined, port);
         };
         return (
           <g pointerEvents="none">
             {cables.map((c, ci) => {
-              const a = at(c.a.nodeId, c.a.port);
+              const a0 = at(c.a.nodeId, c.a.port), b0 = c.inside ? at(c.b.nodeId, c.b.port) : null;
+              const a = a0 ?? b0;
               if (!a) return null;
-              const b = c.inside ? at(c.b.nodeId, c.b.port) : null;
+              const b = a0 ? b0 : null;
               const hot = hotCable === c.id;
               const w = Math.max(2.5, Math.min(4, c.width)) + (hot ? 2 : 0);
               const d = b ? cordPath(a, b, ci) : `M${a[0]} ${a[1]} q 0 18 ${a[0] < RAIL + INNER_W / 2 ? -16 : 16} 26`;
@@ -745,7 +754,7 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
           const d = devices.get(it.nodeId);
           if (!d) continue;
           const st = stencil(d.data.stencilId);
-          const ids = !st || st.style === 'icon' ? [...jackSpots(st, RAIL, 0).keys()] : st.ports.map((q) => q.id);
+          const ids = !st || st.style === 'icon' ? [...jackSpots(st, RAIL, 0).keys()] : st.ports.filter((q) => q.face !== 'rear').map((q) => q.id);
           for (const pid of ids) {
             const b = portBox(rack, it, st, pid);
             if (!b) continue;

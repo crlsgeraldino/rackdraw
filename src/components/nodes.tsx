@@ -6,6 +6,7 @@ import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, textDirStyle, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
 import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { sideOf } from '@/lib/backView';
 import { deviceFieldValue } from '@/lib/report';
 import { realArea } from '@/lib/units';
 import { expandFields } from '@/lib/headerFooter';
@@ -188,8 +189,25 @@ export function baseSize(stencil: StencilDef) {
   return { width: stencil.width * k, height: stencil.height * k };
 }
 
+/** The side of a two-sided device shown on the diagram, drawn as wide as its front. */
+const shownSides = new WeakMap<StencilDef, Partial<Record<'front' | 'back', StencilDef>>>();
+function shownSide(full: StencilDef | undefined, back: boolean): StencilDef | undefined {
+  if (!full?.back) return full;
+  const m = shownSides.get(full) ?? {};
+  const key = back ? 'back' : 'front';
+  if (!m[key]) {
+    const s = sideOf(full, key);
+    m[key] = back ? { ...s, scale: (full.width * full.scale) / s.width } : s;
+    shownSides.set(full, m);
+  }
+  return m[key];
+}
+
 function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>) {
-  const stencil = useStencil(data.stencilId);
+  const full = useStencil(data.stencilId);
+  // A device with a back view shows one side here (Shape Data → Show); the other side's ports stay connectable.
+  const stencil = shownSide(full, data.view === 'back');
+  const otherPorts = full?.back ? sideOf(full, data.view === 'back' ? 'front' : 'back').ports : [];
   const hover = useQuickInfoHover(!!dragging);
   const quickInfo = <DeviceQuickInfo id={id} data={data} stencil={stencil} visible={hover.visible} card={hover.card} />;
   // Only a size the user set (resize handles / properties panel) scales the device. React Flow's `width` prop falls
@@ -279,6 +297,20 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
     );
   });
 
+  // The other side's ports: small sockets along the bottom edge, where their cables come out.
+  const otherW = full?.back ? (data.view === 'back' ? full.width : full.back.width) : 1;
+  const otherHandles = stencil?.style === 'icon' ? [] : otherPorts.map((p) => (
+    <Handle
+      key={p.id}
+      id={p.id}
+      type="source"
+      position={SIDE.bottom}
+      title={`${data.view === 'back' ? 'Front' : 'Back'}: ${data.ports?.[p.id]?.label || p.label}`}
+      className="nc-handle-port nc-handle-otherside"
+      style={{ left: ((p.x + p.w / 2) / otherW) * stencil!.width * k - 3, top: stencil!.height * k - 3, width: 6, height: 6 }}
+    />
+  ));
+
   // Ports with notes: an orange frame for uplinks, a small blue dot for any other documented port.
   const markers = stencil.style === 'icon' ? null : stencil.ports.map((p) => {
     const pd = data.ports?.[p.id];
@@ -329,6 +361,7 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
         {borderBox(aw, ah)}
         {markers}
         {handles}
+        {otherHandles}
       </div>
       {selected && !data.locked && !id.startsWith('bg:') && <DeviceRotateHandle id={id} />}
       <DataGraphics data={data} />

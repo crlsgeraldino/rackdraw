@@ -18,6 +18,11 @@ body {
   background: transparent;
   cursor: crosshair;
 }
+/* The other side's ports of a two-sided device: small grey sockets along its bottom edge. */
+.react-flow__handle.nc-handle-port.nc-handle-otherside {
+  background: rgba(100, 116, 139, 0.55);
+  border-radius: 1px;
+}
 .react-flow__handle.nc-handle-port:hover,
 .react-flow__handle.nc-handle-port.connectingto {
   background: rgba(59, 130, 246, 0.35);
