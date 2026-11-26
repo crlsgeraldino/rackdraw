@@ -289,6 +289,17 @@ function DeviceProps({ node }: { node: DeviceNode }) {
           <option value="rack">Rack only (hidden on the diagram)</option>
         </select>
       </label>
+      <CombineWithFront nodeId={node.id} stencilId={d.stencilId} />
+      {stencil?.back && (
+        <label className="mb-2 block" title="This shape has a back view: the rack shows both sides. On the diagram, the other side's ports are the small grey sockets along the bottom edge.">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Show on the diagram</span>
+          <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.view ?? 'front'} aria-label="Show on the diagram"
+            onChange={(e) => { snapshot(); update(node.id, { view: e.target.value === 'back' ? 'back' : undefined }); }}>
+            <option value="front">Front</option>
+            <option value="back">Back ({stencil.back.name})</option>
+          </select>
+        </label>
+      )}
       <Field label="Model" value={d.model} onChange={set('model')} />
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono after={<NextFreeIp onPick={(ip) => { snapshot(); update(node.id, { ip }); }} />} />
       <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />
@@ -1332,6 +1343,26 @@ const getStencilNow = (id: string) => findStencil(id, useDiagram.getState().cust
 const LINE_PATTERNS: { value: LinePattern; label: string }[] = [
   { value: 'solid', label: 'Solid' }, { value: 'dash', label: 'Dash' }, { value: 'dot', label: 'Dot' }, { value: 'dashdot', label: 'Dash-dot' },
 ];
+
+/** A device placed as another shape's back view: fold it into the front device (cables move to its back ports). */
+function CombineWithFront({ nodeId, stencilId }: { nodeId: string; stencilId: string }) {
+  const front = useDiagram((s) => {
+    const p = s.projects[s.currentId];
+    const pg = p?.pages.find((x) => x.nodes.some((n) => n.id === nodeId));
+    return pg?.nodes.find((n) => n.type === 'device' && n.id !== nodeId && findStencil(n.data.stencilId, s.customStencils)?.back?.id === stencilId)?.id;
+  });
+  const name = useDiagram((s) => (front ? activePage(s.projects[s.currentId]).nodes.find((n) => n.id === front)?.data.name : undefined));
+  if (!front) return null;
+  return (
+    <div className="mb-2 rounded border border-blue-200 bg-blue-50 p-2 text-[11px] text-blue-900">
+      This is the back view of {String(name ?? 'another device')}: they can be one device with both pictures (the back shows in the rack&apos;s rear view).
+      <button className="mt-1 block rounded border border-blue-300 bg-white px-2 py-0.5 text-xs text-blue-800 hover:bg-blue-100"
+        onClick={() => { const id = useDiagram.getState().combineWithFront(nodeId); if (id) useDiagram.getState().selectOnlyNode(id); }}>
+        Combine with {String(name ?? 'its front')}
+      </button>
+    </div>
+  );
+}
 
 export function PropertiesPanel() {
   const p = useCurrentPage();

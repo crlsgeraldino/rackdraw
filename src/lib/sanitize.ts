@@ -81,6 +81,7 @@ function cleanDevice(d: Record<string, unknown>) {
   if (isObj(out.ups)) { const u = { ...out.ups }; for (const k of ['capacityW', 'runtimeHalfMin']) if (u[k] !== undefined && !finite(u[k])) delete u[k]; out.ups = u; }
   if (isObj(out.circuit) && out.circuit.monthlyCost !== undefined && !finite(out.circuit.monthlyCost)) out.circuit = { ...out.circuit, monthlyCost: undefined };
   if (out.showOn !== undefined && out.showOn !== 'rack') delete out.showOn;
+  if (out.view !== undefined && out.view !== 'back') delete out.view;
   if (out.psus !== undefined && !(finite(out.psus) && (out.psus as number) >= 1 && (out.psus as number) <= 2)) delete out.psus;
   return out;
 }
@@ -180,6 +181,8 @@ export function sanitizeStencil(raw: unknown): StencilDef | null {
     library: typeof s.library === 'string' ? s.library.slice(0, 200) : undefined,
     rackUnits: s.rackUnits === undefined ? undefined : Math.max(1, Math.min(60, Math.round(num(s.rackUnits, 1)))),
     desktop: typeof s.desktop === 'boolean' ? s.desktop : undefined,
+    rear: typeof s.rear === 'string' ? s.rear.slice(0, 200) : undefined,
+    back: undefined,
     rackKit: typeof s.rackKit === 'string' && s.rackKit.trim() ? s.rackKit.slice(0, 200) : undefined,
     defaults: isObj(s.defaults) ? (cleanDevice(s.defaults) as StencilDef['defaults']) : undefined,
     custom: true,

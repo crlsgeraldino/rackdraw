@@ -15,6 +15,8 @@ export interface PortDef {
   side: PortSide;
   /** RJ45 latch notch at the bottom instead of the top. */
   flip?: boolean;
+  /** A port on the device's back view (worked out, not stored: see lib/backView). */
+  face?: 'rear';
   role?: string;
 }
 
@@ -69,6 +71,10 @@ export interface StencilDef {
    * kit"). A stencil that has one is mounted with it by default instead of standing on a shelf.
    */
   rackKit?: string;
+  /** The shape that is this one's back (Edit shape → Back view); '' = none; missing = the "… Rear" of a "… Front". */
+  rear?: string;
+  /** Worked out, never stored: the back-view shape (lib/backView). */
+  back?: StencilDef;
   defaults?: Partial<DeviceData>;
   /** The kinds of network it is used in (PAN … WAN). */
   networks?: NetworkScope[];
@@ -188,6 +194,8 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
    * on the diagram, cables through it are drawn as one line "via" it.
    */
   showOn?: 'rack';
+  /** The side shown on the diagram when its shape has a back view (missing = the front). */
+  view?: 'back';
   /** How many power supplies it has (missing = its shape's power ports, else 2 for servers / storage, else 1). */
   psus?: number;
   /** Layer id (see Project.layers). */

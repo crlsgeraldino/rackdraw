@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { libraryOf } from '@/lib/libraries';
 import { isShelfDevice, isSmallGear } from '@/lib/autoRack';
+import { backOf } from '@/lib/backView';
 import { STENCIL_CATEGORIES, type PortDef, type PortKind, type PortSide, type StencilCategory, type StencilDef } from '@/lib/types';
 import { allNodes } from '@/lib/project';
 import { useDiagram } from '@/store/useDiagramStore';
@@ -34,6 +35,29 @@ function nextLabel(ports: PortDef[]) {
     const label = `P${i}`;
     if (!ports.some((p) => p.id === label || p.label === label)) return label;
   }
+}
+
+/** Edit shape → Back view: the shape that is this one's back (rack rear, the device's back ports). */
+function BackViewField({ s, setS }: { s: StencilDef; setS: (s: StencilDef) => void }) {
+  const custom = useDiagram((st) => st.customStencils);
+  const auto = backOf({ ...s, rear: undefined, custom: true }, custom);
+  const others = Object.values(custom).filter((x) => x.id !== s.id).sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <label className="block">
+      <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Back view</span>
+      <select
+        className="w-full rounded border border-gray-300 px-1.5 py-1"
+        aria-label="Back view"
+        value={s.rear === undefined ? '__auto' : s.rear}
+        onChange={(e) => setS({ ...s, rear: e.target.value === '__auto' ? undefined : e.target.value })}
+      >
+        <option value="__auto">{auto ? `Automatic: ${auto.name}` : 'Automatic (a shape named "… Rear")'}</option>
+        <option value="">None</option>
+        {others.map((x) => <option key={x.id} value={x.id}>{x.name}{x.library ? ` (${x.library})` : ''}</option>)}
+      </select>
+      <span className="text-[10px] text-gray-400">One device with both pictures: the back in the rack&apos;s rear view, and the back&apos;s ports.</span>
+    </label>
+  );
 }
 
 export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: StencilDef; isNew: boolean; onSave: (s: StencilDef) => void; onCancel: () => void }) {
@@ -207,6 +231,7 @@ export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: S
                 {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((u) => <option key={u} value={u}>{u}U</option>)}
               </select>
             </label>
+            <BackViewField s={s} setS={setS} />
             {!!s.rackUnits && (() => {
               const mount = !isSmallGear(s) ? 'full' : isShelfDevice(s) ? 'shelf' : 'kit';
               return (

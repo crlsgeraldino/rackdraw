@@ -8,6 +8,7 @@ import { isPassThrough } from '@/lib/trace';
 import { isShelfDevice, mountInto, planRacks, rackUnitsOf } from '@/lib/autoRack';
 import { placeOnShelf, shelfWidth } from '@/lib/rackShelf';
 import { plugInAll } from '@/lib/powerCords';
+import { backIds, backOf, backPortId, withBack } from '@/lib/backView';
 import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
@@ -354,6 +355,11 @@ interface DiagramState {
   setPowerCord: (rackId: string, from: string, inlet: string, to: { item: string; outlet: number } | null) => void;
   /** Plugs in every power supply and PDU in the rack not plugged in yet (all = unplug everything first). */
   plugInRack: (rackId: string, fresh?: boolean) => void;
+  /**
+   * A device placed as a shape's back view (e.g. "R760 - Rear" next to "R760 - Front"): folded into the front device
+   * on its page, its cables moved to the front device's back ports, then removed. Returns the front device's id.
+   */
+  combineWithFront: (nodeId: string) => string | null;
   /** Takes a small device off its shelf and mounts it with its rack-mount kit, in the highest free unit. */
   mountWithKit: (rackId: string, nodeId: string) => boolean;
   /** Shows or hides, on the diagram, every patch panel mounted in a rack (Show on: Rack only). */
@@ -375,6 +381,14 @@ interface DiagramState {
 
 /** Looks up a built-in or user-imported stencil. */
 export function findStencil(id: string, custom: Record<string, StencilDef>): StencilDef | undefined {
+  const s = STENCIL_MAP[id] ?? custom[id];
+  // A shape with a back view: one device with both pictures and the ports of both sides.
+  const back = s?.custom ? backOf(s, custom) : undefined;
+  return back ? withBack(s!, back) : s;
+}
+
+/** The shape as stored (no back view merged in): for saving, editing and files. */
+export function storedStencil(id: string, custom: Record<string, StencilDef>): StencilDef | undefined {
   return STENCIL_MAP[id] ?? custom[id];
 }
 
@@ -2297,7 +2311,9 @@ export const useDiagram = create<DiagramState>()(
           const p = cur();
           let racks = p.racks ?? [];
           const mounted = new Set(racks.flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
-          let devices = page().nodes.filter((n): n is DeviceNode => n.type === 'device' && !mounted.has(n.id));
+          // A shape's back view placed as its own device is part of its front device, not mounted on its own.
+          const backs = backIds(get().customStencils);
+          let devices = page().nodes.filter((n): n is DeviceNode => n.type === 'device' && !mounted.has(n.id) && !backs.has(n.data.stencilId));
           const cables = p.pages.flatMap((pg) => pg.edges.map((e) => ({ a: e.source, b: e.target })));
           let count = 0;
           let first: string | undefined;
@@ -2391,6 +2407,34 @@ export const useDiagram = create<DiagramState>()(
           get().snapshot();
           const power = plugInAll(fresh ? { ...r, power: [] } : r, devs, (id) => findStencil(id, custom));
           commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, power } : x)) });
+        },
+        combineWithFront: (nodeId) => {
+          const custom = get().customStencils;
+          const pg = cur().pages.find((x) => x.nodes.some((n) => n.id === nodeId));
+          const rear = pg?.nodes.find((n): n is DeviceNode => n.id === nodeId && n.type === 'device');
+          if (!pg || !rear) return null;
+          const front = pg.nodes.find((n): n is DeviceNode => n.type === 'device' && n.id !== nodeId && findStencil(n.data.stencilId, custom)?.back?.id === rear.data.stencilId);
+          if (!front) return null;
+          get().snapshot();
+          const move = (id: string, h?: string | null) => (id === nodeId ? { id: front.id, h: h ? backPortId(h) : h } : { id, h });
+          const pages = cur().pages.map((x) => (x.id !== pg.id ? x : {
+            ...x,
+            nodes: x.nodes.filter((n) => n.id !== nodeId),
+            edges: x.edges.map((e) => {
+              if (e.source !== nodeId && e.target !== nodeId) return e;
+              const s = move(e.source, e.sourceHandle), t = move(e.target, e.targetHandle);
+              return { ...e, source: s.id, sourceHandle: s.h ?? null, target: t.id, targetHandle: t.h ?? null };
+            }).filter((e) => e.source !== e.target),
+          }));
+          // Its port notes go with its ports; it leaves any rack (the front device is the one mounted).
+          const notes = Object.fromEntries(Object.entries(rear.data.ports ?? {}).map(([k, v]) => [backPortId(k), v]));
+          const withNotes = pages.map((x) => ({ ...x, nodes: x.nodes.map((n) => (n.id === front.id && n.type === 'device' ? { ...n, data: { ...n.data, ports: { ...notes, ...n.data.ports } } } as AppNode : n)) }));
+          const racks = (cur().racks ?? []).map((r) => {
+            const gone = r.items.filter((it) => it.nodeId === nodeId).map((it) => it.id);
+            return gone.length ? { ...r, items: r.items.filter((it) => !gone.includes(it.id)), ...(r.power ? { power: r.power.filter((c) => !gone.includes(c.from) && !gone.includes(c.to)) } : {}) } : r;
+          });
+          commit({ pages: withNotes, racks });
+          return front.id;
         },
         mountWithKit: (rackId, nodeId) => {
           const racks = cur().racks ?? [];

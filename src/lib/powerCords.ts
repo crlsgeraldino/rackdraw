@@ -45,7 +45,9 @@ export function inletsOf(it: RackItem, d: DeviceNode | undefined, st: StencilDef
   if (isSwitchedPdu(st)) return [{ id: 'IN', label: 'Input' }];
   if (isPassThrough(d, st)) return [];
   const own = (st?.ports ?? []).filter((p) => p.kind === 'power');
-  if (own.length) return own.map((p) => ({ id: p.id, label: p.label || p.id }));
+  // Mains inlets only: a redundant-power (RPS) or DC connector isn't plugged into a PDU, unless it's all there is.
+  const mains = own.filter((p) => !/\b(rps|usp|dc)\b|redundant/i.test(p.label || p.id));
+  if (own.length) return (mains.length ? mains : own).map((p) => ({ id: p.id, label: p.label || p.id }));
   const n = d.data.psus ?? (st && !st.custom && DUAL_PSU.has(st.id) ? 2 : 1);
   return n >= 2 ? [{ id: 'PSU1', label: 'PSU 1' }, { id: 'PSU2', label: 'PSU 2' }] : [{ id: 'PSU', label: 'Power' }];
 }
