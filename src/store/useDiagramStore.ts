@@ -34,7 +34,7 @@ import { isWall, snapIntoWall, wallsAround } from '@/lib/floorplan';
 import { intersectAll, subtractAll, unionAll, type Ring } from '@/lib/polybool';
 import { normDeg, turnedBox } from '@/lib/rotation';
 import { mapPorts } from '@/lib/changeShape';
-import type { AppNode, BackdropData, CableData, CableEdge, DataLink, DeviceData, DeviceNode, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, ShapeNode, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
+import type { AppNode, BackdropData, CableData, CableEdge, CordRoute, DataLink, DeviceData, DeviceNode, DisplaySettings, Layer, Page, PageKind, PortData, Project, Rack, RackItem, PageScale, ShapeData, ShapeFormat, ShapeKind, ShapeNode, StencilDef, TextFormat, TextLook, TitleBlock } from '@/lib/types';
 
 
 interface Snapshot {
@@ -353,6 +353,16 @@ interface DiagramState {
   putOnShelf: (rackId: string, nodeId: string, u?: number) => boolean;
   /** Plugs a rack item's inlet into an outlet of a PDU / UPS (replacing what was there), or unplugs it (`to` null). */
   setPowerCord: (rackId: string, from: string, inlet: string, to: { item: string; outlet: number } | null) => void;
+  /**
+   * Re-plugs one end of a cable (dragged in the rack view): the end at `from` moves to `to`. A cable already on `to`
+   * (where a port takes one) swaps over to `from`. The diagram's cable is the same cable, so it follows.
+   */
+  replugCable: (edgeId: string, from: { nodeId: string; port?: string }, to: { nodeId: string; port: string }) => boolean;
+  /** A cable's or power cord's dressing in its rack (undefined = worked out). */
+  setCableRackRoute: (edgeId: string, route: CordRoute | undefined) => void;
+  setPowerCordRoute: (rackId: string, cordId: string, route: CordRoute | undefined) => void;
+  /** Moves one end of a power cord to another inlet (`from`) or outlet (`to`); a cord already there swaps. */
+  movePowerCordEnd: (rackId: string, cordId: string, end: 'from' | 'to', target: { item: string; slot: string | number }) => boolean;
   /** Plugs in every power supply and PDU in the rack not plugged in yet (all = unplug everything first). */
   plugInRack: (rackId: string, fresh?: boolean) => void;
   /**
@@ -2397,6 +2407,67 @@ export const useDiagram = create<DiagramState>()(
           const rest = (r.power ?? []).filter((c) => !(c.from === from && c.inlet === inlet) && !(to && c.to === to.item && c.outlet === to.outlet));
           const power = to ? [...rest, { id: `pc-${uid()}`, from, inlet, to: to.item, outlet: to.outlet }] : rest;
           commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, power } : x)) });
+        },
+        replugCable: (edgeId, from, to) => {
+          const p = cur();
+          const pg = p.pages.find((x) => x.edges.some((e) => e.id === edgeId));
+          const e = pg?.edges.find((x) => x.id === edgeId);
+          if (!pg || !e) return false;
+          const atSource = e.source === from.nodeId && (e.sourceHandle ?? undefined) === from.port;
+          if (!atSource && !(e.target === from.nodeId && (e.targetHandle ?? undefined) === from.port)) return false;
+          const other = atSource ? { id: e.target, h: e.targetHandle } : { id: e.source, h: e.sourceHandle };
+          if (other.id === to.nodeId && other.h === to.port) return false; // both ends on one port
+          if (from.nodeId === to.nodeId && from.port === to.port) return false;
+          // A cable already on the target port (where a port takes only one) swaps over to where this one was.
+          const rest: Page = { ...pg, edges: pg.edges.filter((x) => x.id !== edgeId) };
+          const blocker = portTaken(rest, to.nodeId, to.port)
+            ? pg.edges.find((x) => x.id !== edgeId && ((x.source === to.nodeId && x.sourceHandle === to.port) || (x.target === to.nodeId && x.targetHandle === to.port)))
+            : undefined;
+          get().snapshot();
+          const moved = (x: CableEdge, at: 'source' | 'target', n: string, h?: string): CableEdge =>
+            at === 'source' ? { ...x, source: n, sourceHandle: h ?? null } : { ...x, target: n, targetHandle: h ?? null };
+          const edges = pg.edges.map((x) => {
+            if (x.id === edgeId) return moved(x, atSource ? 'source' : 'target', to.nodeId, to.port);
+            if (blocker && x.id === blocker.id) {
+              const bAtSource = x.source === to.nodeId && x.sourceHandle === to.port;
+              return moved(x, bAtSource ? 'source' : 'target', from.nodeId, from.port);
+            }
+            return x;
+          });
+          commit({ pages: p.pages.map((x) => (x.id === pg.id ? { ...x, edges } : x)) });
+          return true;
+        },
+        setCableRackRoute: (edgeId, route) => {
+          const p = cur();
+          get().snapshot();
+          commit({ pages: p.pages.map((pg) => (pg.edges.some((e) => e.id === edgeId)
+            ? { ...pg, edges: pg.edges.map((e) => (e.id === edgeId ? { ...e, data: { ...(e.data ?? { cable: 'Cat6' }), rackRoute: route } as CableData } : e)) }
+            : pg)) });
+        },
+        setPowerCordRoute: (rackId, cordId, route) => {
+          const racks = cur().racks ?? [];
+          get().snapshot();
+          commit({ racks: racks.map((r) => (r.id === rackId ? { ...r, power: (r.power ?? []).map((c) => (c.id === cordId ? { ...c, route } : c)) } : r)) });
+        },
+        movePowerCordEnd: (rackId, cordId, end, target) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          const c = r?.power?.find((x) => x.id === cordId);
+          if (!r || !c) return false;
+          const [k1, k2] = end === 'to' ? ['to', 'outlet'] as const : ['from', 'inlet'] as const;
+          const slot = end === 'to' ? Number(target.slot) : String(target.slot);
+          if (c[k1] === target.item && c[k2] === slot) return false;
+          if (end === 'to' ? target.item === c.from : target.item === c.to) return false; // into itself
+          get().snapshot();
+          const old = { item: c[k1], slot: c[k2] };
+          const power = (r.power ?? []).map((x) => {
+            if (x.id === cordId) return { ...x, [k1]: target.item, [k2]: slot };
+            // A cord already there swaps over.
+            if (x[k1] === target.item && x[k2] === slot) return { ...x, [k1]: old.item, [k2]: old.slot };
+            return x;
+          });
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, power } : x)) });
+          return true;
         },
         plugInRack: (rackId, fresh) => {
           const racks = cur().racks ?? [];
