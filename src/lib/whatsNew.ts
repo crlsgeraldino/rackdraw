@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.10.0',
+    title: 'Move cords in the rack',
+    items: [
+      'Drag a cord\'s plug to another port, outlet or power supply to re-plug it; a cord already there swaps over (patch cords move on the diagram too).',
+      'Drag the handle in the middle of a cord to run it down the left or right post, or straight across; double-click it for automatic.',
+      'Automatic cords now go down the nearer post, each in its own lane, so they no longer sit on top of each other.',
+    ],
+  },
+  {
     version: '1.9.0',
     title: 'One device, front and back',
     items: [

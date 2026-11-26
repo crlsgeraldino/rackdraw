@@ -878,6 +878,11 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   that only carries uplinks) goes at the top of its rack.
   - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
     if it needs more units; what is mounted stays put) or **build new racks**.
+  - **Cords by hand**: in the rack view, drag a cord's plug onto another port, outlet or power inlet to plug it in
+    there (a cord already on it swaps over; a patch cord is the diagram's cable, so the diagram follows). Drag the
+    small handle in the middle of a cord left or right to dress it down that post, in the lane you drop it in, or to
+    the middle to hang it straight across; double-click the handle for automatic. Cords dressed automatically go down
+    the post nearer their ends, each in its own lane (short runs nearest the post), and only neighbours hang straight.
   - **Front and back**: a shape of your own can have a back view (Edit shape → **Back view**). Vendor stencils that
     come in pairs ("Dell PowerEdge R760 - Front" / "… - Rear", "USW-Pro-24-PoE - Front" / "… - Rear") are paired
     automatically in the same library. The device is then one device: its front picture on the diagram (Shape Data →

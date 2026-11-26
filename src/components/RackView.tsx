@@ -15,7 +15,7 @@ import { STENCILS } from '@/lib/stencils';
 import { PORT_STATUSES, type CableData, type Rack, type RackDepth, type RackItem, type StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
 import { rackFromDiagram } from './rackFromDiagram';
-import { INNER_W, RackElevation, rackSize, uAtPoint, type RackPreview } from './RackElevation';
+import { cordTargets, INNER_W, RackElevation, rackSize, routeAt, uAtPoint, type CordHandle, type RackPreview } from './RackElevation';
 
 /** What is being dragged from the side list. Kept outside React: dragover can't read dataTransfer contents. */
 type Payload =
@@ -242,6 +242,69 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
     setError(ok ? '' : shelf ? `There is no room on a shelf at U${u}: drop it on a shelf with room, or in a free unit (a shelf is added).` : `It doesn't fit at U${u}: that space is taken or outside the rack.`);
   };
 
+  /*
+   * Cords: drag a plug onto another port / outlet / power inlet to re-plug it (a cord already there swaps over), or
+   * the middle handle left / right to dress it down that post (in the middle: straight across). Double-click the
+   * middle handle for automatic.
+   */
+  const [cordDrag, setCordDrag] = useState<(CordHandle & { face: 'front' | 'rear'; x: number; y: number }) | null>(null);
+  const lastMid = useRef<{ id: string; at: number } | null>(null);
+  const toSvg = (face: 'front' | 'rear', clientX: number, clientY: number) => {
+    const box = refs[face].current!.getBoundingClientRect();
+    const k = box.width / rackSize(rack).width;
+    return { x: (clientX - box.left) / k, y: (clientY - box.top) / k };
+  };
+  const finishCord = (face: 'front' | 'rear', h: CordHandle, pt: { x: number; y: number }) => {
+    const s = useDiagram.getState();
+    if (h.end === 'mid') {
+      const route = routeAt(pt.x);
+      if (h.kind === 'patch') s.setCableRackRoute(h.id, route);
+      else s.setPowerCordRoute(rack.id, h.id, route);
+      return;
+    }
+    const near = (kind: 'port' | 'outlet' | 'inlet') => cordTargets(rack, face, devices, stencil)
+      .filter((t) => t.kind === kind)
+      .map((t) => ({ t, d: Math.hypot(t.x - pt.x, t.y - pt.y) }))
+      .filter((x) => x.d <= 14)
+      .sort((a, b) => a.d - b.d)[0]?.t;
+    if (h.kind === 'patch') {
+      const c = rackCables(project, rack).find((x) => x.id === h.id);
+      const t = near('port');
+      if (!c || t?.kind !== 'port') { setError(t ? '' : 'Drop the plug on a port to plug it in there.'); return; }
+      const from = h.end === 'a' ? c.a : c.b;
+      setError(s.replugCable(h.id, { nodeId: from.nodeId, port: from.port }, { nodeId: t.nodeId, port: t.port }) ? '' : "That port can't take this cable.");
+    } else {
+      const t = near(h.end === 'a' ? 'inlet' : 'outlet');
+      if (!t || t.kind === 'port') { setError(h.end === 'a' ? 'Drop the plug on a power supply or a PDU input.' : 'Drop the plug on an outlet of a PDU or UPS.'); return; }
+      setError(s.movePowerCordEnd(rack.id, h.id, h.end === 'a' ? 'from' : 'to', { item: t.item, slot: t.kind === 'outlet' ? t.outlet : t.inlet }) ? '' : "It can't be plugged in there.");
+    }
+  };
+  const onCordDown = (face: 'front' | 'rear') => (h: CordHandle, e: React.PointerEvent) => {
+    e.preventDefault();
+    if (h.end === 'mid') {
+      const now = Date.now();
+      if (lastMid.current?.id === h.id && now - lastMid.current.at < 350) {
+        lastMid.current = null;
+        if (h.kind === 'patch') useDiagram.getState().setCableRackRoute(h.id, undefined);
+        else useDiagram.getState().setPowerCordRoute(rack.id, h.id, undefined);
+        return;
+      }
+      lastMid.current = { id: h.id, at: now };
+    }
+    let last = toSvg(face, e.clientX, e.clientY);
+    let moved = false;
+    setCordDrag({ ...h, face, ...last });
+    const move = (ev: PointerEvent) => { last = toSvg(face, ev.clientX, ev.clientY); moved = true; setCordDrag({ ...h, face, ...last }); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setCordDrag(null);
+      if (moved) finishCord(face, h, last);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   /** Drag an item already in the rack to a new position. */
   const onItemPointerDown = (face: 'front' | 'rear') => (it: RackItem, e: React.PointerEvent) => {
     e.preventDefault();
@@ -312,7 +375,9 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
               portStates={portStates}
               cables={cables}
               hotCable={hotCable}
-              onPortHover={dragging ? undefined : setPortHover}
+              onPortHover={dragging || cordDrag ? undefined : setPortHover}
+              onCordDown={onCordDown(face)}
+              cordDrag={cordDrag?.face === face ? cordDrag : null}
             />
           </div>
         ))}

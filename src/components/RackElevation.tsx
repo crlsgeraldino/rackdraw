@@ -6,7 +6,7 @@ import { isBackPort, sideOf } from '@/lib/backView';
 import { inletsOf, PDU_OUTLETS, powerSources, sourceOf, UPS_OUTLETS, validCords } from '@/lib/powerCords';
 import type { RackCable } from '@/lib/rackPatching';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
-import type { DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
+import type { CordRoute, DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
 
 /*
  * A rack elevation drawn as plain SVG. The rack view uses it interactively; the PDF export renders the same
@@ -66,7 +66,14 @@ interface Props {
   hotCable?: string | null;
   /** Pointer over a port on the front (screen position for a card), or null when it leaves. */
   onPortHover?: (h: { nodeId: string; port: string; x: number; y: number } | null) => void;
+  /** Rack view: a cord's plug (end a / b) or middle handle pressed, to re-plug or re-route it. */
+  onCordDown?: (h: CordHandle, e: React.PointerEvent) => void;
+  /** A cord being dragged: its plug follows the pointer, or (middle handle) its route follows `x`. */
+  cordDrag?: (CordHandle & { x: number; y: number }) | null;
 }
+
+/** A cord in the rack view: a patch cord (the diagram cable `id`) or a power cord; `end` which part is held. */
+export interface CordHandle { kind: 'patch' | 'power'; id: string; end: 'a' | 'b' | 'mid' }
 
 /**
  * Where a device's front-panel art sits in its slot, and its scale across (kx) and down (ky). A full-width
@@ -542,24 +549,96 @@ function portPoint(rack: Rack, it: RackItem, st: StencilDef | undefined, port: s
   return [a.x + (p.x + p.w / 2) * a.kx, a.y + (p.y + p.h / 2) * a.ky];
 }
 
+/** A cord's dressing, worked out or set by hand: straight across, or down a side post in a lane. */
+export interface ResolvedRoute { side: 'left' | 'right' | 'straight'; lane: number }
+export const MAX_LANE = 11;
+/** The x of a lane by a post: lane 0 nearest the post, 5 px apart. */
+export const laneX = (side: 'left' | 'right', lane: number) => (side === 'left' ? RAIL + 5 + lane * 5 : RAIL + INNER_W - 5 - lane * 5);
+
+/** The route a cord's middle handle dropped at `x` means: straight near the middle, else the post and lane nearest. */
+export function routeAt(x: number): CordRoute {
+  const mid = RAIL + INNER_W / 2;
+  if (Math.abs(x - mid) < INNER_W * 0.2) return { side: 'straight' };
+  const side = x < mid ? 'left' : 'right';
+  const lane = Math.round(side === 'left' ? (x - RAIL - 5) / 5 : (RAIL + INNER_W - 5 - x) / 5);
+  return { side, lane: Math.max(0, Math.min(MAX_LANE, lane)) };
+}
+
 /**
- * Patch cords hang between the two ports, sagging more the further apart they are. Long runs (more than a few units
- * apart) are dressed like a real rack: down from the port, across to the nearer side post, along it (a vertical
- * cable manager), then back in to the other port. `lane` spreads such cords so they don't overlap.
+ * Routes for the cords drawn on one face: a hand-set route is kept; the rest are worked out. A cord between
+ * neighbouring units hangs straight; a longer one goes down the post nearer its ends, each in its own lane (short runs
+ * nearest the post, so cords cross as little as possible).
  */
-function cordPath([ax, ay]: [number, number], [bx, by]: [number, number], lane = 0) {
-  // Only a cord between neighbouring units hangs straight across; any longer one would cover the equipment between.
-  if (Math.abs(by - ay) <= U_H * 1.5) {
-    const sag = 14 + Math.abs(bx - ax) * 0.06 + Math.abs(by - ay) * 0.15;
-    return `M${ax} ${ay} C${ax} ${ay + sag} ${bx} ${by + sag} ${bx} ${by}`;
+export function resolveRoutes(cords: { key: string; a: [number, number]; b: [number, number]; route?: CordRoute }[]): Map<string, ResolvedRoute> {
+  const out = new Map<string, ResolvedRoute>();
+  const used = { left: new Set<number>(), right: new Set<number>() };
+  for (const c of cords) {
+    if (!c.route) continue;
+    const lane = c.route.side === 'straight' ? 0 : Math.max(0, Math.min(MAX_LANE, Math.round(c.route.lane ?? 0)));
+    out.set(c.key, { side: c.route.side, lane });
+    if (c.route.side !== 'straight') used[c.route.side].add(lane);
   }
-  const left = (ax + bx) / 2 < RAIL + INNER_W / 2;
-  const sx = left ? RAIL + 6 + (lane % 5) * 4 : RAIL + INNER_W - 6 - (lane % 5) * 4;
+  const auto = cords.filter((c) => !c.route).sort((x, y) => Math.abs(x.a[1] - x.b[1]) - Math.abs(y.a[1] - y.b[1]));
+  for (const c of auto) {
+    if (Math.abs(c.a[1] - c.b[1]) <= U_H * 1.5) { out.set(c.key, { side: 'straight', lane: 0 }); continue; }
+    const side = (c.a[0] + c.b[0]) / 2 < RAIL + INNER_W / 2 ? 'left' : 'right';
+    let lane = 0;
+    while (used[side].has(lane) && lane < MAX_LANE) lane++;
+    used[side].add(lane);
+    out.set(c.key, { side, lane });
+  }
+  return out;
+}
+
+/**
+ * A cord's path and the point its middle handle sits on. Straight: hanging between the two ends, sagging more the
+ * further apart they are. Down a post: down from the upper end, across to its lane by the post (a vertical cable
+ * manager), along it, and back in to the other end.
+ */
+export function routePath([ax, ay]: [number, number], [bx, by]: [number, number], r: ResolvedRoute): { d: string; mid: [number, number] } {
+  if (r.side === 'straight') {
+    const sag = 14 + Math.abs(bx - ax) * 0.06 + Math.abs(by - ay) * 0.15;
+    return { d: `M${ax} ${ay} C${ax} ${ay + sag} ${bx} ${by + sag} ${bx} ${by}`, mid: [(ax + bx) / 2, (ay + by) / 2 + sag * 0.75] };
+  }
+  const sx = laneX(r.side, r.lane);
   const [t, b2] = ay < by ? [[ax, ay], [bx, by]] : [[bx, by], [ax, ay]];
-  const r = 10;
-  const dir = left ? -1 : 1;
-  const y1 = t[1] + 14, y2 = b2[1] + 14;
-  return `M${t[0]} ${t[1]} Q${t[0]} ${y1} ${t[0] + dir * r} ${y1} H${sx - dir * r} Q${sx} ${y1} ${sx} ${y1 + r} V${y2 - r} Q${sx} ${y2} ${sx - dir * r} ${y2} H${b2[0] - dir * r} Q${b2[0]} ${y2} ${b2[0]} ${b2[1]}`;
+  const rad = 8;
+  const dir = r.side === 'left' ? -1 : 1;
+  // The run across sits a little lower for outer lanes, so neighbouring cords don't share it.
+  const drop = 12 + (r.lane % 4) * 2;
+  const y1 = t[1] + drop, y2 = b2[1] + drop;
+  const toward = (x: number) => (Math.sign(sx - x) || dir);
+  const d1 = toward(t[0]), d2 = toward(b2[0]);
+  return {
+    d: `M${t[0]} ${t[1]} Q${t[0]} ${y1} ${t[0] + d1 * rad} ${y1} H${sx - d1 * rad} Q${sx} ${y1} ${sx} ${y1 + rad} V${y2 - rad} Q${sx} ${y2} ${sx - d2 * rad} ${y2} H${b2[0] + d2 * rad} Q${b2[0]} ${y2} ${b2[0]} ${b2[1]}`,
+    mid: [sx, (y1 + y2) / 2],
+  };
+}
+
+/** Somewhere a cord end can be plugged in, on one face of the rack. */
+export type CordTarget =
+  | { kind: 'port'; nodeId: string; port: string; x: number; y: number }
+  | { kind: 'outlet'; item: string; outlet: number; x: number; y: number }
+  | { kind: 'inlet'; item: string; inlet: string; x: number; y: number };
+
+/** Every port (and on the back, every outlet and power inlet) a cord end can be dropped on. */
+export function cordTargets(rack: Rack, face: 'front' | 'rear', devices: Map<string, DeviceNode>, stencil: (id: string) => StencilDef | undefined): CordTarget[] {
+  const out: CordTarget[] = [];
+  for (const it of rack.items) {
+    const d = it.nodeId ? devices.get(it.nodeId) : undefined;
+    const st = d ? stencil(d.data.stencilId) : undefined;
+    if (d && it.nodeId && onFace(it, face)) {
+      const ids = !st || st.style === 'icon'
+        ? (face === 'front' ? [...jackSpots(st, RAIL, 0).keys()] : [])
+        : st.ports.filter((q) => q.kind !== 'power' && (face === 'rear') === (q.face === 'rear')).map((q) => q.id);
+      for (const port of ids) { const [x, y] = portPoint(rack, it, st, port); out.push({ kind: 'port', nodeId: it.nodeId, port, x, y }); }
+    }
+    if (face !== 'rear') continue;
+    const src = sourceOf(it, d, st);
+    if (src) for (let o = 1; o <= src.outlets; o++) { const q = outletPoint(rack, it, o, src.outlets); if (q) out.push({ kind: 'outlet', item: it.id, outlet: o, x: q[0], y: q[1] }); }
+    for (const inl of inletsOf(it, d, st)) { const q = inletPoint(rack, it, d, st, inl.id); if (q) out.push({ kind: 'inlet', item: it.id, inlet: inl.id, x: q[0], y: q[1] }); }
+  }
+  return out;
 }
 
 /** The RJ45 plug's boot where a cord meets its port. */
@@ -577,7 +656,7 @@ function Plug({ x, y, color, w }: { x: number; y: number; color: string; w: numb
 /*  The elevation                                                      */
 /* ------------------------------------------------------------------ */
 
-export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width, portStates, cables, hotCable, onPortHover }: Props) {
+export function RackElevation({ rack, face, devices, stencil, selectedId, preview, hiddenId, onItemPointerDown, svgRef, width, portStates, cables, hotCable, onPortHover, onCordDown, cordDrag }: Props) {
   const size = rackSize(rack);
   const x0 = RAIL;
   const frameR = RAIL * 2 + INNER_W;
@@ -679,66 +758,87 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
         );
       })}
 
-      {face === 'rear' && (rack.power?.length ?? 0) > 0 && (() => {
-        // Power cords on the back: from each power supply (or a PDU's input) to its outlet, coloured by feed.
-        const cords = validCords(rack, devices, stencil);
-        const order = powerSources(rack, devices, stencil).map((s) => s.itemId);
-        // Feed A grey, feed B red (as cords are often coloured), then blue, green, purple.
-        const COLORS = ['#cbd5e1', '#dc2626', '#3b82f6', '#22c55e', '#a855f7'];
-        const byId = new Map(rack.items.filter((it) => it.id !== hiddenId).map((it) => [it.id, it]));
+      {(() => {
+        // Cords on this face: patch cords (between two ports in this rack, or a short lead from a port whose cable
+        // leaves it; a port on a device's back has its cord on the rear) and, on the back, power cords from each
+        // power supply to its outlet, coloured by feed. Routes are worked out together so each has its own lane.
+        type Draw = { kind: 'patch' | 'power'; id: string; a: [number, number]; b: [number, number] | null; route?: CordRoute; color: string; width: number; hot: boolean; ends: ['a' | 'b', 'a' | 'b'] };
+        const draws: Draw[] = [];
+        if (cables?.length) {
+          const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId && onFace(it, face)).map((it) => [it.nodeId!, it]));
+          const at = (nodeId: string, port?: string) => {
+            const it = itemOf.get(nodeId);
+            if (!it || isBackPort(port) !== (face === 'rear')) return null;
+            const d = devices.get(nodeId);
+            return portPoint(rack, it, d ? stencil(d.data.stencilId) : undefined, port);
+          };
+          for (const c of cables) {
+            const a0 = at(c.a.nodeId, c.a.port), b0 = c.inside ? at(c.b.nodeId, c.b.port) : null;
+            const a = a0 ?? b0;
+            if (!a) continue;
+            const hot = hotCable === c.id;
+            draws.push({ kind: 'patch', id: c.id, a, b: a0 ? b0 : null, route: c.data?.rackRoute, color: c.color, width: Math.max(2.5, Math.min(4, c.width)) + (hot ? 2 : 0), hot, ends: a0 ? ['a', 'b'] : ['b', 'a'] });
+          }
+        }
+        if (face === 'rear' && rack.power?.length) {
+          const order = powerSources(rack, devices, stencil).map((x) => x.itemId);
+          // Feed A grey, feed B red (as cords are often coloured), then blue, green, purple.
+          const COLORS = ['#cbd5e1', '#dc2626', '#3b82f6', '#22c55e', '#a855f7'];
+          const byId = new Map(rack.items.filter((it) => it.id !== hiddenId).map((it) => [it.id, it]));
+          for (const c of validCords(rack, devices, stencil)) {
+            const from = byId.get(c.from), to = byId.get(c.to);
+            if (!from || !to) continue;
+            const d = from.nodeId ? devices.get(from.nodeId) : undefined;
+            const td = to.nodeId ? devices.get(to.nodeId) : undefined;
+            const n = sourceOf(to, td, td ? stencil(td.data.stencilId) : undefined)?.outlets ?? (to.kind === 'pdu' ? PDU_OUTLETS : UPS_OUTLETS);
+            const a = inletPoint(rack, from, d, d ? stencil(d.data.stencilId) : undefined, c.inlet);
+            const b = outletPoint(rack, to, c.outlet, n);
+            if (a && b) draws.push({ kind: 'power', id: c.id, a, b, route: c.route, color: COLORS[Math.max(0, order.indexOf(c.to)) % COLORS.length], width: 3, hot: false, ends: ['a', 'b'] });
+          }
+        }
+        if (!draws.length) return null;
+        const keyOf = (x: { kind: string; id: string }) => `${x.kind}:${x.id}`;
+        const dragging = cordDrag ? draws.find((x) => x.kind === cordDrag.kind && x.id === cordDrag.id) : undefined;
+        const routes = resolveRoutes(draws.filter((x) => x.b).map((x) => ({
+          key: keyOf(x), a: x.a, b: x.b!,
+          route: dragging === x && cordDrag!.end === 'mid' ? routeAt(cordDrag!.x) : x.route,
+        })));
+        const live = !!onCordDown;
         return (
-          <g pointerEvents="none">
-            {cords.map((c, ci) => {
-              const from = byId.get(c.from), to = byId.get(c.to);
-              if (!from || !to) return null;
-              const d = from.nodeId ? devices.get(from.nodeId) : undefined;
-              const td = to.nodeId ? devices.get(to.nodeId) : undefined;
-              const n = sourceOf(to, td, td ? stencil(td.data.stencilId) : undefined)?.outlets ?? (to.kind === 'pdu' ? PDU_OUTLETS : UPS_OUTLETS);
-              const a = inletPoint(rack, from, d, d ? stencil(d.data.stencilId) : undefined, c.inlet);
-              const b = outletPoint(rack, to, c.outlet, n);
-              if (!a || !b) return null;
-              const color = COLORS[Math.max(0, order.indexOf(c.to)) % COLORS.length];
-              const p = cordPath(a, b, ci + 2);
-              return (
-                <g key={c.id}>
-                  <path d={p} fill="none" stroke="#000" strokeWidth={4.5} strokeLinecap="round" opacity={0.45} />
-                  <path d={p} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" />
-                  {[a, b].map((q, i) => <rect key={i} x={q[0] - 4} y={q[1] - 5} width={8} height={10} rx={1.5} fill={color} stroke="#0b0c0f" strokeWidth={0.8} />)}
+          <g>
+            {draws.map((c) => {
+              // A plug being dragged follows the pointer; its cord hangs straight to it.
+              const held = dragging === c && cordDrag!.end !== 'mid' ? cordDrag!.end : null;
+              let a = c.a, b = c.b;
+              if (held && b) { if (c.ends[0] === held) a = [cordDrag!.x, cordDrag!.y]; else b = [cordDrag!.x, cordDrag!.y]; }
+              else if (held && !b) a = [cordDrag!.x, cordDrag!.y];
+              const r = held ? { side: 'straight' as const, lane: 0 } : routes.get(keyOf(c));
+              const path = b && r ? routePath(a, b, r) : { d: `M${a[0]} ${a[1]} q 0 18 ${a[0] < RAIL + INNER_W / 2 ? -16 : 16} 26`, mid: null };
+              const plug = (p: [number, number], end: 'a' | 'b', i: number) => (
+                <g key={i} pointerEvents={live ? 'all' : 'none'} style={live ? { cursor: 'grab' } : undefined}
+                  onPointerDown={live ? (e) => { e.stopPropagation(); onCordDown!({ kind: c.kind, id: c.id, end }, e); } : undefined}>
+                  {c.kind === 'power'
+                    ? <rect x={p[0] - 4} y={p[1] - 5} width={8} height={10} rx={1.5} fill={c.color} stroke="#0b0c0f" strokeWidth={0.8} />
+                    : <Plug x={p[0]} y={p[1]} color={c.color} w={c.width} />}
+                  {live && <rect x={p[0] - 7} y={p[1] - 8} width={14} height={16} fill="transparent" />}
                 </g>
               );
-            })}
-          </g>
-        );
-      })()}
-
-      {cables && cables.length > 0 && (face === 'front' || cables.some((c) => isBackPort(c.a.port) || isBackPort(c.b.port))) && (() => {
-        // Patch cords: between two ports in this rack, or a short lead from a port whose cable leaves it. A port on a
-        // device's back (its back view) has its cord on the rear; a cord from the front to the back shows as a lead
-        // on each side.
-        const itemOf = new Map(rack.items.filter((it) => it.nodeId && it.id !== hiddenId && onFace(it, face)).map((it) => [it.nodeId!, it]));
-        const at = (nodeId: string, port?: string) => {
-          const it = itemOf.get(nodeId);
-          if (!it) return null;
-          if (isBackPort(port) !== (face === 'rear')) return null;
-          const d = devices.get(nodeId);
-          return portPoint(rack, it, d ? stencil(d.data.stencilId) : undefined, port);
-        };
-        return (
-          <g pointerEvents="none">
-            {cables.map((c, ci) => {
-              const a0 = at(c.a.nodeId, c.a.port), b0 = c.inside ? at(c.b.nodeId, c.b.port) : null;
-              const a = a0 ?? b0;
-              if (!a) return null;
-              const b = a0 ? b0 : null;
-              const hot = hotCable === c.id;
-              const w = Math.max(2.5, Math.min(4, c.width)) + (hot ? 2 : 0);
-              const d = b ? cordPath(a, b, ci) : `M${a[0]} ${a[1]} q 0 18 ${a[0] < RAIL + INNER_W / 2 ? -16 : 16} 26`;
               return (
-                <g key={c.id} opacity={hotCable && !hot ? 0.3 : 1}>
-                  <path d={d} fill="none" stroke="#000" strokeWidth={w + 2.5} strokeLinecap="round" opacity={0.55} />
-                  <path d={d} fill="none" stroke={c.color} strokeWidth={w} strokeLinecap="round" strokeDasharray={b ? undefined : '5 3'} />
-                  {b && <path d={d} fill="none" stroke="#ffffff" strokeWidth={w * 0.3} strokeLinecap="round" opacity={0.35} transform="translate(-0.6,-0.6)" />}
-                  {[a, b].filter(Boolean).map((p, i) => <Plug key={i} x={p![0]} y={p![1]} color={c.color} w={w} />)}
+                <g key={keyOf(c)} opacity={hotCable && c.kind === 'patch' && !c.hot ? 0.3 : 1}>
+                  <g pointerEvents="none">
+                    <path d={path.d} fill="none" stroke="#000" strokeWidth={c.width + (c.kind === 'power' ? 1.5 : 2.5)} strokeLinecap="round" opacity={c.kind === 'power' ? 0.45 : 0.55} />
+                    <path d={path.d} fill="none" stroke={c.color} strokeWidth={c.width} strokeLinecap="round" strokeDasharray={b || held ? undefined : '5 3'} />
+                    {b && c.kind === 'patch' && <path d={path.d} fill="none" stroke="#ffffff" strokeWidth={c.width * 0.3} strokeLinecap="round" opacity={0.35} transform="translate(-0.6,-0.6)" />}
+                  </g>
+                  {plug(a, c.ends[0], 0)}
+                  {b && plug(b, c.ends[1], 1)}
+                  {live && path.mid && !held && (
+                    <g style={{ cursor: 'ew-resize' }} onPointerDown={(e) => { e.stopPropagation(); onCordDown!({ kind: c.kind, id: c.id, end: 'mid' }, e); }}>
+                      <title>Drag to dress this cord down the left or right post, or across; double-click for automatic</title>
+                      <circle cx={path.mid[0]} cy={path.mid[1]} r={7} fill="transparent" />
+                      <circle cx={path.mid[0]} cy={path.mid[1]} r={3.5} fill="#ffffff" stroke={c.color} strokeWidth={1.5} opacity={c.route ? 1 : 0.75} />
+                    </g>
+                  )}
                 </g>
               );
             })}

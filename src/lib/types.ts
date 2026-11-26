@@ -521,6 +521,8 @@ export interface CableData extends Record<string, unknown>, TextLook {
   cable: CableType;
   /** Drawn only (never stored): the rack-only patch panels a diagram line passes through ("PP-A 12"). */
   via?: string;
+  /** The patch cord's dressing in its rack, set by hand (Rack view: drag the cord's middle handle). */
+  rackRoute?: CordRoute;
   label?: string;
   vlan?: string;
   layer?: string;
@@ -634,6 +636,15 @@ export interface RackItem {
   outlets?: number;
 }
 
+/**
+ * How a cord in a rack is dressed, when set by hand: hanging straight between its ends, or down the left / right post
+ * in a lane (0 = nearest the post). Missing = worked out.
+ */
+export interface CordRoute {
+  side: 'left' | 'right' | 'straight';
+  lane?: number;
+}
+
 /** A power cord in a rack: a rack item's inlet (a power supply, a PDU's input) into an outlet of a PDU or UPS. */
 export interface PowerCord {
   id: string;
@@ -643,6 +654,8 @@ export interface PowerCord {
   /** Rack item (PDU or UPS) and outlet number (1…). */
   to: string;
   outlet: number;
+  /** Dressed by hand (Rack view: drag the cord's middle handle). */
+  route?: CordRoute;
 }
 
 export interface Rack {
