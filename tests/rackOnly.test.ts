@@ -5,7 +5,7 @@ import { isShelfDevice, isSmallGear, rackKitFor } from '../src/lib/autoRack';
 import { fits } from '../src/lib/rack';
 import { drawingCables } from '../src/lib/rackOnly';
 import { INNER_PX, placeOnShelf, SHELF_PAD, shelfWidth } from '../src/lib/rackShelf';
-import { sanitizeProject } from '../src/lib/sanitize';
+import { sanitizeProject, sanitizeStencil } from '../src/lib/sanitize';
 import { STENCIL_MAP } from '../src/lib/stencils';
 import type { AppNode, CableEdge, Project, Rack, RackItem, StencilDef } from '../src/lib/types';
 import { billOfMaterials } from '../src/lib/bom';
@@ -147,5 +147,26 @@ describe('rack-mount kits in the bill of materials', () => {
     const lines = rackLines(proj(true));
     assert.ok(!lines.some((l) => /mount kit/.test(l)));
     assert.ok(lines.includes('Rack shelf 1U'));
+  });
+});
+
+describe('shapes of your own in a rack', () => {
+  const copy = (extra: Partial<StencilDef>) => ({ ...st('sonicwall-tz570-670'), id: 'custom-tz', custom: true, style: 'image', image: 'data:image/svg+xml,', desktop: undefined, rackKit: undefined, ...extra }) as StencilDef;
+  it('mounts a copy you gave a rack height (an older copy of the TZ has no desktop / kit setting)', () => {
+    const old = copy({ rackUnits: 1 });
+    assert.equal(isShelfDevice(old), false);
+    assert.equal(rackKitFor(old, false), 'Rack mount kit (brackets) for SonicWall TZ570 / TZ670');
+  });
+  it('follows Edit shape → In a rack', () => {
+    assert.equal(isShelfDevice(copy({ rackUnits: 1, desktop: true })), true);
+    assert.equal(rackKitFor(copy({ rackUnits: 1, desktop: true, rackKit: 'My kit' }), false), 'My kit');
+    assert.equal(isSmallGear(copy({ rackUnits: 1, desktop: false })), false);
+    assert.equal(rackKitFor(copy({ rackUnits: 1, desktop: false }), false), undefined);
+  });
+  it('keeps those settings in a library or client file', () => {
+    const s = sanitizeStencil({ ...copy({ rackUnits: 1, desktop: true, rackKit: 'My kit' }), image: 'data:image/png;base64,AA==' })!;
+    assert.deepEqual([s.desktop, s.rackKit], [true, 'My kit']);
+    const bad = sanitizeStencil({ ...copy({}), image: 'data:image/png;base64,AA==', desktop: 'yes', rackKit: 5 })!;
+    assert.deepEqual([bad.desktop, bad.rackKit], [undefined, undefined]);
   });
 });

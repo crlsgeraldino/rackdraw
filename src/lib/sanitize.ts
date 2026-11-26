@@ -174,6 +174,8 @@ export function sanitizeStencil(raw: unknown): StencilDef | null {
     style: 'image',
     library: typeof s.library === 'string' ? s.library.slice(0, 200) : undefined,
     rackUnits: s.rackUnits === undefined ? undefined : Math.max(1, Math.min(60, Math.round(num(s.rackUnits, 1)))),
+    desktop: typeof s.desktop === 'boolean' ? s.desktop : undefined,
+    rackKit: typeof s.rackKit === 'string' && s.rackKit.trim() ? s.rackKit.slice(0, 200) : undefined,
     defaults: isObj(s.defaults) ? (cleanDevice(s.defaults) as StencilDef['defaults']) : undefined,
     custom: true,
   };

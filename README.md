@@ -890,7 +890,10 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   - **Rack-mount kits**: a small unit can instead be mounted with its rack-mount kit (the rack item's **Mounting**):
     drawn with steel brackets out to the rails, and the kit goes in the bill of materials (bought separately). The
     SonicWall TZ570/TZ670 has its kit named and is mounted with it by default; other small units are on a shelf by
-    default and list a generic "Rack mount kit (brackets)" when mounted.
+    default and list a generic "Rack mount kit (brackets)" when mounted. For a shape of your own, Edit shape →
+    **In a rack** says which it is: a full-width 19 in faceplate, a desktop unit with a rack-mount kit (and the kit's
+    name for the bill of materials), or a desktop unit on a shelf. A shape you gave a rack height is mounted unless
+    you say it's on a shelf.
   - In the rack, pictures of a full-width faceplate are drawn post to post (as the real ones are); patch cords hang
     straight only between neighbouring units, longer ones run along the side of the rack.
   - Imported shapes (Visio stencils, pictures of a faceplate) without a rack size get one worked out from their

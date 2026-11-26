@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { libraryOf } from '@/lib/libraries';
+import { isShelfDevice, isSmallGear } from '@/lib/autoRack';
 import { STENCIL_CATEGORIES, type PortDef, type PortKind, type PortSide, type StencilCategory, type StencilDef } from '@/lib/types';
 import { allNodes } from '@/lib/project';
 import { useDiagram } from '@/store/useDiagramStore';
@@ -206,6 +207,39 @@ export function StencilEditor({ initial, isNew, onSave, onCancel }: { initial: S
                 {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((u) => <option key={u} value={u}>{u}U</option>)}
               </select>
             </label>
+            {!!s.rackUnits && (() => {
+              const mount = !isSmallGear(s) ? 'full' : isShelfDevice(s) ? 'shelf' : 'kit';
+              return (
+                <label className="block">
+                  <span className="mb-0.5 block text-[11px] font-medium text-gray-500">In a rack</span>
+                  <select
+                    className="w-full rounded border border-gray-300 px-1.5 py-1"
+                    value={mount}
+                    aria-label="In a rack"
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setS(v === 'full' ? { ...s, desktop: false, rackKit: undefined }
+                        : v === 'shelf' ? { ...s, desktop: true, rackKit: undefined }
+                        : { ...s, desktop: true, rackKit: s.rackKit ?? `Rack mount kit for ${s.name}` });
+                    }}
+                  >
+                    <option value="full">Full-width 19 in faceplate</option>
+                    <option value="kit">Desktop unit, mounted with a rack-mount kit</option>
+                    <option value="shelf">Desktop unit, on a shelf</option>
+                  </select>
+                  {mount === 'kit' && (
+                    <input
+                      className="mt-1 w-full rounded border border-gray-300 px-1.5 py-1 text-sm"
+                      value={s.rackKit ?? ''}
+                      placeholder={`Rack mount kit for ${s.name}`}
+                      aria-label="Rack-mount kit (bill of materials)"
+                      onChange={(e) => setS({ ...s, rackKit: e.target.value || undefined })}
+                    />
+                  )}
+                  {mount === 'kit' && <span className="text-[10px] text-gray-400">The kit is added to the bill of materials (bought separately).</span>}
+                </label>
+              );
+            })()}
 
             <div className="rounded border border-gray-200 p-2">
               <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{sel ? 'Selected port' : 'Ports'}</h3>
