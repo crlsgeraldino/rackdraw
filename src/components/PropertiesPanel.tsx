@@ -281,6 +281,14 @@ function DeviceProps({ node }: { node: DeviceNode }) {
         </label>
         <LayerSelect value={d.layer} onChange={(layer) => { snapshot(); update(node.id, { layer }); }} />
       </div>
+      <label className="mb-2 block" title="Rack only: drawn in its rack, not on the diagram (patch panels, cable managers). It still counts in the bill of materials, port maps and cable paths; cables through it are drawn as one line &quot;via&quot; it.">
+        <span className="mb-0.5 block text-[11px] font-medium text-gray-500">Show on</span>
+        <select className="w-full rounded border border-gray-300 px-1.5 py-1 text-sm" value={d.showOn ?? 'both'} aria-label="Show on"
+          onChange={(e) => { snapshot(); update(node.id, { showOn: e.target.value === 'rack' ? 'rack' : undefined }); }}>
+          <option value="both">Diagram and rack</option>
+          <option value="rack">Rack only (hidden on the diagram)</option>
+        </select>
+      </label>
       <Field label="Model" value={d.model} onChange={set('model')} />
       <Field label="Management IP" value={d.ip} onChange={set('ip')} mono after={<NextFreeIp onPick={(ip) => { snapshot(); update(node.id, { ip }); }} />} />
       <Field label="MAC address" value={d.mac} onChange={set('mac')} mono />

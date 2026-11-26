@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.7.0',
+    title: 'Patch panels in the rack only, small gear on shelves',
+    items: [
+      'Patch panels (and any device) can be shown in the rack only: Shape Data → Show on, or "Patch panels on the diagram" in the rack view. On the diagram, a cable run through them becomes one line "via PP-A 12".',
+      'They still count in the bill of materials, port maps, labels and cable paths. Patch panels added from the rack view start as rack only.',
+      'Small equipment (ISP modem, desktop firewall, 8-port switch) sits on a shelf in the rack at its real size, side by side, instead of being stretched into a 19 in faceplate.',
+    ],
+  },
+  {
     version: '1.6.2',
     title: 'Clearer patch cords in the rack',
     items: [

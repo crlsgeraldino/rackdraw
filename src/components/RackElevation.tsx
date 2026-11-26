@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { rackLabel } from '@/lib/rack';
+import { shelfArtHeight, shelfWidth, TRAY_PX } from '@/lib/rackShelf';
 import type { RackCable } from '@/lib/rackPatching';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import type { DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
@@ -81,9 +82,62 @@ export function artBox(st: StencilDef, x: number, y: number, w: number, h: numbe
   return { x: x + (w - aw) / 2, y: y + (h - ah) / 2, w: aw, h: ah, kx: k, ky: k, stretch: false };
 }
 
+/** A device standing on a shelf: its box (on the shelf's tray, at its own proportions). */
+function shelfBox(it: RackItem, st: StencilDef | undefined, x0: number, y: number) {
+  const ah = shelfArtHeight(it.height);
+  const w = shelfWidth(st, it.height);
+  return { x: x0 + (it.shelf?.x ?? 0), y: y + it.height * U_H - TRAY_PX - ah, w, h: ah };
+}
+
+/** Where a port of a device on a shelf is (its centre and size). */
+function shelfPort(st: StencilDef | undefined, box: { x: number; y: number; w: number; h: number }, port: string | undefined) {
+  if (!st || !port) return undefined;
+  if (st.style === 'icon' || !(st.width > 0) || !(st.height > 0)) {
+    const ps = st.ports.filter((p) => p.kind === 'rj45' || p.kind === 'sfp' || p.kind === 'link' || p.kind === 'console');
+    const i = ps.findIndex((p) => p.id === port);
+    return i < 0 ? undefined : { cx: box.x + (box.w * (i + 1)) / (ps.length + 1), cy: box.y + box.h * 0.72, w: 8, h: 7 };
+  }
+  const p = st.ports.find((q) => q.id === port);
+  if (!p) return undefined;
+  const kx = box.w / st.width, ky = box.h / st.height;
+  return { cx: box.x + (p.x + p.w / 2) * kx, cy: box.y + (p.y + p.h / 2) * ky, w: p.w * kx, h: p.h * ky };
+}
+
+/** A small device on a shelf, front or back: its own art at its own size, standing on the tray. */
+function ShelfDevice({ it, face, x0, y, device, stencil, ports }: { it: RackItem; face: 'front' | 'rear'; x0: number; y: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState> }) {
+  const b = shelfBox(it, stencil, x0, y);
+  if (face === 'rear') {
+    // Seen from the back the device stands at the mirrored place on the shelf.
+    const rx = x0 + INNER_W - (b.x - x0) - b.w;
+    return (
+      <g>
+        <rect x={rx} y={b.y} width={b.w} height={b.h} rx={2} fill="#2a2c31" stroke="#0b0c0f" />
+        <text x={rx + b.w / 2} y={b.y + b.h / 2 + 3} fontSize={7} fill="#d1d5db" textAnchor="middle">{rearName(device?.data.name ?? '').slice(0, Math.max(4, Math.floor(b.w / 5)))}</text>
+      </g>
+    );
+  }
+  if (!stencil || stencil.style === 'icon' || !(stencil.width > 0)) {
+    const size = Math.min(b.h - 6, 18);
+    return (
+      <g>
+        <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={3} fill="url(#rk-face-light)" stroke="#0b0c0f" />
+        {stencil && <g transform={`translate(${b.x + 4},${b.y + 3})`}><IconArt id={stencil.id} size={size} /></g>}
+        {(stencil?.ports ?? []).map((p) => { const s = shelfPort(stencil, b, p.id); return s ? <MiniJack key={p.id} cx={s.cx} cy={s.cy} lit={ports?.[p.id] === 'connected'} /> : null; })}
+      </g>
+    );
+  }
+  return stencil.style === 'image'
+    ? <image href={stencil.image} x={b.x} y={b.y} width={b.w} height={b.h} preserveAspectRatio="none" />
+    : <g transform={`translate(${b.x},${b.y})`}><PanelArt stencil={stencil} portStates={ports ?? {}} width={b.w} height={b.h} /></g>;
+}
+
 /** A port's box on the rack's front (for pointing at it), in the elevation's coordinates. */
 function portBox(rack: Rack, it: RackItem, st: StencilDef | undefined, port: string): { x: number; y: number; w: number; h: number } | null {
   const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W;
+  if (it.shelf) {
+    const s = shelfPort(st, shelfBox(it, st, RAIL, y), port);
+    return s ? { x: s.cx - Math.max(4, s.w / 2), y: s.cy - Math.max(4, s.h / 2), w: Math.max(8, s.w), h: Math.max(8, s.h) } : null;
+  }
   if (!st || st.style === 'icon') {
     const spot = jackSpots(st, RAIL, y).get(port);
     return spot ? { x: spot[0] - 9, y: spot[1] - 8, w: 18, h: 16 } : null;
@@ -417,6 +471,11 @@ function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; 
 /** Where a port sits on the rack's front (its centre), in the elevation's coordinates. */
 function portPoint(rack: Rack, it: RackItem, st: StencilDef | undefined, port: string | undefined): [number, number] {
   const y = slotY(rack, it.u, it.height), h = it.height * U_H, w = INNER_W;
+  if (it.shelf) {
+    const b = shelfBox(it, st, RAIL, y);
+    const s = shelfPort(st, b, port);
+    return s ? [s.cx, s.cy] : [b.x + b.w / 2, b.y + b.h / 2];
+  }
   if (!st || st.style === 'icon') return (port ? jackSpots(st, RAIL, y).get(port) : undefined) ?? [RAIL + w - 160, y + U_H / 2];
   const p = port ? st.ports.find((q) => q.id === port) : undefined;
   if (!p) return [RAIL + 24, y + h / 2];
@@ -520,12 +579,25 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
         );
       })}
 
-      {rack.items.filter((it) => onFace(it, face) && it.id !== hiddenId).map((it) => {
+      {rack.items.filter((it) => onFace(it, face) && it.id !== hiddenId).sort((a, b) => (a.shelf ? 1 : 0) - (b.shelf ? 1 : 0)).map((it) => {
         const y = slotY(rack, it.u, it.height);
         const h = it.height * U_H;
         const device = it.nodeId ? devices.get(it.nodeId) : undefined;
         const st = device ? stencil(device.data.stencilId) : undefined;
-        const name = it.kind === 'device' ? device?.data.name ?? 'Missing device' : it.label ?? it.kind;
+        if (it.shelf) {
+          // A small device on a shelf: drawn on the tray; the shelf's label names what stands on it.
+          const b = shelfBox(it, st, x0, y);
+          const bx = face === 'rear' ? x0 + INNER_W - (b.x - x0) - b.w : b.x;
+          return (
+            <g key={it.id} onPointerDown={onItemPointerDown ? (e) => onItemPointerDown(it, e) : undefined} style={onItemPointerDown ? { cursor: 'grab' } : undefined}>
+              <title>{device?.data.name ?? 'Missing device'}</title>
+              <ShelfDevice it={it} face={face} x0={x0} y={y} device={device} stencil={st} ports={device ? portStates?.get(device.id) : undefined} />
+              {selectedId === it.id && <rect x={bx - 3} y={b.y - 3} width={b.w + 6} height={b.h + 6} fill="none" stroke="#3b82f6" strokeWidth={3} rx={3} />}
+            </g>
+          );
+        }
+        const onShelfNames = it.kind === 'shelf' ? rack.items.filter((x) => x.shelf?.id === it.id).map((x) => devices.get(x.nodeId ?? '')?.data.name).filter(Boolean) : [];
+        const name = it.kind === 'device' ? device?.data.name ?? 'Missing device' : onShelfNames.length ? `${it.label ?? 'Shelf'}: ${onShelfNames.join(', ')}` : it.label ?? it.kind;
         const extra = it.kind === 'device' ? [device?.data.model, device?.data.ip].filter(Boolean).join(' · ') : '';
         const ghost = it.depth !== 'full' && it.depth !== face;
         return (

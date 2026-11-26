@@ -4,11 +4,12 @@ import { fmtRuntime, rackPower, upsRating } from '@/lib/rackPower';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { activePage, allDevices } from '@/lib/project';
 import { openPortMap } from '@/lib/events';
-import { rackUnitsOf } from '@/lib/autoRack';
+import { isShelfDevice, rackUnitsOf } from '@/lib/autoRack';
+import { shelfAt } from '@/lib/rackShelf';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
 import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
-import { pathLength, pathText, tracePath } from '@/lib/trace';
+import { isPassThrough, pathLength, pathText, tracePath } from '@/lib/trace';
 import { STENCILS } from '@/lib/stencils';
 import { PORT_STATUSES, type CableData, type Rack, type RackDepth, type RackItem, type StencilDef } from '@/lib/types';
 import { findStencil, getStencil, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
@@ -111,7 +112,7 @@ function SideList({ rack }: { rack: Rack | undefined }) {
               return (
                 <div key={n.id} draggable onDragStart={(e) => start(e, { type: 'node', nodeId: n.id, height: heightOf(s) })} className="flex cursor-grab items-center justify-between rounded border border-gray-200 px-2 py-1 text-xs hover:bg-gray-50" title="Drag into the rack">
                   <span className="truncate">{n.data.name}</span>
-                  <span className="ml-1 shrink-0 text-[10px] text-gray-400">{heightOf(s)}U</span>
+                  <span className="ml-1 shrink-0 text-[10px] text-gray-400">{isShelfDevice(s) ? 'shelf' : `${heightOf(s)}U`}</span>
                 </div>
               );
             })}
@@ -135,7 +136,7 @@ function SideList({ rack }: { rack: Rack | undefined }) {
                 {g.items.map((s) => (
                   <div key={s.id} draggable onDragStart={(e) => start(e, { type: 'stencil', stencilId: s.id, height: heightOf(s) })} className="flex cursor-grab items-center justify-between rounded px-2 py-1 text-xs hover:bg-gray-50" title="Drag into the rack: also adds it to the diagram">
                     <span className="truncate">{s.name}</span>
-                    <span className="ml-1 shrink-0 text-[10px] text-gray-400">{heightOf(s)}U</span>
+                    <span className="ml-1 shrink-0 text-[10px] text-gray-400">{isShelfDevice(s) ? 'shelf' : `${heightOf(s)}U`}</span>
                   </div>
                 ))}
               </div>
@@ -174,7 +175,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
   const cables = useMemo(() => (showCables ? rackCables(project, rack) : []), [project, rack, showCables]);
   const custom = useDiagram((s) => s.customStencils);
   const selectedId = useDiagram((s) => s.selectedRackItemId);
-  const { placeRackItem, updateRackItem, addDeviceToRack, selectRackItem } = useDiagram.getState();
+  const { placeRackItem, updateRackItem, addDeviceToRack, selectRackItem, putOnShelf } = useDiagram.getState();
   const [width, setWidth] = useState(440);
   const area = useRef<HTMLDivElement>(null);
   // Start zoomed so the front and rear views fit side by side.
@@ -194,13 +195,19 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
   const refs = { front: useRef<SVGSVGElement>(null), rear: useRef<SVGSVGElement>(null) };
   const stencil = (id: string) => findStencil(id, custom);
 
+  const racked = new Set((project.racks ?? []).flatMap((r) => r.items.map((it) => it.nodeId)).filter(Boolean));
+  const panelsInRacks = [...devices.values()].filter((n) => racked.has(n.id) && n.data.stencilId !== 'wall-jack' && isPassThrough(n, stencil(n.data.stencilId)));
   const depthFor = (face: 'front' | 'rear', p: Payload): RackDepth => (p.type === 'accessory' ? (ACCESSORIES[p.index].depth === 'full' ? 'full' : face) : 'full');
+  // Small equipment goes on a shelf: the one under the pointer, or a new 1U shelf in a free unit.
+  const shelfPayload = (p: Payload) => isShelfDevice(p.type === 'node' ? stencil(devices.get(p.nodeId)?.data.stencilId ?? '') : p.type === 'stencil' ? stencil(p.stencilId) : undefined);
+  const shelfOk = (u: number) => !!shelfAt(rack, u) || fits(rack, u, 1, 'full');
 
   const onDragOver = (face: 'front' | 'rear') => (e: React.DragEvent) => {
     if (!payload || !e.dataTransfer.types.includes(DND)) return;
     e.preventDefault();
     const u = uAtPoint(rack, refs[face].current!, e.clientY, payload.height);
-    setPreview({ face, p: { u, height: payload.height, valid: fits(rack, u, payload.height, depthFor(face, payload)) } });
+    const shelf = shelfPayload(payload);
+    setPreview({ face, p: { u, height: shelf ? 1 : payload.height, valid: shelf ? shelfOk(u) : fits(rack, u, payload.height, depthFor(face, payload)) } });
   };
   const onDrop = (face: 'front' | 'rear') => (e: React.DragEvent) => {
     e.preventDefault();
@@ -210,7 +217,8 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
     if (!p) return;
     const u = uAtPoint(rack, refs[face].current!, e.clientY, p.height);
     let ok = false;
-    if (p.type === 'node') ok = placeRackItem(rack.id, { kind: 'device', nodeId: p.nodeId, u, height: p.height, depth: 'full' });
+    const shelf = shelfPayload(p);
+    if (p.type === 'node') ok = shelf ? putOnShelf(rack.id, p.nodeId, u) : placeRackItem(rack.id, { kind: 'device', nodeId: p.nodeId, u, height: p.height, depth: 'full' });
     else if (p.type === 'accessory') {
       const a = ACCESSORIES[p.index];
       ok = placeRackItem(rack.id, { kind: a.kind, label: a.label.replace(/ \dU$/, ''), u, height: a.height, depth: depthFor(face, p) });
@@ -222,7 +230,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
       const same = [...devices.values()].filter((n) => n.data.stencilId === p.stencilId && !racked.has(n.id));
       const existing = same.find((n) => onPage.has(n.id)) ?? same[0];
       if (existing) {
-        ok = placeRackItem(rack.id, { kind: 'device', nodeId: existing.id, u, height: p.height, depth: 'full' });
+        ok = shelf ? putOnShelf(rack.id, existing.id, u) : placeRackItem(rack.id, { kind: 'device', nodeId: existing.id, u, height: p.height, depth: 'full' });
         if (ok) setNotice(`Mounted "${existing.data.name}", the one already on the diagram. To add another, drag the shape in again.`);
       } else {
         ok = addDeviceToRack(rack.id, p.stencilId, u);
@@ -230,7 +238,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
       }
     }
     if (p.type !== 'stencil') setNotice('');
-    setError(ok ? '' : `It doesn't fit at U${u}: that space is taken or outside the rack.`);
+    setError(ok ? '' : shelf ? `There is no room on a shelf at U${u}: drop it on a shelf with room, or in a free unit (a shelf is added).` : `It doesn't fit at U${u}: that space is taken or outside the rack.`);
   };
 
   /** Drag an item already in the rack to a new position. */
@@ -248,7 +256,7 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
       moved = true;
       target = u;
       setDragging(it);
-      setPreview({ face, p: { u, height: it.height, valid: fits(rack, u, it.height, it.depth, it.id) } });
+      setPreview({ face, p: { u, height: it.height, valid: it.shelf ? shelfOk(u) : fits(rack, u, it.height, it.depth, it.id) } });
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -269,7 +277,12 @@ function Elevations({ rack, hotCable }: { rack: Rack; hotCable: string | null })
       <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600">
         <BackToDiagram />
         <span>Drag devices and accessories from the left into the rack. Drag mounted items to move them.</span>
-        <label className="ml-auto flex items-center gap-1" title="Draw the cables between this rack's equipment on its front (from the diagram)">
+        {panelsInRacks.length > 0 && (
+          <label className="ml-auto flex items-center gap-1" title="Off: patch panels in racks are drawn here only. On the diagram, cables through them are one line &quot;via&quot; the panel. Each device can also be set in Shape Data → Show on.">
+            <input type="checkbox" checked={panelsInRacks.some((n) => n.data.showOn !== 'rack')} onChange={(e) => useDiagram.getState().setRackedPanelsShown(e.target.checked)} /> Patch panels on the diagram
+          </label>
+        )}
+        <label className={`${panelsInRacks.length ? 'ml-3' : 'ml-auto'} flex items-center gap-1`} title="Draw the cables between this rack's equipment on its front (from the diagram)">
           <input type="checkbox" checked={showCables} onChange={(e) => setShowCables(e.target.checked)} /> Patch cables
         </label>
         <div className="ml-2 flex items-center gap-1">
@@ -394,6 +407,10 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
               <input type="number" min={0} className={inputCls} value={d.weightLb ?? ''} onFocus={snapshot} onChange={(e) => updateNodeData(device.id, { weightLb: e.target.value === '' ? undefined : Number(e.target.value) })} />
             </Field>
           </div>
+          <label className="mb-2 flex items-start gap-1.5 text-xs text-gray-700" title="Patch panels, cable managers and the like usually belong in the rack only. Cables through a rack-only patch panel are drawn on the diagram as one line &quot;via&quot; it.">
+            <input type="checkbox" className="mt-0.5" checked={d.showOn !== 'rack'} onChange={(e) => { snapshot(); updateNodeData(device.id, { showOn: e.target.checked ? undefined : 'rack' }); }} />
+            <span>Show on the diagram too<span className="block text-[11px] text-gray-500">Off: only in the rack (still in the bill of materials, port maps and cable paths).</span></span>
+          </label>
           {d.stencilId === 'ups' && (
             <div className="flex gap-2">
               <Field label="UPS output (W)">
@@ -429,7 +446,7 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
       {err && <p className="mb-2 text-xs text-red-600">{err}</p>}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {device && (
+        {device && d?.showOn !== 'rack' && (
           <button
             className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
             onClick={() => {

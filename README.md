@@ -878,6 +878,15 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   that only carries uplinks) goes at the top of its rack.
   - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
     if it needs more units; what is mounted stays put) or **build new racks**.
+  - **Rack only** (Shape Data → Show on, or the rack item's "Show on the diagram too"): patch panels, cable managers
+    and the like can live in the rack only. They still count in the bill of materials, port maps, labels and cable
+    paths; on the diagram a run through them (switch → patch panel → wall jack) is drawn as one line "via PP-A 12".
+    The rack view's **Patch panels on the diagram** switch does it for every racked patch panel at once, and patch
+    panels added from the rack view start as rack only.
+  - **Shelves**: small equipment (the ISP modem, a desktop firewall such as the TZ570, an 8-port switch, an imported
+    picture narrower than a 19 in faceplate) stands on a shelf at its own size, side by side, instead of being
+    stretched into a faceplate. Rack from Diagram puts it on a shelf at the top; dragging it into the rack puts it on
+    the shelf under the pointer, or adds a 1U shelf in a free unit. Moving the shelf moves what stands on it.
   - In the rack, pictures of a full-width faceplate are drawn post to post (as the real ones are); patch cords hang
     straight only between neighbouring units, longer ones run along the side of the rack.
   - Imported shapes (Visio stencils, pictures of a faceplate) without a rack size get one worked out from their

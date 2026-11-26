@@ -1,4 +1,5 @@
 import { findFreeU, fits, RACK_SIZES } from './rack';
+import { INNER_PX, placeOnShelf, SHELF_GAP, SHELF_PAD, shelfWidth, U_PX } from './rackShelf';
 import type { DeviceNode, Rack, RackItem, StencilDef } from './types';
 
 /*
@@ -65,9 +66,33 @@ function guessedUnits(st?: StencilDef): number {
   const ratio = st.width / st.height;
   const gear = roleFromText(`${st.name} ${st.defaults?.model ?? ''}`.toLowerCase());
   // Faceplates are at least 4:1 (a 10U chassis is 19 x 17.5 in, about 1:1, but those come with a size).
-  if (ratio < 4 && !(ratio >= 2.5 && gear && gear !== 'other')) return 0;
+  // A tall picture (2.5:1 to 4:1) is a multi-unit chassis only for servers, storage and UPSs; a switch or firewall
+  // that shape is a small desktop unit (on a shelf).
+  if (ratio < 4 && !(ratio >= 2.5 && (gear === 'server' || gear === 'storage' || gear === 'ups'))) return 0;
   return Math.max(1, Math.min(10, Math.round(19 / ratio / 1.75)));
 }
+
+/** Built-in shapes of small equipment that isn't rack-mount but lives in the rack on a shelf. */
+const SHELF_BUILT_IN = new Set(['modem', 'lte-router']);
+
+/**
+ * Small equipment that sits on a shelf in a rack instead of being mounted: a desktop firewall or switch (the stencil
+ * says so), the ISP modem, a picture narrower than a 19 in faceplate, or an imported switch / firewall / router
+ * shape without a rack size.
+ */
+export function isShelfDevice(st?: StencilDef): boolean {
+  if (!st) return false;
+  if (st.desktop) return true;
+  if (!st.custom) return SHELF_BUILT_IN.has(st.id);
+  if (!(st.width > 0) || !(st.height > 0)) return false;
+  const units = rackUnitsOf(st);
+  if (units) return st.style === 'image' && st.width / st.height < ((INNER_PX - 6) / (units * U_PX - 6)) * 0.7;
+  const role = roleFromText(`${st.name} ${st.defaults?.model ?? ''}`.toLowerCase());
+  return role === 'edge' || role === 'switch' || role === 'server' || role === 'storage';
+}
+
+/** Whether Rack from Diagram puts a device in the rack: mounted (it has a rack size) or on a shelf. */
+export const rackable = (st?: StencilDef) => isShelfDevice(st) || rackUnitsOf(st) > 0;
 
 /** The order equipment goes into a rack, top down. */
 const ROLE_ORDER: Role[] = ['edge', 'panel', 'switch', 'server', 'storage', 'other', 'ups'];
@@ -79,13 +104,23 @@ const ROLE_ORDER: Role[] = ['edge', 'panel', 'switch', 'server', 'storage', 'oth
 export function mountInto(rack: Rack, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): { rack: Rack; mounted: number; left: DeviceNode[] } {
   const gear = devices
     .map((d) => ({ d, st: stencil(d.data.stencilId) }))
-    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st) }))
-    .filter((x) => x.units > 0)
+    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st), shelf: isShelfDevice(x.st) }))
+    .filter((x) => x.shelf || x.units > 0)
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
   let r: Rack = { ...rack, items: [...rack.items] };
   const left: DeviceNode[] = [];
   let mounted = 0;
+  const widthOf = (it: RackItem) => { const d = devices.find((x) => x.id === it.nodeId); return shelfWidth(d ? stencil(d.data.stencilId) : undefined, it.height); };
   for (const g of gear) {
+    if (g.shelf) {
+      let placed = placeOnShelf(r, g.d.id, shelfWidth(g.st, 1), widthOf);
+      while (!placed && r.units < MAX_RACK_U) {
+        r = { ...r, units: RACK_SIZES.find((n) => n > r.units) ?? MAX_RACK_U };
+        placed = placeOnShelf(r, g.d.id, shelfWidth(g.st, 1), widthOf);
+      }
+      if (placed) { r = placed; mounted++; } else left.push(g.d);
+      continue;
+    }
     let u = g.role === 'ups' ? lowestFree(r, g.units) : findFreeU(r, g.units, 'full');
     while (u === null && r.units < MAX_RACK_U) {
       // Grow from the top: positions count from the bottom, so what is mounted stays put.
@@ -106,7 +141,7 @@ function lowestFree(rack: Rack, height: number): number | null {
 
 /** The devices Rack from Diagram mounts: those with a rack size (their stencil's, or worked out). */
 export function mountableGear(devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): DeviceNode[] {
-  return devices.filter((d) => rackUnitsOf(stencil(d.data.stencilId)) > 0);
+  return devices.filter((d) => rackable(stencil(d.data.stencilId)));
 }
 
 /**
@@ -116,7 +151,7 @@ export function mountableGear(devices: DeviceNode[], stencil: (id: string) => St
 export function unsizedGear(devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined): DeviceNode[] {
   return devices.filter((d) => {
     const st = stencil(d.data.stencilId);
-    if (rackUnitsOf(st)) return false;
+    if (rackable(st)) return false;
     if (st && !st.custom) return st.style !== 'icon' && (st.category === 'Switching' || st.category === 'Firewalls');
     return rackRole(d, st) !== 'other' && roleFromText(`${st?.name ?? ''} ${d.data.model ?? ''}`.toLowerCase()) !== undefined;
   });
@@ -127,16 +162,27 @@ export function unsizedGear(devices: DeviceNode[], stencil: (id: string) => Sten
  * switch each patch panel sits above. Returns the rack (not yet added) and how many devices it holds.
  */
 export function planRack(name: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { rack: Rack; mounted: number } {
-  const gear = devices
+  const all = devices
     .map((d) => ({ d, st: stencil(d.data.stencilId) }))
-    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st) }))
-    .filter((x) => x.units > 0);
+    .map((x) => ({ ...x, units: rackUnitsOf(x.st), role: rackRole(x.d, x.st), shelf: isShelfDevice(x.st) }));
+  const gear = all.filter((x) => !x.shelf && x.units > 0);
+  const small = all.filter((x) => x.shelf);
   const by = (r: Role) => gear.filter((g) => g.role === r);
   const linked = (a: string, b: string) => cables.filter((c) => (c.a === a && c.b === b) || (c.a === b && c.b === a)).length;
 
   // Top to bottom: what goes in, in order (null = a cable manager / blanking panel).
-  type Slot = { g?: (typeof gear)[number]; acc?: 'cable-manager' | 'blank' };
+  type Slot = { g?: (typeof gear)[number]; acc?: 'cable-manager' | 'blank'; shelf?: { g: (typeof gear)[number]; x: number }[] };
   const top: Slot[] = [];
+  // Small equipment (the ISP modem, a desktop firewall) on shelves at the top, side by side.
+  let shelf: { g: (typeof gear)[number]; x: number }[] = [];
+  let x = SHELF_PAD;
+  for (const g of small) {
+    const w = shelfWidth(g.st, 1);
+    if (shelf.length && x + w > INNER_PX - SHELF_PAD) { top.push({ shelf }); shelf = []; x = SHELF_PAD; }
+    shelf.push({ g, x });
+    x += w + SHELF_GAP;
+  }
+  if (shelf.length) top.push({ shelf });
   for (const g of by('edge')) top.push({ g });
   const panels = by('panel');
   const switches = by('switch');
@@ -172,7 +218,11 @@ export function planRack(name: string, devices: DeviceNode[], stencil: (id: stri
     const h = s.g ? s.g.units : 1;
     u -= h;
     if (s.g) add({ kind: 'device', nodeId: s.g.d.id, u: u + 1, height: h, depth: 'full' });
-    else add({ kind: s.acc!, label: s.acc === 'cable-manager' ? 'Cable manager' : 'Blanking panel', u: u + 1, height: 1, depth: s.acc === 'cable-manager' ? 'full' : 'front' });
+    else if (s.shelf) {
+      const id = `ri-${uid()}`;
+      items.push({ id, kind: 'shelf', label: 'Shelf', u: u + 1, height: 1, depth: 'full' });
+      for (const o of s.shelf) add({ kind: 'device', nodeId: o.g.d.id, u: u + 1, height: 1, depth: 'full', shelf: { id, x: o.x } });
+    } else add({ kind: s.acc!, label: s.acc === 'cable-manager' ? 'Cable manager' : 'Blanking panel', u: u + 1, height: 1, depth: s.acc === 'cable-manager' ? 'full' : 'front' });
   }
   if (middle.length && top.length) { u -= 1; add({ kind: 'blank', label: 'Blanking panel', u: u + 1, height: 1, depth: 'front' }); }
   for (const g of middle) { u -= g.units; add({ kind: 'device', nodeId: g.d.id, u: u + 1, height: g.units, depth: 'full' }); }
@@ -181,7 +231,7 @@ export function planRack(name: string, devices: DeviceNode[], stencil: (id: stri
   for (const g of bottom) { add({ kind: 'device', nodeId: g.d.id, u: b, height: g.units, depth: 'full' }); b += g.units; }
   if (b <= u) add({ kind: 'pdu', label: 'PDU', u: b, height: 1, depth: 'rear' });
 
-  return { rack: { id: `r-${uid()}`, name, units, items }, mounted: gear.length };
+  return { rack: { id: `r-${uid()}`, name, units, items }, mounted: gear.length + small.length };
 }
 
 /**
@@ -198,7 +248,7 @@ export const MAX_RACK_U = 48;
  */
 export function planRackSplit(name: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { racks: Rack[]; mounted: number } {
   const one = planRack(name, devices, stencil, cables, options);
-  const mountable = devices.filter((d) => rackUnitsOf(stencil(d.data.stencilId)) > 0);
+  const mountable = devices.filter((d) => rackable(stencil(d.data.stencilId)));
   if (one.rack.units <= MAX_RACK_U || mountable.length < 2) return { racks: [one.rack], mounted: one.mounted };
   const net = new Set<Role>(['edge', 'panel', 'switch']);
   let a = mountable.filter((d) => net.has(rackRole(d, stencil(d.data.stencilId))));
@@ -216,7 +266,7 @@ export function planRackSplit(name: string, devices: DeviceNode[], stencil: (id:
 export function planRacks(fallbackName: string, devices: DeviceNode[], stencil: (id: string) => StencilDef | undefined, cables: { a: string; b: string }[], options: { spare?: number } = {}): { racks: Rack[]; mounted: number } {
   const groups = new Map<string, DeviceNode[]>();
   for (const d of devices) {
-    if (!rackUnitsOf(stencil(d.data.stencilId))) continue;
+    if (!rackable(stencil(d.data.stencilId))) continue;
     const where = (d.data.location ?? '').trim();
     groups.set(where, [...(groups.get(where) ?? []), d]);
   }

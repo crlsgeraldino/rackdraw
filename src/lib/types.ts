@@ -59,6 +59,8 @@ export interface StencilDef {
   library?: string;
   /** Height in rack units when mounted; undefined = not rack-mount (sits on a shelf, 1U by default). */
   rackUnits?: number;
+  /** Smaller than a 19 in faceplate (a desktop firewall, an 8-port switch): in a rack it sits on a shelf. */
+  desktop?: boolean;
   defaults?: Partial<DeviceData>;
   /** The kinds of network it is used in (PAN … WAN). */
   networks?: NetworkScope[];
@@ -172,6 +174,12 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
   /** ISP / carrier circuit this device stands for (Internet, modem / ONT, router…). */
   circuit?: import('./lifecycle').CircuitInfo;
   status?: DeviceStatus;
+  /**
+   * Where the device is drawn: missing = on the diagram and in its rack; 'rack' = only in the rack (patch panels,
+   * cable managers…). A rack-only device still counts everywhere else (bill of materials, port maps, cable paths);
+   * on the diagram, cables through it are drawn as one line "via" it.
+   */
+  showOn?: 'rack';
   /** Layer id (see Project.layers). */
   layer?: string;
   ports?: Record<string, PortData>;
@@ -493,6 +501,8 @@ export type CableArrows = 'none' | 'end' | 'start' | 'both';
 
 export interface CableData extends Record<string, unknown>, TextLook {
   cable: CableType;
+  /** Drawn only (never stored): the rack-only patch panels a diagram line passes through ("PP-A 12"). */
+  via?: string;
   label?: string;
   vlan?: string;
   layer?: string;
@@ -600,6 +610,8 @@ export interface RackItem {
   nodeId?: string;
   /** Label for accessories. Devices use their diagram name. */
   label?: string;
+  /** A small device sitting on a shelf: the shelf item it is on, and how far from the shelf's left end (px of 440). */
+  shelf?: { id: string; x: number };
 }
 
 export interface Rack {
