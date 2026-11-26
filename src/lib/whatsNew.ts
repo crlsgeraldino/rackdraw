@@ -11,6 +11,16 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.11.0',
+    title: 'Tidy Diagram and network icons',
+    items: [
+      'Design → Tidy Diagram lays the page out in one click: top-down by cabling, fitted to the sheets, each rack boxed. One Ctrl+Z undoes it.',
+      'Design → Device Look → Icons draws switches, firewalls, servers, UPSes and PDUs as network symbols on that page; the rack keeps the faceplates.',
+      'Tidy can show UPS and PDU network connections that were in the rack only, and add the Internet above the modem.',
+      'Saved Visio drawings no longer get an empty extra page beside the drawing when the client has rack-only patch panels.',
+    ],
+  },
+  {
     version: '1.10.2',
     title: 'Visio drawings open in Visio',
     items: [

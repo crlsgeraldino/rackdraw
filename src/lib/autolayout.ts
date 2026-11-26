@@ -1,4 +1,5 @@
-import type { AppNode, CableEdge, StencilDef } from './types';
+import type { AppNode, CableEdge, Page, StencilDef } from './types';
+import { drawsAsSymbol, LOGICAL_SIZE, logicalKind } from './logicalIcon';
 
 /**
  * Auto-arrange (like Visio's Re-Layout Page, top to bottom): devices are put in rows by how far they are, in
@@ -6,8 +7,8 @@ import type { AppNode, CableEdge, StencilDef } from './types';
  * device under the devices it hangs off.
  */
 
-/** Rank of a stencil category at the top of a network: lower = higher up. */
-const RANK: Record<string, number> = { WAN: 0, Firewalls: 1, Switching: 2, Wireless: 3, Servers: 3, Endpoints: 4, Custom: 3, Layout: 5 };
+/** Rank of a stencil category at the top of a network: lower = higher up ('Internet': the Internet / ISP cloud). */
+const RANK: Record<string, number> = { Internet: -1, WAN: 0, Firewalls: 1, Switching: 2, Wireless: 3, Servers: 3, Endpoints: 4, Custom: 3, Layout: 5 };
 
 export interface LayoutItem {
   id: string;
@@ -183,8 +184,9 @@ export function layoutTopDown(items: LayoutItem[], edges: LEdge[], origin: { x: 
   return layoutPage('top-down', items, edges, origin, { portX });
 }
 
-/** Size of a device on the diagram from its stencil (or its set size). */
-export function deviceSize(n: AppNode, stencilOf: (id: string) => StencilDef | undefined) {
+/** Size of a device on the diagram from its stencil (or its set size); a network symbol on an icons page. */
+export function deviceSize(n: AppNode, stencilOf: (id: string) => StencilDef | undefined, look?: Page['look']) {
+  if (n.type === 'device' && drawsAsSymbol(look, stencilOf(n.data.stencilId))) return LOGICAL_SIZE[logicalKind(stencilOf(n.data.stencilId)!)];
   if (n.width && n.height) return { w: n.width, h: n.height };
   if (n.type === 'device') {
     const s = stencilOf(n.data.stencilId);

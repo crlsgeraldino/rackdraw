@@ -755,6 +755,17 @@ Each client project has **pages**, shown as tabs under the canvas (like Visio):
 
 - Cables end on an icon's picture (the modem's body, the cloud's outline) instead of the empty box around it.
 
+- **Design → Tidy Diagram**: one click from devices dropped anywhere (for example everything added from the rack
+  view) to a page you can hand a client. Devices go top-down by cabling (Internet, modem, firewall, switches, then
+  servers, UPSes and PDUs), rows fit the sheet width and never straddle a page break, and a labelled box goes round
+  each rack. Options: draw devices as icons; show rack-only gear that has network cables (UPS and PDU network cards;
+  patch panels stay in the rack); add an Internet cloud above a modem whose uplink is free. Icon names go beside the
+  icon, clear of the cables. One Ctrl+Z undoes it all.
+- **Design → Device Look**: draw a page's devices as **Faceplates** (front panels, ports and all) or **Icons**:
+  network symbols for switches, firewalls, routers, servers, storage, UPSes, PDUs and patch panels, imported vendor
+  faceplates included. Each cable leaves a symbol from the side facing its other end, and cables on one side are
+  spread apart in order so they don't cross. The rack view keeps the faceplates; Save as Visio drawing exports the
+  symbols.
 - **Design → Re-Layout Page** (like Visio): lay out the selection or the whole page **Top to bottom**, **Left to
   right**, as a **Compact tree**, **Radial** (core in the middle) or **Circular**, with Tight / Normal / Wide spacing.
   Devices under a switch are put in the order of the ports they use, so their cables don't cross.

@@ -28,6 +28,8 @@ import { askChoice } from '../ChoiceHost';
 import { rackFromDiagram } from '../rackFromDiagram';
 import { deviceFieldValue, reportFields } from '@/lib/report';
 import type { LayoutKind } from '@/lib/autolayout';
+import { TIDY_DEFAULTS, type TidyOptions } from '@/lib/tidy';
+import { useTidyDiagram } from '../tidyDiagram';
 import { BUILT_IN_TEMPLATES } from '@/lib/templates';
 import { HF_CODES } from '@/lib/headerFooter';
 import { TABLE_PRESETS, activeCell, deleteCol, deleteRow, insertCol, insertRow, makeTable } from '@/lib/table';
@@ -1855,6 +1857,71 @@ function ReLayoutPage() {
   );
 }
 
+/** Design → Tidy Diagram: one click to a presentable page (see lib/tidy.ts), with what it may change as options. */
+function TidyDiagram() {
+  const tidy = useTidyDiagram();
+  const page = useCurrentPage();
+  const [o, setO] = useState<TidyOptions>(TIDY_DEFAULTS);
+  const [icons, setIcons] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState('');
+  const asIcons = icons ?? true;
+  const check = (label: string, on: boolean, set: (v: boolean) => void, sub: string) => (
+    <label className="flex cursor-pointer items-start gap-2 rounded px-2 py-1 hover:bg-gray-50">
+      <input type="checkbox" className="mt-0.5" checked={on} onChange={(e) => set(e.target.checked)} />
+      <span><span className="block text-gray-900">{label}</span><span className="text-[10px] text-gray-500">{sub}</span></span>
+    </label>
+  );
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={300} trigger={(open, isOpen) => <Big icon="tidy" label="Tidy Diagram" onClick={() => { setDone(''); open(); }} active={isOpen} title="Lay this page out neatly in one click: devices top-down by cabling, on whole sheets, each rack boxed" />}>
+        {(close) => (
+          <div className="p-1 text-xs">
+            {check('Draw devices as icons', asIcons, setIcons, 'Switches, firewalls and servers as network symbols on this page; the faceplates stay in the rack view.')}
+            {check('Box each rack', o.rackZones, (v) => setO({ ...o, rackZones: v }), 'A labelled box round the devices in each rack.')}
+            {check('Show UPS and PDU connections', o.showRackGear, (v) => setO({ ...o, showRackGear: v }), 'Rack-only gear with network cables (UPS and PDU network cards) goes on the diagram. Patch panels stay in the rack.')}
+            {check('Add the Internet', o.internet, (v) => setO({ ...o, internet: v }), 'An Internet cloud above a modem or router whose uplink is free.')}
+            <div className="mt-1 flex items-center gap-2 border-t border-gray-100 px-2 pt-2">
+              <button
+                className="rounded bg-blue-600 px-3 py-1 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                disabled={busy || page.kind === 'floorplan'}
+                onClick={async () => { setBusy(true); try { setDone(await tidy({ ...o, icons: asIcons })); } finally { setBusy(false); } }}
+              >{busy ? 'Tidying…' : 'Tidy'}</button>
+              <button className="rounded px-2 py-1 text-gray-600 hover:bg-gray-100" onClick={close}>Close</button>
+            </div>
+            {page.kind === 'floorplan' && <p className="px-2 pt-1 text-[10px] text-gray-500">Floor plans keep devices where they are in the room.</p>}
+            {done && <p className="px-2 pt-1.5 text-[11px] text-green-800">{done}</p>}
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
+/** Design → Device Look: this page's devices as faceplates (as in the rack) or as network symbols. */
+function DeviceLook() {
+  const page = useCurrentPage();
+  const { setPageLook } = useDiagram.getState();
+  const opt = (label: string, sub: string, look: Page['look'], close: () => void) => (
+    <button className={`flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-blue-50 ${page.look === look ? 'bg-blue-50' : ''}`} onClick={() => { setPageLook(look); close(); }}>
+      <span className="font-medium text-gray-900">{page.look === look ? '✓ ' : ''}{label}</span>
+      <span className="text-[10px] text-gray-500">{sub}</span>
+    </button>
+  );
+  return (
+    <div className="flex items-start pt-1">
+      <Drop width={250} trigger={(open, isOpen) => <Big icon="look" label="Device Look" onClick={open} active={isOpen} title="Draw this page's devices as faceplates or as network symbols" />}>
+        {(close) => (
+          <div className="p-1 text-xs">
+            {opt('Faceplates', 'Each device as its front panel, ports and all.', undefined, close)}
+            {opt('Icons', 'Network symbols: a compact logical diagram. Cables leave from the side facing where they go.', 'icons', close)}
+          </div>
+        )}
+      </Drop>
+    </div>
+  );
+}
+
 /** Design → Themes: a row of theme swatches; click applies to this page, the menu applies to every page. */
 function ThemeGallery() {
   const project = useCurrentProject();
@@ -1956,7 +2023,9 @@ function DesignTab() {
         <Big icon="titleBlock" label="Title Block" active={!!tb?.show} onClick={() => s.updateTitleBlock({ show: !tb?.show })} title="Title block on every printed / PDF sheet (edit it in the panel with nothing selected)" />
       </Group>
       <Group label="Layout">
+        <TidyDiagram />
         <ReLayoutPage />
+        <DeviceLook />
       </Group>
       <Group label="Themes">
         <ThemeGallery />

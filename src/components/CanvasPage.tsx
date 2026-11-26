@@ -8,7 +8,9 @@ import { INFO_GAP, overlaySize, useOverlayVersion } from '@/lib/overlays';
 import { usePref } from '@/lib/prefs';
 import { FRAME_COLOR, type DeviceData } from '@/lib/types';
 import { borderLayout, pageBorderText, type BorderPart } from '@/lib/borders';
-import { useCurrentPage, useCurrentProject } from '@/store/useDiagramStore';
+import { getStencil, useCurrentPage, useCurrentProject, useDiagram } from '@/store/useDiagramStore';
+import { drawsAsSymbol } from '@/lib/logicalIcon';
+import { activePage } from '@/lib/project';
 
 export const RULER = 18;
 
@@ -31,8 +33,18 @@ function contentKey(s: NodesStore) {
     const label = overlaySize(`${n.id}|label`);
     if (label) {
       const o = d.labelOffset ?? { x: 0, y: 0 };
-      y1 = Math.max(y1, y + h + 4 + o.y + label.h); y0 = Math.min(y0, y + h + 4 + o.y);
-      x1 = Math.max(x1, x + o.x + label.w);
+      if (d.labelBeside) {
+        // Beside an icon, on its left, centred on it.
+        const lx = x - 8 - label.w + o.x, ly = y + h / 2 - label.h / 2 + o.y;
+        x0 = Math.min(x0, lx); y0 = Math.min(y0, ly); y1 = Math.max(y1, ly + label.h);
+      } else {
+        // Below: centred under an icon or network symbol, from the left edge under a faceplate.
+        const st = getStencil(d.stencilId);
+        const centred = st?.style === 'icon' || drawsAsSymbol(activePage(useDiagram.getState().projects[useDiagram.getState().currentId])?.look, st);
+        const lx = (centred ? x + w / 2 - label.w / 2 : x) + o.x;
+        y1 = Math.max(y1, y + h + 4 + o.y + label.h); y0 = Math.min(y0, y + h + 4 + o.y);
+        x0 = Math.min(x0, lx); x1 = Math.max(x1, lx + label.w);
+      }
     }
   }
   return x0 === Infinity ? '' : `${Math.round(x0)},${Math.round(y0)},${Math.round(x1)},${Math.round(y1)}`;

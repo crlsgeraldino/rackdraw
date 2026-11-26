@@ -1,11 +1,14 @@
 'use client';
 
-import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, type NodeProps } from '@xyflow/react';
+import { Handle, NodeResizer, Position, useInternalNode, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { activePage } from '@/lib/project';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import { DEFAULT_LABEL_FIELDS, DEVICE_STATUSES, isDocumented, type BackdropNode, type DeviceData, type DeviceNode, type NoteNode, type PortDef, dashFor, listLines, lookStyle, patternOf, textDirStyle, type ShapeData, type ShapeNode, type StencilDef, type ZoneNode } from '@/lib/types';
-import { useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { getStencil, useCurrentProject, useDiagram, useStencil } from '@/store/useDiagramStore';
+import { drawsAsSymbol, LOGICAL_SIZE, logicalKind, logicalPorts, logicalSrc, nodeBox, type PortSpot } from '@/lib/logicalIcon';
+import { drawingCables } from '@/lib/rackOnly';
+import type { AppNode, CableEdge } from '@/lib/types';
 import { sideOf } from '@/lib/backView';
 import { deviceFieldValue } from '@/lib/report';
 import { realArea } from '@/lib/units';
@@ -26,6 +29,7 @@ import { useDisplay } from './useDisplay';
 import { safeFitView } from '@/lib/fit';
 
 const SIDES: PortDef['side'][] = ['top', 'right', 'bottom', 'left'];
+const NO_PORT_IDS: string[] = [];
 /** Which way a port faces once the device is turned clockwise by `deg` (quarter turns). */
 const turnSide = (side: PortDef['side'], deg: number) => SIDES[(SIDES.indexOf(side) + Math.round(deg / 90)) % 4];
 
@@ -203,6 +207,36 @@ function shownSide(full: StencilDef | undefined, back: boolean): StencilDef | un
   return m[key];
 }
 
+/** The cables as drawn on a page (rack-only devices taken out), and its nodes by id; cached per nodes / edges. */
+const drawnCache = new WeakMap<CableEdge[], { nodes: AppNode[]; edges: CableEdge[]; byId: Map<string, AppNode> }>();
+function drawnOf(nodes: AppNode[], edges: CableEdge[]) {
+  const hit = drawnCache.get(edges);
+  if (hit && hit.nodes === nodes) return hit;
+  const d = drawingCables(nodes, edges, getStencil);
+  const out = { nodes, edges: [...edges.filter((e) => !d.hidden.has(e.id)), ...d.via], byId: new Map(nodes.map((n) => [n.id, n])) };
+  drawnCache.set(edges, out);
+  return out;
+}
+
+/**
+ * A device drawn as a network symbol: where each of its ports sits, recomputed as the devices at the other ends of
+ * its cables move (each cable leaves from the edge facing its other end).
+ */
+function useSymbolPorts(id: string, on: boolean, ports: string[], w: number, h: number): Record<string, PortSpot> {
+  const key = useDiagram((s) => {
+    if (!on) return '';
+    const pg = activePage(s.projects[s.currentId]);
+    const { edges, byId } = drawnOf(pg.nodes, pg.edges);
+    const spots = logicalPorts(id, ports, w, h, edges, (x) => nodeBox(byId.get(x)));
+    return ports.map((p) => `${Math.round(spots[p].x)},${Math.round(spots[p].y)},${spots[p].side}`).join(';');
+  });
+  const update = useUpdateNodeInternals();
+  useEffect(() => { if (key) update(id); }, [key, id, update]);
+  const out: Record<string, PortSpot> = {};
+  if (key) key.split(';').forEach((v, i) => { const [x, y, side] = v.split(','); out[ports[i]] = { x: +x, y: +y, side: side as PortSpot['side'] }; });
+  return out;
+}
+
 function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>) {
   const full = useStencil(data.stencilId);
   // A device with a back view shows one side here (Shape Data → Show); the other side's ports stay connectable.
@@ -227,6 +261,11 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
   const snapshot = useDiagram((s) => s.snapshot);
   const display = useDisplay();
   const iconPorts = useIconPortOffsets(id, stencil);
+  // Design → Device Look "Icons": front-panel devices are drawn as network symbols on this page.
+  const look = useDiagram((s) => activePage(s.projects[s.currentId])?.look);
+  const symbol = !id.startsWith('bg:') && drawsAsSymbol(look, full) ? logicalKind(full!) : null;
+  const symSize = symbol ? LOGICAL_SIZE[symbol] : { w: 0, h: 0 };
+  const spots = useSymbolPorts(id, !!symbol, symbol ? full!.ports.map((p) => p.id) : NO_PORT_IDS, symSize.w, symSize.h);
   if (!stencil) {
     return (
       <div className="w-48 rounded border border-red-400 bg-red-50 p-2 text-xs text-red-800">
@@ -320,6 +359,34 @@ function DeviceNodeView({ id, data, selected, dragging }: NodeProps<DeviceNode>)
       ? <div key={p.id} className="pointer-events-none absolute rounded-sm" style={{ ...box, outline: '2px solid #f97316', outlineOffset: 1 }} />
       : <div key={p.id} className="pointer-events-none absolute" style={box}><span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-blue-600 ring-1 ring-white" /></div>;
   });
+
+  if (symbol) {
+    const { w, h } = symSize;
+    return (
+      <div className={`relative flex flex-col items-center ${selected ? 'nc-selected-icon' : ''}`} style={{ width: w }} {...hover.bind}>
+        {quickInfo}
+        <NodeBadges data={data} selected={selected} />
+        <DataGraphics data={data} />
+        <div className="relative" style={{ width: w, height: h, ...outline, ...fade }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logicalSrc(symbol)} width={w} height={h} alt="" draggable={false} className="pointer-events-none block select-none" />
+          {borderBox(w, h)}
+          {full!.ports.map((p) => {
+            const at = spots[p.id] ?? { x: w / 2, y: h, side: 'bottom' as const };
+            // React Flow ends a cable at the handle's outer edge: put that edge on the symbol's edge.
+            const left = at.side === 'left' ? 0 : at.side === 'right' ? w - 8 : at.x - 4;
+            const top = at.side === 'top' ? 0 : at.side === 'bottom' ? h - 8 : at.y - 4;
+            return (
+              <Handle key={p.id} id={p.id} type="source" position={SIDE[at.side]} className="nc-handle-dot" title={data.ports?.[p.id]?.label || p.label}
+                style={{ left, top, width: 8, height: 8 }} />
+            );
+          })}
+        </div>
+        <DeviceLabel id={id} data={data} variant="icon" />
+        <DeviceInfoBox id={id} data={data} />
+      </div>
+    );
+  }
 
   if (stencil.style === 'icon') {
     return (

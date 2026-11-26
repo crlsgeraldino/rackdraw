@@ -29,6 +29,8 @@ const P: Record<string, ReactNode> = {
   unlock: <><rect x="4" y="9" width="12" height="9" rx="1" /><path d="M7 9V6a3 3 0 0 1 6-.5" /></>,
   arrange: <><rect x="7.5" y="1.5" width="5" height="4" /><rect x="1.5" y="14" width="5" height="4" /><rect x="13.5" y="14" width="5" height="4" /><path d="M10 5.5V10M4 14v-4h12v4" /></>,
   find: <><circle cx="8.5" cy="8.5" r="5.5" /><path d="M13 13l5 5" /></>,
+  tidy: <><rect x="2" y="12.5" width="16" height="6" rx="1.5" strokeDasharray="2 1.5" /><rect x="8" y="2" width="4" height="3" /><rect x="4" y="14.5" width="4" height="2" /><rect x="12" y="14.5" width="4" height="2" /><path d="M10 5v4M6 14.5V9h8v5.5" /><path d="M15.5 1.5l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5z" fill="#f59e0b" stroke="#f59e0b" strokeWidth=".6" /></>,
+  look: <><rect x="1.5" y="3" width="9" height="4" rx=".8" /><path d="M3.5 5h1M6 5h1M8.5 5h.5" /><rect x="10" y="12" width="8.5" height="5" rx="1" fill="#2563eb" stroke="#1e3a8a" /><path d="M6 7.5v3.5h4" /><path d="M8.5 9.5l1.5 1.5-1.5 1.5" /></>,
   replace: <><path d="M3 6h10l-3-3M17 14H7l3 3" /></>,
   selectAll: <><rect x="2" y="2" width="16" height="16" strokeDasharray="2 2" /><path d="M6 10l3 3 5-6" /></>,
   page: <><path d="M5 2h7l4 4v12H5z" /><path d="M12 2v4h4" /></>,
