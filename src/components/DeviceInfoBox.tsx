@@ -64,17 +64,23 @@ function InfoBoxBody({ id, data }: { id: string; data: DeviceData }) {
         </table>
       )}
       {ports.length > 0 && (
-        <div className={rows.length ? 'mt-1 border-t border-gray-200 pt-1' : ''}>
-          {ports.map((p) => (
-            <div key={p.id} className="flex gap-1.5 whitespace-nowrap">
-              <span className="w-7 shrink-0 font-mono font-semibold">{p.label}</span>
-              {p.uplink && <span className="shrink-0 font-semibold text-orange-600">UP</span>}
-              <span className="min-w-0">
-                {[p.to && `→ ${p.to}`, p.ip, p.vlan && `VLAN ${p.vlan}`].filter(Boolean).join(' · ') || p.notes}
-              </span>
-            </div>
-          ))}
-        </div>
+        // A column as wide as the longest port name ("RJ45 38", "NIC 1 RJ45", "SFP28 49"), so nothing runs into
+        // what the port connects to.
+        <table className={`w-full ${rows.length ? 'mt-1 border-t border-gray-200' : ''}`}>
+          <tbody>
+            {ports.map((p) => (
+              <tr key={p.id} className="align-top">
+                <td className="whitespace-nowrap pr-1.5 font-mono font-semibold">
+                  {p.label}
+                  {p.uplink && <span className="ml-1 font-sans text-orange-600">UP</span>}
+                </td>
+                <td className="break-words">
+                  {[p.to && `→ ${p.to}`, p.ip, p.vlan && `VLAN ${p.vlan}`].filter(Boolean).join(' · ') || p.notes}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
       {fields.includes('notes') && data.notes && <p className="mt-1 whitespace-pre-wrap border-t border-gray-200 pt-1 text-gray-600">{data.notes}</p>}
     </div>

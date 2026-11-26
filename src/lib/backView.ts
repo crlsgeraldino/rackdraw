@@ -73,3 +73,8 @@ export function backIds(custom: Record<string, StencilDef>): Set<string> {
   for (const s of Object.values(custom)) { const b = backOf(s, custom); if (b) out.add(b.id); }
   return out;
 }
+
+/** The name a new device of this shape gets: a two-sided shape's "… - Front" is the whole device, so without it. */
+export function deviceName(st: StencilDef): string {
+  return st.back ? st.name.replace(FRONT, '').trim() || st.name : st.name;
+}
