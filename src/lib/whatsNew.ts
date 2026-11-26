@@ -11,6 +11,14 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.7.1',
+    title: 'Your own shapes: full width, rack kit or shelf',
+    items: [
+      'Edit shape → In a rack: a full-width 19 in faceplate, a desktop unit mounted with a rack-mount kit (with the kit\'s name for the bill of materials), or a desktop unit on a shelf.',
+      'A shape of your own with a rack height (e.g. a copy of the SonicWall set to 1U) is mounted in the rack with its kit instead of being put on a shelf.',
+    ],
+  },
+  {
     version: '1.7.0',
     title: 'Patch panels in the rack only, small gear on shelves or kits',
     items: [

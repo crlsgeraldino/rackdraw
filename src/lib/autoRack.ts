@@ -82,7 +82,7 @@ const SHELF_BUILT_IN = new Set(['modem', 'lte-router']);
  */
 export function isSmallGear(st?: StencilDef): boolean {
   if (!st) return false;
-  if (st.desktop) return true;
+  if (st.desktop !== undefined) return st.desktop;
   if (!st.custom) return SHELF_BUILT_IN.has(st.id);
   if (!(st.width > 0) || !(st.height > 0)) return false;
   const units = rackUnitsOf(st);
@@ -91,8 +91,12 @@ export function isSmallGear(st?: StencilDef): boolean {
   return role === 'edge' || role === 'switch' || role === 'server' || role === 'storage';
 }
 
-/** Small equipment that goes on a shelf by default: what has no rack-mount kit of its own (SonicWall TZs do). */
-export const isShelfDevice = (st?: StencilDef) => isSmallGear(st) && !st?.rackKit;
+/**
+ * Small equipment that goes on a shelf by default: what has no rack-mount kit of its own (SonicWall TZs do). A shape
+ * of your own with a rack height you chose (Edit shape → Rack height) is mounted, unless you said it's a desktop unit.
+ */
+export const isShelfDevice = (st?: StencilDef) =>
+  isSmallGear(st) && !st?.rackKit && !(st?.custom && st.rackUnits && st.desktop === undefined);
 
 /** The rack-mount kit a small device needs when it is mounted rather than on a shelf; undefined = none needed. */
 export function rackKitFor(st: StencilDef | undefined, onShelf: boolean): string | undefined {

@@ -59,7 +59,10 @@ export interface StencilDef {
   library?: string;
   /** Height in rack units when mounted; undefined = not rack-mount (sits on a shelf, 1U by default). */
   rackUnits?: number;
-  /** Smaller than a 19 in faceplate (a desktop firewall, an 8-port switch): in a rack it sits on a shelf. */
+  /**
+   * Smaller than a 19 in faceplate (a desktop firewall, an 8-port switch): in a rack it sits on a shelf, or is mounted
+   * with a rack-mount kit. false = a full-width faceplate, whatever its picture looks like; missing = worked out.
+   */
   desktop?: boolean;
   /**
    * The vendor's rack-mount kit (bracket) for a desktop unit, bought separately ("SonicWall TZ570/TZ670 rack mount
