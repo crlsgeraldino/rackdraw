@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { rackLabel } from '@/lib/rack';
 import { shelfArtHeight, shelfWidth, TRAY_PX } from '@/lib/rackShelf';
 import { isSmallGear } from '@/lib/autoRack';
+import { inletsOf, PDU_OUTLETS, powerSources, sourceOf, UPS_OUTLETS, validCords } from '@/lib/powerCords';
 import type { RackCable } from '@/lib/rackPatching';
 import { IconArt, PanelArt, type PortState } from '@/lib/stencils';
 import type { DeviceNode, Rack, RackItem, StencilDef } from '@/lib/types';
@@ -81,6 +82,39 @@ export function artBox(st: StencilDef, x: number, y: number, w: number, h: numbe
   if (fullWidth) return { x: x + pad, y: y + pad, w: iw, h: ih, kx: iw / st.width, ky: ih / st.height, stretch: true };
   const aw = st.width * k, ah = st.height * k;
   return { x: x + (w - aw) / 2, y: y + (h - ah) / 2, w: aw, h: ah, kx: k, ky: k, stretch: false };
+}
+
+/** Outlet sockets in a row between `start` and `end` (from the slot's left edge): each one's left edge and width. */
+function outletRow(x: number, n: number, start: number, end: number) {
+  const sp = Math.min(40, (end - start) / Math.max(1, n));
+  return Array.from({ length: n }, (_, i) => ({ ox: x + start + i * sp, w: Math.min(26, sp - 4) }));
+}
+const PDU_ROW = [64, INNER_W - 92] as const;
+const UPS_ROW = [24, INNER_W - 130] as const;
+
+/** Where outlet `n` (1…) of a PDU / UPS is, on the back of the rack. */
+function outletPoint(rack: Rack, it: RackItem, outlet: number, count: number): [number, number] | null {
+  const y = slotY(rack, it.u, it.height), h = it.height * U_H;
+  const [a, b] = it.kind === 'pdu' ? PDU_ROW : UPS_ROW;
+  const o = outletRow(RAIL, count, a, b)[outlet - 1];
+  return o ? [o.ox + o.w / 2, y + h / 2] : null;
+}
+
+/** Where a rack item's power inlet is, on the back of the rack. */
+function inletPoint(rack: Rack, it: RackItem, d: DeviceNode | undefined, st: StencilDef | undefined, inlet: string): [number, number] | null {
+  const y = slotY(rack, it.u, it.height), h = it.height * U_H;
+  if (it.kind === 'pdu') return [RAIL + INNER_W - 77, y + h / 2];
+  if (it.shelf) {
+    const b = shelfBox(it, st, RAIL, y);
+    const rx = RAIL + INNER_W - (b.x - RAIL) - b.w;
+    return [rx + b.w - 6, b.y + b.h / 2];
+  }
+  const all = inletsOf(it, d, st);
+  const k = all.findIndex((i) => i.id === inlet);
+  if (k < 0) return null;
+  const n = all.length;
+  if (n <= 2) { const px = RAIL + INNER_W - 112 + (n === 1 ? 1 : k) * 54; return [px + 38.5, y + h / 2]; }
+  return [RAIL + INNER_W - 120 - (n - 1 - k) * 18, y + h / 2];
 }
 
 /** A device standing on a shelf: its box (on the shelf's tray, at its own proportions). */
@@ -336,7 +370,7 @@ function DeviceFace({ x, y, h, device, stencil, ports }: { x: number; y: number;
 export const rearName = (name: string) => name.replace(/\s*[-–(]\s*front(\s*view)?\s*\)?\s*$/i, '') || name;
 
 /** The back of any device: power supplies with fans and a handle, a row of fans, and its network ports. */
-function DeviceRear({ x, y, h, device, stencil, ports }: { x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState> }) {
+function DeviceRear({ x, y, h, device, stencil, ports, outlets }: { x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState>; outlets?: number }) {
   const w = INNER_W;
   if (stencil?.id.startsWith('patch-panel-fiber')) {
     // A fiber panel's back: splice cassettes with the trunk's fibers coiled in, and the trunk cable gland.
@@ -389,7 +423,9 @@ function DeviceRear({ x, y, h, device, stencil, ports }: { x: number; y: number;
       </g>,
     );
   }
-  const fans = Math.max(1, Math.min(4, Math.floor((w - 300) / (fanR * 2 + 12))));
+  // A UPS / switched PDU: a row of outlets on its back.
+  if (outlets) outletRow(x, outlets, UPS_ROW[0], UPS_ROW[1]).forEach(({ ox, w: ow }, i) => parts.push(<Outlet key={`o${i}`} x={ox} y={y + h / 2 - 9} w={ow} />));
+  const fans = outlets ? 0 : Math.max(1, Math.min(4, Math.floor((w - 300) / (fanR * 2 + 12))));
   for (let i = 0; i < fans; i++) {
     const cx = x + 30 + fanR + i * (fanR * 2 + 12), cy = y + h / 2;
     parts.push(
@@ -407,12 +443,24 @@ function DeviceRear({ x, y, h, device, stencil, ports }: { x: number; y: number;
   return <>{parts}</>;
 }
 
+/** A C13 outlet socket. */
+function Outlet({ x, y, w = 26 }: { x: number; y: number; w?: number }) {
+  const k = w / 26;
+  return (
+    <g>
+      <path d={`M${x} ${y + 3} L${x + 3 * k} ${y} H${x + 23 * k} L${x + w} ${y + 3} V${y + 18} H${x} Z`} fill="#26282d" stroke="#6b7280" />
+      <rect x={x + 7 * k} y={y + 6} width={2.5} height={6} fill="#0a0a0a" /><rect x={x + 16.5 * k} y={y + 6} width={2.5} height={6} fill="#0a0a0a" />
+      <rect x={x + 11.5 * k} y={y + 12} width={3} height={3} fill="#0a0a0a" />
+    </g>
+  );
+}
+
 function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; face: 'front' | 'rear'; x: number; y: number; h: number; device?: DeviceNode; stencil?: StencilDef; ports?: Record<string, PortState> }) {
   const w = INNER_W;
   const parts: ReactNode[] = [];
 
   if (it.kind === 'device') {
-    if (face === 'rear') parts.push(<DeviceRear key="r" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} />);
+    if (face === 'rear') parts.push(<DeviceRear key="r" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} outlets={sourceOf(it, device, stencil)?.outlets} />);
     else if (!stencil || stencil.style === 'icon') parts.push(<DeviceFace key="d" x={x} y={y} h={h} device={device} stencil={stencil} ports={ports} />);
     else {
       parts.push(<Face key="p" x={x} y={y} w={w} h={h} fill="#1a1b1f" />);
@@ -463,16 +511,9 @@ function ItemArt({ it, face, x, y, h, device, stencil, ports }: { it: RackItem; 
     parts.push(<Face key="p" x={x} y={y} w={w} h={h} fill="#141518" />);
     parts.push(<rect key="disp" x={x + 14} y={y + h / 2 - 9} width={38} height={18} rx={2} fill="#1c0606" stroke="#000" />);
     parts.push(<text key="amps" x={x + 33} y={y + h / 2 + 4} fontSize={10} fill="#f87171" textAnchor="middle" fontFamily="Consolas, monospace">4.2A</text>);
-    for (let i = 0; i < 8; i++) {
-      const ox = x + 70 + i * 40, oy = y + h / 2 - 9;
-      parts.push(
-        <g key={i}>
-          <path d={`M${ox} ${oy + 3} L${ox + 3} ${oy} H${ox + 23} L${ox + 26} ${oy + 3} V${oy + 18} H${ox} Z`} fill="#26282d" stroke="#6b7280" />
-          <rect x={ox + 7} y={oy + 6} width={2.5} height={6} fill="#0a0a0a" /><rect x={ox + 16.5} y={oy + 6} width={2.5} height={6} fill="#0a0a0a" />
-          <rect x={ox + 11.5} y={oy + 12} width={3} height={3} fill="#0a0a0a" />
-        </g>,
-      );
-    }
+    outletRow(x, it.outlets ?? PDU_OUTLETS, PDU_ROW[0], PDU_ROW[1]).forEach(({ ox, w: ow }, i) => parts.push(<Outlet key={i} x={ox} y={y + h / 2 - 9} w={ow} />));
+    // Its input (C20 inlet), plugged into the wall or a UPS.
+    parts.push(<rect key="in" x={x + w - 88} y={y + h / 2 - 8} width={22} height={16} rx={2} fill="#111" stroke="#9ca3af" />, <rect key="in2" x={x + w - 82} y={y + h / 2 - 3} width={10} height={6} fill="#374151" />);
     parts.push(<rect key="brk" x={x + w - 48} y={y + 8} width={30} height={h - 16} rx={2} fill="#26282d" stroke="#6b7280" />, <rect key="brk2" x={x + w - 40} y={y + h / 2 - 5} width={14} height={10} rx={1} fill="#e5e7eb" />);
   } else {
     parts.push(<Face key="p" x={x} y={y} w={w} h={h} />);
@@ -632,6 +673,38 @@ export function RackElevation({ rack, face, devices, stencil, selectedId, previe
           </g>
         );
       })}
+
+      {face === 'rear' && (rack.power?.length ?? 0) > 0 && (() => {
+        // Power cords on the back: from each power supply (or a PDU's input) to its outlet, coloured by feed.
+        const cords = validCords(rack, devices, stencil);
+        const order = powerSources(rack, devices, stencil).map((s) => s.itemId);
+        // Feed A grey, feed B red (as cords are often coloured), then blue, green, purple.
+        const COLORS = ['#cbd5e1', '#dc2626', '#3b82f6', '#22c55e', '#a855f7'];
+        const byId = new Map(rack.items.filter((it) => it.id !== hiddenId).map((it) => [it.id, it]));
+        return (
+          <g pointerEvents="none">
+            {cords.map((c, ci) => {
+              const from = byId.get(c.from), to = byId.get(c.to);
+              if (!from || !to) return null;
+              const d = from.nodeId ? devices.get(from.nodeId) : undefined;
+              const td = to.nodeId ? devices.get(to.nodeId) : undefined;
+              const n = sourceOf(to, td, td ? stencil(td.data.stencilId) : undefined)?.outlets ?? (to.kind === 'pdu' ? PDU_OUTLETS : UPS_OUTLETS);
+              const a = inletPoint(rack, from, d, d ? stencil(d.data.stencilId) : undefined, c.inlet);
+              const b = outletPoint(rack, to, c.outlet, n);
+              if (!a || !b) return null;
+              const color = COLORS[Math.max(0, order.indexOf(c.to)) % COLORS.length];
+              const p = cordPath(a, b, ci + 2);
+              return (
+                <g key={c.id}>
+                  <path d={p} fill="none" stroke="#000" strokeWidth={4.5} strokeLinecap="round" opacity={0.45} />
+                  <path d={p} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" />
+                  {[a, b].map((q, i) => <rect key={i} x={q[0] - 4} y={q[1] - 5} width={8} height={10} rx={1.5} fill={color} stroke="#0b0c0f" strokeWidth={0.8} />)}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
 
       {face === 'front' && cables && cables.length > 0 && (() => {
         // Patch cords on the front: between two ports in this rack, or a short lead from a port whose cable leaves it.

@@ -7,6 +7,7 @@ import { addEdge, type Connection, type EdgeChangeset, type NodeChangeset } from
 import { isPassThrough } from '@/lib/trace';
 import { isShelfDevice, mountInto, planRacks, rackUnitsOf } from '@/lib/autoRack';
 import { placeOnShelf, shelfWidth } from '@/lib/rackShelf';
+import { plugInAll } from '@/lib/powerCords';
 import { labelledCables } from '@/lib/labels';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
@@ -335,7 +336,7 @@ interface DiagramState {
    */
   /** Mounts the page's unmounted rack equipment: in new racks, or into the rack `into` (grown if needed). */
   buildRackFromDiagram: (name?: string, into?: string) => number;
-  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes' | 'feedVolts' | 'feedAmps' | 'redundantFeeds'>>) => boolean;
+  updateRack: (id: string, patch: Partial<Pick<Rack, 'name' | 'units' | 'location' | 'notes' | 'feedVolts' | 'feedAmps' | 'redundantFeeds' | 'power'>>) => boolean;
   deleteRack: (id: string) => void;
   /** Places an item if it fits; returns false otherwise. */
   placeRackItem: (rackId: string, item: Omit<RackItem, 'id'>) => boolean;
@@ -349,6 +350,10 @@ interface DiagramState {
    * is already in this rack (on a shelf or mounted).
    */
   putOnShelf: (rackId: string, nodeId: string, u?: number) => boolean;
+  /** Plugs a rack item's inlet into an outlet of a PDU / UPS (replacing what was there), or unplugs it (`to` null). */
+  setPowerCord: (rackId: string, from: string, inlet: string, to: { item: string; outlet: number } | null) => void;
+  /** Plugs in every power supply and PDU in the rack not plugged in yet (all = unplug everything first). */
+  plugInRack: (rackId: string, fresh?: boolean) => void;
   /** Takes a small device off its shelf and mounts it with its rack-mount kit, in the highest free unit. */
   mountWithKit: (rackId: string, nodeId: string) => boolean;
   /** Shows or hides, on the diagram, every patch panel mounted in a rack (Show on: Rack only). */
@@ -2360,8 +2365,32 @@ export const useDiagram = create<DiagramState>()(
         removeRackItem: (rackId, itemId) => {
           get().snapshot();
           // Taking a shelf out takes what stands on it out of the rack too (it stays on the diagram).
-          commit({ racks: (cur().racks ?? []).map((x) => (x.id === rackId ? { ...x, items: x.items.filter((y) => y.id !== itemId && y.shelf?.id !== itemId) } : x)) });
+          commit({ racks: (cur().racks ?? []).map((x) => {
+            if (x.id !== rackId) return x;
+            const items = x.items.filter((y) => y.id !== itemId && y.shelf?.id !== itemId);
+            const ids = new Set(items.map((y) => y.id));
+            return { ...x, items, ...(x.power ? { power: x.power.filter((c) => ids.has(c.from) && ids.has(c.to)) } : {}) };
+          }) });
           set({ selectedRackItemId: null });
+        },
+        setPowerCord: (rackId, from, inlet, to) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          if (!r) return;
+          get().snapshot();
+          const rest = (r.power ?? []).filter((c) => !(c.from === from && c.inlet === inlet) && !(to && c.to === to.item && c.outlet === to.outlet));
+          const power = to ? [...rest, { id: `pc-${uid()}`, from, inlet, to: to.item, outlet: to.outlet }] : rest;
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, power } : x)) });
+        },
+        plugInRack: (rackId, fresh) => {
+          const racks = cur().racks ?? [];
+          const r = racks.find((x) => x.id === rackId);
+          if (!r) return;
+          const devs = new Map(cur().pages.flatMap((pg) => pg.nodes).filter((n): n is DeviceNode => n.type === 'device').map((n) => [n.id, n]));
+          const custom = get().customStencils;
+          get().snapshot();
+          const power = plugInAll(fresh ? { ...r, power: [] } : r, devs, (id) => findStencil(id, custom));
+          commit({ racks: racks.map((x) => (x.id === rackId ? { ...x, power } : x)) });
         },
         mountWithKit: (rackId, nodeId) => {
           const racks = cur().racks ?? [];

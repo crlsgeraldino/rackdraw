@@ -11,6 +11,15 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: '1.8.0',
+    title: 'Power cords in the rack',
+    items: [
+      'Plug each device\'s power supplies into a PDU or UPS outlet (select it in the rack), or click Plug in everything: PDUs into the UPS, two power supplies on two different PDUs.',
+      'The cords are drawn on the back of the rack, coloured by feed, and the rack shows the load on each PDU and UPS, what isn\'t plugged in, and missing redundancy.',
+      'PDUs and UPSes can have any number of outlets; the bill of materials counts a power cord for each supply plugged in.',
+    ],
+  },
+  {
     version: '1.7.1',
     title: 'Your own shapes: full width, rack kit or shelf',
     items: [

@@ -188,6 +188,8 @@ export interface DeviceData extends Record<string, unknown>, NodeExtras, TextLoo
    * on the diagram, cables through it are drawn as one line "via" it.
    */
   showOn?: 'rack';
+  /** How many power supplies it has (missing = its shape's power ports, else 2 for servers / storage, else 1). */
+  psus?: number;
   /** Layer id (see Project.layers). */
   layer?: string;
   ports?: Record<string, PortData>;
@@ -620,6 +622,19 @@ export interface RackItem {
   label?: string;
   /** A small device sitting on a shelf: the shelf item it is on, and how far from the shelf's left end (px of 440). */
   shelf?: { id: string; x: number };
+  /** Outlets on a PDU / UPS (missing = 8 on a PDU, 6 on a UPS). */
+  outlets?: number;
+}
+
+/** A power cord in a rack: a rack item's inlet (a power supply, a PDU's input) into an outlet of a PDU or UPS. */
+export interface PowerCord {
+  id: string;
+  /** Rack item plugged in, and which of its inlets ('PSU', 'PSU1', 'IN', or the stencil's power port id). */
+  from: string;
+  inlet: string;
+  /** Rack item (PDU or UPS) and outlet number (1…). */
+  to: string;
+  outlet: number;
 }
 
 export interface Rack {
@@ -628,6 +643,8 @@ export interface Rack {
   units: number;
   location?: string;
   notes?: string;
+  /** Power cords between the rack's equipment and its PDUs / UPSes (drawn on its back). */
+  power?: PowerCord[];
   /** The rack's power circuit: volts, amps, and whether it has A + B feeds (each must carry the whole load). */
   feedVolts?: number;
   feedAmps?: number;

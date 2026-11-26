@@ -6,6 +6,7 @@ import { activePage, allDevices } from '@/lib/project';
 import { openPortMap } from '@/lib/events';
 import { isShelfDevice, isSmallGear, rackKitFor, rackUnitsOf } from '@/lib/autoRack';
 import { shelfAt } from '@/lib/rackShelf';
+import { inletsOf, powerLoads, powerSources, sourceOf, validCords } from '@/lib/powerCords';
 import { ACCESSORIES, RACK_SIZES, fits, findFreeU, rackLabel, usedUnits } from '@/lib/rack';
 import { groupLibraries } from '@/lib/libraries';
 import { patchRows, rackCables, rackPortStates } from '@/lib/rackPatching';
@@ -454,6 +455,7 @@ function ItemProps({ rack, item, onHot }: { rack: Rack; item: RackItem; onHot: (
         </select>
       </Field>
       {err && <p className="mb-2 text-xs text-red-600">{err}</p>}
+      <ItemPower rack={rack} item={item} />
 
       <div className="mt-3 flex flex-wrap gap-2">
         {device && d?.showOn !== 'rack' && (
@@ -525,6 +527,113 @@ function Patching({ rack, onlyNode, onHot }: { rack: Rack; onlyNode?: string; on
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** The rack's items with their devices, for power cords. */
+function usePowerParts() {
+  const devices = useDevices();
+  const custom = useDiagram((s) => s.customStencils);
+  return { devices, stencil: (id: string) => findStencil(id, custom) };
+}
+
+/** Rack item → Power: plug each inlet into an outlet; a PDU / UPS: its outlets and what is on them. */
+function ItemPower({ rack, item }: { rack: Rack; item: RackItem }) {
+  const { devices, stencil } = usePowerParts();
+  const { setPowerCord, updateNodeData, updateRackItem, snapshot } = useDiagram.getState();
+  const d = item.nodeId ? devices.get(item.nodeId) : undefined;
+  const st = d ? stencil(d.data.stencilId) : undefined;
+  const inlets = inletsOf(item, d, st);
+  const source = sourceOf(item, d, st);
+  const cords = validCords(rack, devices, stencil);
+  const sources = powerSources(rack, devices, stencil).filter((s) => s.itemId !== item.id);
+  const nameOf = (itemId: string) => {
+    const it = rack.items.find((x) => x.id === itemId);
+    return it?.kind === 'device' ? devices.get(it.nodeId ?? '')?.data.name ?? 'Device' : `${it?.label || it?.kind || 'Item'} (U${it?.u})`;
+  };
+  const ownPorts = (st?.ports ?? []).some((p) => p.kind === 'power');
+  if (!inlets.length && !source) return null;
+  return (
+    <div className="mt-2 rounded border border-gray-200 p-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Power</div>
+      {d && !source && !ownPorts && inlets.length > 0 && (
+        <Field label="Power supplies">
+          <select className={inputCls} value={inlets.length} aria-label="Power supplies" onChange={(e) => { snapshot(); updateNodeData(d.id, { psus: Number(e.target.value) }); }}>
+            <option value={1}>1</option><option value={2}>2 (redundant)</option>
+          </select>
+        </Field>
+      )}
+      {inlets.map((inl) => {
+        const c = cords.find((x) => x.from === item.id && x.inlet === inl.id);
+        return (
+          <Field key={inl.id} label={`${inl.label} plugged into`}>
+            <select className={inputCls} aria-label={`${inl.label} plugged into`} value={c ? `${c.to}|${c.outlet}` : ''}
+              onChange={(e) => { const [to, o] = e.target.value.split('|'); setPowerCord(rack.id, item.id, inl.id, to ? { item: to, outlet: Number(o) } : null); }}>
+              <option value="">Not plugged in</option>
+              {sources.map((s) => (
+                <optgroup key={s.itemId} label={s.label}>
+                  {Array.from({ length: s.outlets }, (_, i) => i + 1).map((o) => {
+                    const on = cords.find((x) => x.to === s.itemId && x.outlet === o);
+                    const mine = on && on.from === item.id && on.inlet === inl.id;
+                    return <option key={o} value={`${s.itemId}|${o}`} disabled={!!on && !mine}>{`Outlet ${o}${on && !mine ? ` (${nameOf(on.from)})` : ''}`}</option>;
+                  })}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+        );
+      })}
+      {!sources.length && inlets.length > 0 && <p className="text-[11px] text-gray-500">Add a PDU (accessories) or a UPS to the rack to plug it in.</p>}
+      {source && (
+        <>
+          <Field label="Outlets">
+            <input type="number" min={1} max={48} className={inputCls} value={source.outlets} aria-label="Outlets" onFocus={snapshot}
+              onChange={(e) => { const n = Math.max(1, Math.min(48, Math.round(Number(e.target.value)) || 1)); updateRackItem(rack.id, item.id, { outlets: n }); }} />
+          </Field>
+          <ul className="text-[11px] text-gray-600">
+            {cords.filter((c) => c.to === item.id).sort((a, b) => a.outlet - b.outlet).map((c) => <li key={c.id}>Outlet {c.outlet}: {nameOf(c.from)}</li>)}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Rack → Power cords: plug everything in, the load on each PDU / UPS, and what isn't plugged in. */
+function RackPowerCords({ rack, watts, circuitW }: { rack: Rack; watts: (nodeId: string) => number; circuitW?: number }) {
+  const { devices, stencil } = usePowerParts();
+  const { plugInRack, snapshot, updateRack } = useDiagram.getState();
+  const sources = powerSources(rack, devices, stencil);
+  if (!sources.length) return <p className="mt-2 text-[11px] text-gray-500">Power cords: add a PDU (accessories) or a UPS to plug the equipment in.</p>;
+  const loads = powerLoads(rack, devices, stencil, watts, circuitW);
+  const cords = validCords(rack, devices, stencil);
+  return (
+    <div className="mt-3">
+      <div className="flex items-center text-[11px] uppercase tracking-wide text-gray-500">
+        Power cords ({cords.length})
+        <span className="ml-auto flex gap-1 normal-case tracking-normal">
+          <button className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50" onClick={() => plugInRack(rack.id)} title="Plug in every power supply and PDU not plugged in yet: two supplies on two different PDUs, PDUs into the UPS">Plug in everything</button>
+          {cords.length > 0 && <button className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50" onClick={() => { snapshot(); updateRack(rack.id, { power: [] }); }}>Unplug all</button>}
+        </span>
+      </div>
+      <dl className="mt-1 grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 rounded border border-gray-200 p-2 text-xs">
+        {loads.sources.map((s) => {
+          const pct = s.loadW / s.capacityW;
+          return (
+            <Fragment key={s.itemId}>
+              <dt className="truncate text-gray-500" title={s.label}>{s.label}</dt>
+              <dd title={s.assumed ? (s.kind === 'ups' ? 'UPS rating assumed: set it on the UPS' : 'PDU rating assumed (15 A at 120 V): set the rack circuit') : undefined}>
+                <span className="inline-block h-1.5 w-10 overflow-hidden rounded bg-gray-200 align-middle"><span className={`block h-full ${pct > 1 ? 'bg-red-500' : pct > 0.8 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, pct * 100)}%` }} /></span>
+                <span className="ml-1.5">{s.loadW} / {s.capacityW} W{s.assumed && <span className="text-gray-400"> *</span>}</span>
+              </dd>
+            </Fragment>
+          );
+        })}
+      </dl>
+      {loads.unplugged.length > 0 && <p className="mt-1 text-[11px] text-amber-700">⚠ Not plugged in: {loads.unplugged.join(', ')}</p>}
+      {loads.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-700">⚠ {w}</p>)}
+      <p className="mt-1 text-[10px] text-gray-400">Cords are drawn on the back of the rack. Select a device to choose the outlet of each power supply.</p>
     </div>
   );
 }
@@ -602,6 +711,7 @@ function RackProps({ rack, onHot }: { rack: Rack; onHot: (id: string | null) => 
       </div>
       <label className="mb-1 flex items-center gap-1.5 text-xs text-gray-700"><input type="checkbox" className="accent-blue-600" checked={!!rack.redundantFeeds} onChange={(e) => { snapshot(); updateRack(rack.id, { redundantFeeds: e.target.checked || undefined }); }} /> A + B feeds (each carries the whole rack)</label>
       {pw.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-700">⚠ {w}</p>)}
+      <RackPowerCords rack={rack} watts={(id) => pw.items.find((x) => x.nodeId === id)?.w ?? 0} circuitW={pw.circuit?.continuousW} />
       <p className="mt-1 text-[10px] text-gray-400">
         Adds each device&apos;s Power (W) and Weight, or a typical figure for built-in equipment{pw.typicalCount ? ` (${pw.typicalCount} typical)` : ''}, plus the PoE switches deliver. Heat = W × 3.412.{pw.ups.some((u) => u.assumed) ? ' * UPS rating assumed: set it on the UPS.' : ''}
       </p>

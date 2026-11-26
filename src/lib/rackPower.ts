@@ -50,6 +50,7 @@ export function runtimeAt(loadW: number, capacityW: number, runtimeHalfMin: numb
 export const isUps = (d: DeviceNode, st?: StencilDef) => st?.id === 'ups' || (!!st?.custom && /\bups\b/i.test(`${st.name} ${d.data.model ?? ''}`));
 
 export interface RackPowerItem {
+  nodeId: string;
   name: string;
   w: number;
   poeW: number;
@@ -92,6 +93,7 @@ export function rackPower(p: Project, rack: Rack, stencil: Stencils): RackPower 
     const poeW = Math.round(Object.entries(d.data.ports ?? {}).reduce((s, [port, pd]) =>
       s + (pd?.poe && pd.status !== 'disabled' && cabled.has(`${d.id}|${port}`) ? POE_WATTS[pd.poe] ?? 15.4 : 0), 0) / 0.9);
     items.push({
+      nodeId: d.id,
       name: d.data.name,
       w: (ownW ?? t?.w ?? 0) + (ownW === undefined ? poeW : 0),
       poeW: ownW === undefined ? poeW : 0,
@@ -108,7 +110,8 @@ export function rackPower(p: Project, rack: Rack, stencil: Stencils): RackPower 
     if (circuit.pct > 1) warnings.push(`Draws ${totalW} W: over the ${Math.round(continuousW)} W continuous rating (80%) of its ${rack.feedAmps} A / ${rack.feedVolts} V circuit${rack.redundantFeeds ? ' (each feed must carry it all)' : ''}`);
     else if (circuit.pct > 0.8) warnings.push(`Uses ${Math.round(circuit.pct * 100)}% of its circuit's continuous rating`);
   }
-  const ups = upsList.map((u) => {
+  // With power cords drawn, the cords say what each UPS carries (Rack → Power cords); without, it shares the rack.
+  const ups = (rack.power?.length ? [] : upsList).map((u) => {
     const r = upsRating(u);
     // A UPS carries the rack's equipment (shared between UPSes when there are several).
     const loadW = Math.round(totalW / upsList.length);

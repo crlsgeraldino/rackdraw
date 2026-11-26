@@ -878,6 +878,14 @@ Switch to **Racks** (View → Racks) to draw rack elevations for the client.
   that only carries uplinks) goes at the top of its rack.
   - When the client already has a rack, it asks: **add to that rack** (in the same top-down order, growing the rack
     if it needs more units; what is mounted stays put) or **build new racks**.
+  - **Power cords**: each device's power supplies plug into an outlet of a PDU or UPS, and a PDU's input into a UPS.
+    Select a rack item to choose the outlet of each supply (and 1 or 2 power supplies; servers and storage have 2),
+    or use **Plug in everything** (Rack → Power cords): PDUs into the UPS, a device's two supplies on two different
+    PDUs. The cords are drawn on the back of the rack, coloured by feed (grey, red, blue…). The rack panel shows the
+    load on each PDU and UPS against its rating (a PDU from the rack's circuit, else 15 A at 120 V; a UPS from its
+    own size), what isn't plugged in, and warnings: overloaded, both supplies on the same feed (no redundancy), or
+    overloaded if the other feed failed. PDUs and UPSes can have any number of outlets. The bill of materials counts
+    a C13–C14 cord for each supply plugged in.
   - **Rack only** (Shape Data → Show on, or the rack item's "Show on the diagram too"): patch panels, cable managers
     and the like can live in the rack only. They still count in the bill of materials, port maps, labels and cable
     paths; on the diagram a run through them (switch → patch panel → wall jack) is drawn as one line "via PP-A 12".
